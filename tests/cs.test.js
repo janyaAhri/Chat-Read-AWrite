@@ -285,7 +285,7 @@ const REPLY = `<think>วางแผน</think>
   sh().querySelector('[data-cs="cmtgen"]').click();
   await sleep(60);
   const call = E.w.__rawCalls[0];
-  ok(call && /janyaahri/.test(call.prompt) && /\[1\] ฝนตกหนักทั้งคืน/.test(call.prompt) && !/บทแห่งฝน\n/.test(call.prompt.split('Write')[0].replace('[', '')) && call.responseLength === 360, 'one raw call with chapter paragraphs + janyaahri', call && call.prompt.slice(0, 200));
+  ok(call && /janyaahri/.test(call.prompt) && /\[1\] ฝนตกหนักทั้งคืน/.test(call.prompt) && !/บทแห่งฝน\n/.test(call.prompt.split('Write')[0].replace('[', '')) && call.responseLength === 2000, 'one raw call with chapter paragraphs + janyaahri', call && call.prompt.slice(0, 200));
   ok(!/POCKET|อาเรีย: มาช้านะ/.test(call.prompt), 'prompt has only this chapter, no chat history');
   const d = E.ev(`csCmtData(${cid})`);
   ok(d && d.list[1].length === 2 && d.list[2].length === 1 && !d.list[99] && d.tok.in > 0 && d.tok.out > 0 && E.w.__saved > 0, 'comments stored with message, invalid paragraph dropped, saved');
@@ -619,7 +619,7 @@ const REPLY = `<think>วางแผน</think>
     const R = () => G.d.getElementById('cs-reader');
     G.ev('csReader.player.all()');
     const bar = R().querySelector(`.cs-cmtbar[data-mes="${nid}"]`);
-    ok(bar && /2 ความคิดเห็น/.test(bar.textContent), 'comment bar under the message in chat reader', bar && bar.textContent);
+    ok(bar && bar.textContent.trim() === '2' && bar.classList.contains('cs-cmt') && !/ความคิดเห็น/.test(bar.textContent), 'small comment icon (count only) under the message in chat reader', bar && bar.textContent);
     const before = G.ev('csReader.player.i');
     bar.click(); await sleep(30);
     ok(R().classList.contains('cmt-open') && /กรี๊ด/.test(R().querySelector('.cs-cmt-sheet').innerHTML) && /ฮา/.test(R().querySelector('.cs-cmt-sheet').innerHTML), 'sheet shows all comments of the message');
@@ -630,16 +630,16 @@ const REPLY = `<think>วางแผน</think>
     ok(G.chat[nid].extra.cs_cmt.list[1][0].t === 'ฮามาก', 'edit comment from chat sheet');
     const inp = R().querySelector('.cs-cmt-in'); inp.value = 'ของฉันเอง';
     R().querySelector('[data-cs="cmtsend"]').click();
-    ok(/3 ความคิดเห็น/.test(R().querySelector(`.cs-cmtbar[data-mes="${nid}"]`).textContent), 'own comment added, bar refreshed');
+    ok(R().querySelector(`.cs-cmtbar[data-mes="${nid}"]`).textContent.trim() === '3', 'own comment added, icon refreshed');
     R().querySelector('.cs-cmt-bd').click();
     ok(!R().classList.contains('cmt-open') && G.ev('csReader.player.i') === before, 'backdrop closes sheet without advancing');
     // ข้อความที่ยังไม่มีคอมเมนต์: เรียกจากแผ่นได้
     G.ev('csCloseReader(true)');
     G.ev(`csOpenMessage(2)`); G.ev('csReader.player.all()');
     const b2 = R().querySelector('.cs-cmtbar[data-mes="2"]');
-    ok(b2 && /แสดงความคิดเห็น/.test(b2.textContent), 'empty bar invites comments');
+    ok(b2 && !b2.classList.contains('has') && b2.querySelector('svg'), 'empty = plain small icon');
     b2.click(); R().querySelector('.cs-cmt-sheet [data-cs="cmtgen"]').click(); await sleep(60);
-    ok(G.chat[2].extra.cs_cmt && /2 ความคิดเห็น/.test(R().querySelector('.cs-cmtbar[data-mes="2"]').textContent), 'generate from chat sheet');
+    ok(G.chat[2].extra.cs_cmt && R().querySelector('.cs-cmtbar[data-mes="2"]').textContent.trim() === '2', 'generate from chat sheet');
     G.ev('csCmtClose(); csCloseReader(true)');
     // แชทหลักก็มีแถบ
     G.ev("csCfg().mode = 'inline'; csInlineAll()");
@@ -676,6 +676,24 @@ const REPLY = `<think>วางแผน</think>
     ok(G.ev("csGenderOf('อาเรีย')") === 'f', 'gender picker saves');
     G.d.querySelector('#cs-settings [data-tab="bubble"]').click();
     ok(!!G.d.querySelector('#cs-settings [data-k="userLinesRight"]'), 'side option in bubble tab');
+    G.ev('csCloseSettings()'); await sleep(250);
+    // ★ 1.11 คำตอบโดนตัด / ห่อ / ชื่อ key ต่างกัน
+    const V = 'new Set([0,1,2])';
+    ok(G.ev(`Object.keys(csCmtParse('[{"p":0,"c":[{"n":"a","t":"ก","r":"heart"}]},{"p":1,"c":[{"n":"b","t":"ข"', ${V}))`).join() === '0', 'salvages truncated JSON');
+    ok(G.ev(`Object.keys(csCmtParse('<think>hmm [x]</think>{"comments":[{"para":2,"comments":[{"name":"x","text":"ค","reaction":"fire"}]}]}', ${V}))`).join() === '2', 'wrapped object + alternate keys + think stripped');
+    let tries = 0;
+    G.ctx.generateRaw = async (...a) => { const { responseLength } = a[0] || {}; tries++; if (tries === 1) throw new Error('No message generated'); G.w.__len = responseLength; return '[{"p":0,"c":[{"n":"a","t":"ok","r":"heart"}]}]'; };
+    G.chat.push({ name: 'อาเรีย', is_user: false, mes: 'อาเรีย: ลองใหม่', extra: {} });
+    ok(await G.ev(`csCmtGenerate(${G.chat.length - 1}, true)`) === true && tries === 2 && G.w.__len === 4000, 'empty reply (thinking model) retried with more room', [tries, G.w.__len]);
+    ok(G.ev('csCfg().cmtLast.ok') === true, 'status saved (ok)');
+    G.ctx.generateRaw = async () => 'ขอโทษค่ะ ทำไม่ได้';
+    G.chat.push({ name: 'อาเรีย', is_user: false, mes: 'อาเรีย: อีกที', extra: {} });
+    await G.ev(`csCmtGenerate(${G.chat.length - 1}, true)`);
+    ok(G.ev('csCfg().cmtLast.ok') === false && /ขอโทษ/.test(G.ev('csCfg().cmtLast.raw')), 'status saved (failed + raw reply)');
+    G.ev("csCfg().cmtOn = false; csOpenSettings('cmt')");
+    ok(/ยังปิดคอมเมนต์อยู่/.test(G.d.querySelector('#cs-settings .cs-sbody').innerHTML) && /ไม่สำเร็จ/.test(G.d.querySelector('#cs-settings .cs-sbody').innerHTML), 'settings warn when comments off + show last failure');
+    const ev = G.d.querySelector('#cs-settings [data-k="cmtEvery"]'); ev.value = '2'; ev.dispatchEvent(new G.w.Event('input', { bubbles: true }));
+    ok(G.ev('csCfg().cmtOn') === true, 'setting "every N" turns comments on');
     G.ev('csCloseSettings()'); await sleep(250);
     ok(!G.errors.length, 'no uncaught (1.10)', G.errors.map(String));
   }

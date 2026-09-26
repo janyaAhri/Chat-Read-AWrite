@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.10.0';
+const CS_VERSION = '1.11.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1370,6 +1370,8 @@ function csTabHTML(tab) {
   const u = s.cmtUsed || { tokens: 0, calls: 0 };
   return `<div class="cs-hint2">ไอคอนท้ายย่อหน้าในหน้านิยาย แตะแล้วดูว่าคนอ่านรีแอคชันและคอมเมนต์ว่าอะไร เหมือนแอพอ่านนิยาย</div>
    <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'กล่องคอมเมนต์ท้ายทุกย่อหน้า · ยังไม่ใช้โทเคนจนกว่าจะเรียกคนอ่าน')}${csToggle('cmtAuto', 'คอมเมนต์มาเอง', 'ตามเงื่อนไขด้านล่าง ผสมกันได้ อันไหนถึงก่อนก็มา · ปิดไว้ = มาเมื่อแตะไอคอน')}</div>
+   ${!s.cmtOn ? `<div class="cs-warn"><i class="fa-solid fa-circle-exclamation"></i> ยังปิดคอมเมนต์อยู่ เปิดสวิตช์ "คอมเมนต์และรีแอคชันท้ายย่อหน้า" ด้านบนก่อน คอมเมนต์ถึงจะขึ้น</div>` : ''}
+   ${s.cmtLast ? `<div class="cs-card cs-cmtlast ${s.cmtLast.ok ? 'ok' : 'bad'}"><div class="cs-srow"><div class="cs-slb"><span>${s.cmtLast.ok ? '✓ เรียกคอมเมนต์ครั้งล่าสุดสำเร็จ' : '✕ เรียกคอมเมนต์ครั้งล่าสุดไม่สำเร็จ'}</span><small>${csEsc(s.cmtLast.why)} · ${new Date(s.cmtLast.t).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</small></div></div>${s.cmtLast.raw ? `<details class="cs-tokbd"><summary>ดูคำตอบดิบจากโมเดล</summary><pre class="cs-raw">${csEsc(s.cmtLast.raw)}</pre></details>` : ''}</div>` : ''}
    ${s.cmtAuto ? `<div class="cs-card"><div class="cs-cardh">มาเมื่อไหร่<small>ผสมกันได้ ตั้งเป็น 0 = ไม่ใช้ข้อนั้น · แต่ละครั้งที่มา = เรียกคอมเมนต์หนึ่งครั้ง</small></div>
     ${s.cmtPick === 'model' ? `<div class="cs-hint2" style="margin:2px 0 6px"><i class="fa-solid fa-wand-magic-sparkles"></i> โมเดลเลือกบรรทัดตอนเขียน → มาทันทีในบทนั้น</div>` : ''}
     ${csRange('cmtEvery', 'ครบทุก', 0, 10, 1, ' ข้อความ')}<div class="cs-hint2" style="margin:-2px 0 6px">นับข้อความของบอทตั้งแต่ครั้งล่าสุดที่มีคอมเมนต์ ครบแล้วมาแน่ ๆ</div>
@@ -1635,6 +1637,7 @@ function csSettingsInput(e) {
  if (el.dataset.k && el.type === 'range') {
   const v = +el.value;
   csSet(el.dataset.k, v);
+  if ((el.dataset.k === 'cmtEvery' || el.dataset.k === 'cmtRandom') && v > 0 && !csCfg().cmtOn) { csCfg().cmtOn = true; csApplyPrompt(); setTimeout(csRenderSettingsBody, 0); } // ตั้งให้คอมเมนต์มา = เปิดคอมเมนต์ให้เลย
   const lab = document.querySelector(`#cs-settings [data-v="${el.dataset.k}"]`);
   if (lab) lab.textContent = v + (el.dataset.unit || '');
   csAfterChange();
@@ -1660,7 +1663,7 @@ function csSettingsKey(e) {
 function csSettingsChange(e) {
  const el = e.target;
  const s = csCfg();
- if (el.dataset.k && el.type === 'checkbox') { csSet(el.dataset.k, el.checked); csAfterChange(true); if (el.dataset.k === 'cmtAuto' || el.dataset.k === 'cmtOn') csRenderSettingsBody(); return; }
+ if (el.dataset.k && el.type === 'checkbox') { csSet(el.dataset.k, el.checked); if (el.dataset.k === 'cmtAuto' && el.checked) csCfg().cmtOn = true; csAfterChange(true); if (el.dataset.k === 'cmtAuto' || el.dataset.k === 'cmtOn') csRenderSettingsBody(); return; }
  if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); csAfterChange(true); return; }
  if (el.dataset.k && el.classList.contains('cs-text')) {
   csSet(el.dataset.k, el.value.trim());
@@ -2212,16 +2215,14 @@ function csCmtButtonHTML(mesId, p) {
 }
 /** แถบคอมเมนต์ท้ายข้อความ (แชทนิยาย · แชทหลัก) แตะแล้วเห็นคอมเมนต์ทั้งบท */
 function csCmtBarHTML(mesId) {
+ // ★ 1.11 ไอคอนเล็กชิดขวาแบบหน้านิยาย ไม่เกะกะ
  const d = csCmtData(mesId);
  const all = d && d.list ? Object.values(d.list).flat() : [];
- const busy = csCmtBusy.has(mesId);
  const counts = {};
  all.forEach(c => { counts[c.r] = (counts[c.r] || 0) + 1; });
- const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 3);
- const inner = busy ? `<span class="cs-cmt-spin"></span><span>คนอ่านกำลังพิมพ์คอมเมนต์…</span>`
-  : all.length ? `<span class="cs-cmtbar-r">${top.map(r => csReactSVG(r, 15)).join('')}</span><span>${all.length} ความคิดเห็น</span>`
-  : `${CS_CMT_ICON}<span>แสดงความคิดเห็น</span>`;
- return `<div class="cs-cmtbar-wrap"><button class="cs-cmtbar${all.length ? ' has' : ''}${busy ? ' busy' : ''}" data-cs="cmtall" data-mes="${mesId}">${inner}</button></div>`;
+ const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+ const inner = csCmtBusy.has(mesId) ? '<span class="cs-cmt-spin sm"></span>' : all.length ? `${csReactSVG(top, 14)}<span>${all.length}</span>` : CS_CMT_ICON;
+ return `<div class="cs-cmtbar-wrap"><button class="cs-cmt cs-cmtbar${all.length ? ' has' : ''}" data-cs="cmtall" data-mes="${mesId}" aria-label="ความคิดเห็น ${all.length}">${inner}</button></div>`;
 }
 function csCmtBarsRefresh(mesId) {
  document.querySelectorAll(`.cs-cmtbar[data-mes="${mesId}"]`).forEach(b => { const w = b.closest('.cs-cmtbar-wrap'); if (w) w.outerHTML = csCmtBarHTML(mesId); });
@@ -2298,24 +2299,54 @@ async function csCmtBreakdown(mesId) {
  return { rows, total: e.total };
 }
 function csCmtParse(raw, validIdx) {
- const s = String(raw || '').replace(/```(?:json)?/gi, '').replace(/[“”]/g, m => m); // คงเครื่องหมายคำพูดในเนื้อความ
- const a = s.indexOf('['), b = s.lastIndexOf(']');
- let arr = null;
+ const s = String(raw || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').replace(/```(?:json)?/gi, '');
  const tryP = t => { try { return JSON.parse(t); } catch { try { return JSON.parse(t.replace(/,\s*([\]}])/g, '$1')); } catch { return null; } } };
+ let arr = null;
+ const a = s.indexOf('['), b = s.lastIndexOf(']');
  if (a >= 0 && b > a) arr = tryP(s.slice(a, b + 1));
+ if (arr && !Array.isArray(arr) && typeof arr === 'object') arr = arr.comments || arr.data || Object.values(arr).find(Array.isArray) || null;
+ if (!Array.isArray(arr)) {
+  const o = s.indexOf('{');
+  const whole = o >= 0 ? tryP(s.slice(o, s.lastIndexOf('}') + 1)) : null;
+  if (whole && typeof whole === 'object' && whole.p === undefined) arr = Array.isArray(whole) ? whole : (whole.comments || whole.data || null);
+ }
+ // ★ 1.11 คำตอบโดนตัดกลางทาง: เก็บก้อน {"p":…} ที่ครบ
+ if (!Array.isArray(arr)) arr = csCmtSalvage(s);
  if (!Array.isArray(arr)) return null;
  const list = {};
  arr.forEach(x => {
-  const p = parseInt(x && x.p, 10);
-  if (!validIdx.has(p) || !Array.isArray(x.c)) return;
-  x.c.slice(0, 4).forEach(c => {
-   const t = String(c && c.t || '').trim().slice(0, 200);
+  if (!x || typeof x !== 'object') return;
+  const p = parseInt(x.p ?? x.para ?? x.paragraph ?? x.i, 10);
+  const cs = x.c || x.comments || x.cmt;
+  if (!validIdx.has(p) || !Array.isArray(cs)) return;
+  cs.slice(0, 4).forEach(c => {
+   const t = String(c && (c.t ?? c.text ?? c.comment) || '').trim().slice(0, 200);
    if (!t) return;
-   const n = String(c.n || 'reader').trim().slice(0, 30) || 'reader';
-   (list[p] = list[p] || []).push({ n, t, r: CS_REACT[c.r] ? c.r : 'heart' });
+   const n = String(c.n ?? c.name ?? c.user ?? 'reader').trim().slice(0, 30) || 'reader';
+   const r = c.r ?? c.react ?? c.reaction;
+   (list[p] = list[p] || []).push({ n, t, r: CS_REACT[r] ? r : 'heart' });
   });
  });
  return Object.keys(list).length ? list : null;
+}
+/** จำผลครั้งล่าสุดไว้โชว์ในแท็บคอมเมนต์ (หาสาเหตุเวลาไม่ขึ้น) */
+function csCmtStatus(ok, why, raw) {
+ const s = csCfg();
+ s.cmtLast = { ok, why: String(why || '').slice(0, 200), raw: String(raw || '').slice(0, 400), t: Date.now() };
+ csSave();
+}
+/** ดึงก้อน {...} ที่ปิดวงเล็บครบจากคำตอบที่ถูกตัด */
+function csCmtSalvage(s) {
+ const out = [];
+ let depth = 0, start = -1, inStr = false, esc = false;
+ for (let i = 0; i < s.length; i++) {
+  const ch = s[i];
+  if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+  if (ch === '"') { inStr = true; continue; }
+  if (ch === '{') { if (depth === 0) start = i; depth++; }
+  else if (ch === '}' && depth > 0) { depth--; if (depth === 0 && start >= 0) { try { const o = JSON.parse(s.slice(start, i + 1)); if (o && (o.p !== undefined || o.para !== undefined)) out.push(o); } catch {} start = -1; } }
+ }
+ return out.length ? out : null;
 }
 async function csCallRaw(prompt, system, len) {
  const ctx = csCtx();
@@ -2404,15 +2435,19 @@ async function csCmtGenerate(mesId, quiet, extraIdx) {
  csCmtBarsRefresh(mesId);
  csCmtSheetRefresh();
  try {
-  const len = { few: 200, normal: 360, many: 560 }[csCfg().cmtAmount] || 360;
-  const raw = await csCallRaw(q.prompt, q.system, len);
-  const list = csCmtParse(raw, new Set(q.paras.map(x => x.i)));
+  // ★ 1.11 เผื่อที่ให้โมเดลที่คิดก่อนตอบ (Gemini / R1) และภาษาไทยที่กินโทเคน · ใช้จริงเท่าที่ตอบ
+  const len = { few: 1200, normal: 2000, many: 3000 }[csCfg().cmtAmount] || 2000;
+  let raw = '';
+  try { raw = await csCallRaw(q.prompt, q.system, len); }
+  catch (e) { if (/no message|empty/i.test(String(e && e.message || e))) raw = await csCallRaw(q.prompt, q.system, len * 2); else throw e; }
+  let list = csCmtParse(raw, new Set(q.paras.map(x => x.i)));
+  if (!list && !String(raw || '').trim()) { raw = await csCallRaw(q.prompt, q.system, len * 2); list = csCmtParse(raw, new Set(q.paras.map(x => x.i))); }
   const inTok = await csCountTokens(q.system + '\n' + q.prompt);
   const outTok = await csCountTokens(raw);
   const s = csCfg();
   s.cmtUsed = s.cmtUsed || { tokens: 0, calls: 0 };
   s.cmtUsed.tokens += inTok + outTok; s.cmtUsed.calls += 1; csSave();
-  if (!list) { if (!quiet) csToast('โมเดลตอบกลับมาอ่านไม่ออก ลองใหม่อีกครั้ง'); return false; }
+  if (!list) { csCmtStatus(false, String(raw || '').trim() ? 'โมเดลตอบมาแต่อ่านเป็นคอมเมนต์ไม่ได้' : 'โมเดลตอบกลับมาว่างเปล่า', raw); csToast((quiet ? 'คอมเมนต์อัตโนมัติ: ' : '') + (String(raw || '').trim() ? 'โมเดลตอบกลับมาอ่านไม่ออก ลองใหม่อีกครั้ง' : 'โมเดลตอบกลับมาว่างเปล่า ลองใหม่อีกครั้ง')); return false; }
   const old = csCmtData(mesId);
   // คอมเมนต์ที่เราเขียนเองเก็บไว้ ไม่หายตอนขอใหม่ · ย่อหน้าอื่นที่ไม่ได้ขอใหม่ก็เก็บไว้
   const asked = new Set(q.paras.map(x => x.i));
@@ -2424,9 +2459,14 @@ async function csCmtGenerate(mesId, quiet, extraIdx) {
   const prevTok = old && old.tok ? old.tok : { in: 0, out: 0 };
   m.extra.cs_cmt = { h: csHash(m.mes), list, tok: { in: prevTok.in + inTok, out: prevTok.out + outTok }, ts: Date.now() };
   try { await csCtx().saveChat?.(); } catch {}
+  const n = Object.values(list).flat().length;
+  csCmtStatus(true, `ได้ ${n} คอมเมนต์`, '');
+  if (quiet) csToast(`มีคนมาคอมเมนต์ ${n} ความคิดเห็น`);
   return true;
  } catch (e) {
-  if (!quiet) csToast('เรียกคอมเมนต์ไม่สำเร็จ · ' + (e && e.message ? e.message : e));
+  const why = e && e.message ? e.message : String(e);
+  csCmtStatus(false, why, '');
+  csToast((quiet ? 'คอมเมนต์อัตโนมัติไม่สำเร็จ · ' : 'เรียกคอมเมนต์ไม่สำเร็จ · ') + why);
   return false;
  } finally {
   csCmtBusy.delete(mesId);
