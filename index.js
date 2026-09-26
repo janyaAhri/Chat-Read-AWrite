@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.11.0';
+const CS_VERSION = '1.12.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1371,7 +1371,7 @@ function csTabHTML(tab) {
   return `<div class="cs-hint2">ไอคอนท้ายย่อหน้าในหน้านิยาย แตะแล้วดูว่าคนอ่านรีแอคชันและคอมเมนต์ว่าอะไร เหมือนแอพอ่านนิยาย</div>
    <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'กล่องคอมเมนต์ท้ายทุกย่อหน้า · ยังไม่ใช้โทเคนจนกว่าจะเรียกคนอ่าน')}${csToggle('cmtAuto', 'คอมเมนต์มาเอง', 'ตามเงื่อนไขด้านล่าง ผสมกันได้ อันไหนถึงก่อนก็มา · ปิดไว้ = มาเมื่อแตะไอคอน')}</div>
    ${!s.cmtOn ? `<div class="cs-warn"><i class="fa-solid fa-circle-exclamation"></i> ยังปิดคอมเมนต์อยู่ เปิดสวิตช์ "คอมเมนต์และรีแอคชันท้ายย่อหน้า" ด้านบนก่อน คอมเมนต์ถึงจะขึ้น</div>` : ''}
-   ${s.cmtLast ? `<div class="cs-card cs-cmtlast ${s.cmtLast.ok ? 'ok' : 'bad'}"><div class="cs-srow"><div class="cs-slb"><span>${s.cmtLast.ok ? '✓ เรียกคอมเมนต์ครั้งล่าสุดสำเร็จ' : '✕ เรียกคอมเมนต์ครั้งล่าสุดไม่สำเร็จ'}</span><small>${csEsc(s.cmtLast.why)} · ${new Date(s.cmtLast.t).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</small></div></div>${s.cmtLast.raw ? `<details class="cs-tokbd"><summary>ดูคำตอบดิบจากโมเดล</summary><pre class="cs-raw">${csEsc(s.cmtLast.raw)}</pre></details>` : ''}</div>` : ''}
+   ${s.cmtLast ? `<div class="cs-card cs-cmtlast ${s.cmtLast.ok ? 'ok' : 'bad'}"><div class="cs-srow"><div class="cs-slb"><span>${s.cmtLast.ok ? '✓ เรียกคอมเมนต์ครั้งล่าสุดสำเร็จ' : '✕ เรียกคอมเมนต์ครั้งล่าสุดไม่สำเร็จ'}</span><small>${csEsc(s.cmtLast.why)} · ${new Date(s.cmtLast.t).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</small></div></div>${s.cmtLast.raw ? `<details class="cs-tokbd"><summary>ดูคำตอบดิบจากโมเดล</summary><pre class="cs-raw">${csEsc(s.cmtLast.raw)}</pre></details>` : ''}${!s.cmtLast.ok && s.cmtLast.raw && s.cmtLast.mes !== undefined ? `<div class="cs-btnrow" style="margin-top:8px"><button class="cs-btn2" data-act="cmt-reparse"><i class="fa-solid fa-rotate"></i> อ่านคำตอบนี้ใหม่ (ไม่ใช้โทเคน)</button></div>` : ''}</div>` : ''}
    ${s.cmtAuto ? `<div class="cs-card"><div class="cs-cardh">มาเมื่อไหร่<small>ผสมกันได้ ตั้งเป็น 0 = ไม่ใช้ข้อนั้น · แต่ละครั้งที่มา = เรียกคอมเมนต์หนึ่งครั้ง</small></div>
     ${s.cmtPick === 'model' ? `<div class="cs-hint2" style="margin:2px 0 6px"><i class="fa-solid fa-wand-magic-sparkles"></i> โมเดลเลือกบรรทัดตอนเขียน → มาทันทีในบทนั้น</div>` : ''}
     ${csRange('cmtEvery', 'ครบทุก', 0, 10, 1, ' ข้อความ')}<div class="cs-hint2" style="margin:-2px 0 6px">นับข้อความของบอทตั้งแต่ครั้งล่าสุดที่มีคอมเมนต์ ครบแล้วมาแน่ ๆ</div>
@@ -1593,6 +1593,7 @@ function csSettingsClick(e) {
  if (act === 'close') return csCloseSettings();
  if (act.startsWith('cc-')) { if (csCcClick(act, a)) csRenderSettingsBody(); return; }
  if (act.startsWith('cast-')) return csCastAct(act, a);
+ if (act === 'cmt-reparse') { csCmtReparse(); return csRenderSettingsBody(); }
  if (act === 'cmt-reset') { s.cmtUsed = { tokens: 0, calls: 0 }; csSave(); return csRenderSettingsBody(); }
  if (act === 'test-sound') { [['in', csCharName() || 'A'], ['in', 'B'], ['out', csUserName()], ['narr'], ['scene']].forEach(([k, w], i) => setTimeout(() => csPlaySound(s.sound, k, w), i * 360)); return; }
  if (act === 'read-last') { csCloseSettings(); csOpenLatest(); return; }
@@ -2258,7 +2259,7 @@ function csCmtPrompt(mesId, extraIdx) {
  const body = paras.map(x => `[${x.i}] ${x.l.k === 'say' ? `${x.l.who}: ${x.l.text}` : x.l.text}`.slice(0, 125)).join('\n');
  const instr = `${picked.length ? 'For each paragraph above' : `Pick ${n} paragraphs;`} 1-3 short casual Thai comments each from different reader handles (fangirling, shipping, jokes, theories, tears, anger).`;
  const readers = csCmtReadersLine();
- const fmt = `JSON only: [{"p":n,"c":[{"n":"handle","t":"text","r":"heart|fire|laugh|cry|shock|angry"}]}]`;
+ const fmt = `Compact JSON only, no " inside text: [{"p":n,"c":[{"n":"handle","t":"text","r":"heart|fire|laugh|cry|shock|angry"}]}]`;
  const system = 'Thai web-novel reader comments.';
  return { system, prompt: [body, '', instr, readers, fmt].filter(x => x !== null && x !== undefined && (x !== '' || true)).filter((x, i, a) => !(x === '' && i !== 1)).join('\n'), paras, parts: { system, body, instr, readers, fmt, count: paras.length, picked: picked.length } };
 }
@@ -2312,11 +2313,16 @@ function csCmtParse(raw, validIdx) {
  }
  // ★ 1.11 คำตอบโดนตัดกลางทาง: เก็บก้อน {"p":…} ที่ครบ
  if (!Array.isArray(arr)) arr = csCmtSalvage(s);
+ // ★ 1.12 JSON พัง (มี " ในคอมเมนต์ ฯลฯ): ไล่หาทีละช่องด้วยรูปแบบ
+ if (!Array.isArray(arr) || !arr.length) arr = csCmtLoose(s);
  if (!Array.isArray(arr)) return null;
+ const valid = [...validIdx].sort((x, y) => x - y);
+ // เลขย่อหน้าที่ไม่มีจริง: ปัดไปย่อหน้าที่ใกล้ที่สุด ดีกว่าทิ้งคอมเมนต์
+ const snap = p => { if (validIdx.has(p) || !valid.length || isNaN(p)) return p; const n = valid.reduce((a, b) => Math.abs(b - p) < Math.abs(a - p) ? b : a); return Math.abs(n - p) <= 3 ? n : p; };
  const list = {};
  arr.forEach(x => {
   if (!x || typeof x !== 'object') return;
-  const p = parseInt(x.p ?? x.para ?? x.paragraph ?? x.i, 10);
+  const p = snap(parseInt(x.p ?? x.para ?? x.paragraph ?? x.i, 10));
   const cs = x.c || x.comments || x.cmt;
   if (!validIdx.has(p) || !Array.isArray(cs)) return;
   cs.slice(0, 4).forEach(c => {
@@ -2329,11 +2335,49 @@ function csCmtParse(raw, validIdx) {
  });
  return Object.keys(list).length ? list : null;
 }
+/** ★ 1.12 อ่านคำตอบที่เคยพลาดใหม่ด้วยตัวอ่านรุ่นใหม่ ไม่ต้องเรียกโมเดลอีก */
+function csCmtReparse() {
+ const s = csCfg(), L = s.cmtLast;
+ const m = L && (csCtx().chat || [])[L.mes];
+ if (!L || !m || m.is_user || (L.chat && L.chat !== csChatKey())) { csToast('ข้อความนั้นไม่อยู่ในแชทนี้แล้ว'); return false; }
+ const idx = new Set(L.idx && L.idx.length ? L.idx : csCmtParas(m).map(x => x.i));
+ const list = csCmtParse(L.raw, idx);
+ if (!list) { csToast('ยังอ่านไม่ได้ · ลองกดขอคอมเมนต์ใหม่ในหน้านิยาย'); return false; }
+ const old = csCmtData(L.mes);
+ if (old && old.list) Object.keys(old.list).forEach(p => old.list[p].filter(c => c.me).forEach(c => (list[p] = list[p] || []).push(c)));
+ m.extra = m.extra || {};
+ m.extra.cs_cmt = { h: csHash(m.mes), list, tok: old && old.tok, ts: Date.now() };
+ try { csCtx().saveChat?.(); } catch {}
+ const n = Object.values(list).flat().length;
+ csCmtStatus(true, `อ่านคำตอบเดิมใหม่ ได้ ${n} คอมเมนต์`, '');
+ csToast(`กู้คอมเมนต์ได้ ${n} ความคิดเห็น`);
+ if (csNovel) csNovelRefresh(false);
+ csCmtBarsRefresh(L.mes);
+ return true;
+}
 /** จำผลครั้งล่าสุดไว้โชว์ในแท็บคอมเมนต์ (หาสาเหตุเวลาไม่ขึ้น) */
-function csCmtStatus(ok, why, raw) {
+function csCmtStatus(ok, why, raw, mesId, idx) {
  const s = csCfg();
- s.cmtLast = { ok, why: String(why || '').slice(0, 200), raw: String(raw || '').slice(0, 400), t: Date.now() };
+ s.cmtLast = { ok, why: String(why || '').slice(0, 200), raw: String(raw || '').slice(0, 3000), t: Date.now(), mes: mesId, idx: idx || null, chat: csChatKey() };
  csSave();
+}
+/** อ่านแบบไม่ง้อ JSON: หา "p": เลข แล้วเก็บ n / t / r ที่ตามมา (t ยาวไปจนเจอ "r" หรือปิดก้อน) */
+function csCmtLoose(s) {
+ const out = [];
+ const ps = [...s.matchAll(/"(?:p|para|paragraph)"\s*:\s*"?(\d+)"?/g)];
+ ps.forEach((m, k) => {
+  const seg = s.slice(m.index + m[0].length, k + 1 < ps.length ? ps[k + 1].index : s.length);
+  const c = [];
+  const re = /"(?:n|name)"\s*:\s*"([^"\n]{0,40})"\s*,\s*"(?:t|text)"\s*:\s*"([\s\S]*?)"\s*(?:,\s*"(?:r|react|reaction)"\s*:\s*"(\w+)"\s*)?}/g;
+  let x;
+  while ((x = re.exec(seg))) c.push({ n: x[1], t: x[2].replace(/\\n/g, ' ').replace(/\\"/g, '"'), r: x[3] || 'heart' });
+  // คอมเมนต์สุดท้ายที่โดนตัด (ยังไม่ปิด) — เอาถ้ามีข้อความพอ
+  const lastN = Math.max(seg.lastIndexOf('"n"'), seg.lastIndexOf('"name"'));
+  const tail = lastN >= 0 ? seg.slice(lastN).match(/^"(?:n|name)"\s*:\s*"([^"\n]{0,40})"\s*,\s*"(?:t|text)"\s*:\s*"([^]{6,})$/) : null;
+  if (tail && !c.some(y => y.n === tail[1] && tail[2].startsWith(y.t))) c.push({ n: tail[1], t: tail[2].replace(/"[\s\S]*$/, '').trim() + '…', r: 'heart' });
+  if (c.length) out.push({ p: +m[1], c });
+ });
+ return out.length ? out : null;
 }
 /** ดึงก้อน {...} ที่ปิดวงเล็บครบจากคำตอบที่ถูกตัด */
 function csCmtSalvage(s) {
@@ -2447,7 +2491,7 @@ async function csCmtGenerate(mesId, quiet, extraIdx) {
   const s = csCfg();
   s.cmtUsed = s.cmtUsed || { tokens: 0, calls: 0 };
   s.cmtUsed.tokens += inTok + outTok; s.cmtUsed.calls += 1; csSave();
-  if (!list) { csCmtStatus(false, String(raw || '').trim() ? 'โมเดลตอบมาแต่อ่านเป็นคอมเมนต์ไม่ได้' : 'โมเดลตอบกลับมาว่างเปล่า', raw); csToast((quiet ? 'คอมเมนต์อัตโนมัติ: ' : '') + (String(raw || '').trim() ? 'โมเดลตอบกลับมาอ่านไม่ออก ลองใหม่อีกครั้ง' : 'โมเดลตอบกลับมาว่างเปล่า ลองใหม่อีกครั้ง')); return false; }
+  if (!list) { csCmtStatus(false, String(raw || '').trim() ? 'โมเดลตอบมาแต่อ่านเป็นคอมเมนต์ไม่ได้' : 'โมเดลตอบกลับมาว่างเปล่า', raw, mesId, q.paras.map(x => x.i)); csToast((quiet ? 'คอมเมนต์อัตโนมัติ: ' : '') + (String(raw || '').trim() ? 'โมเดลตอบกลับมาอ่านไม่ออก ลองใหม่อีกครั้ง' : 'โมเดลตอบกลับมาว่างเปล่า ลองใหม่อีกครั้ง')); return false; }
   const old = csCmtData(mesId);
   // คอมเมนต์ที่เราเขียนเองเก็บไว้ ไม่หายตอนขอใหม่ · ย่อหน้าอื่นที่ไม่ได้ขอใหม่ก็เก็บไว้
   const asked = new Set(q.paras.map(x => x.i));

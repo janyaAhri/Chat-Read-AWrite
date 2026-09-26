@@ -681,6 +681,12 @@ const REPLY = `<think>วางแผน</think>
     const V = 'new Set([0,1,2])';
     ok(G.ev(`Object.keys(csCmtParse('[{"p":0,"c":[{"n":"a","t":"ก","r":"heart"}]},{"p":1,"c":[{"n":"b","t":"ข"', ${V}))`).join() === '0', 'salvages truncated JSON');
     ok(G.ev(`Object.keys(csCmtParse('<think>hmm [x]</think>{"comments":[{"para":2,"comments":[{"name":"x","text":"ค","reaction":"fire"}]}]}', ${V}))`).join() === '2', 'wrapped object + alternate keys + think stripped');
+    // ★ 1.12 คำตอบจริงจากผู้ใช้: จัดหน้าสวย + มี " ในคอมเมนต์ + โดนตัดท้าย
+    const USERRAW = '[\n  {\n    "p": 1,\n    "c": [\n      {\n        "n": "janyaahri",\n        "t": "ม่านฝันลงมาเถอะลูกก อยู่ชั้นบนสุดไม่กลัวความสูงเหรอ 🥺 แงงง ลงมาหาเค้ามาาา",\n        "r": "cry"\n      },\n      {\n        "n": "sunflower_gurl",\n        "t": "พี่แกบอกว่า "ระวังลูกหลง" แต่ใจเราหลงไปแล้ว 55555",\n        "r": "laugh"\n      },\n      {\n        "n": "moo",\n        "t": "ตัดตรงนี้ไปเลยยยยยยยยย';
+    const lp = G.ev(`csCmtParse(${JSON.stringify(USERRAW)}, ${V})`);
+    ok(lp && lp[1] && lp[1].length === 3 && /ระวังลูกหลง/.test(lp[1][1].t) && lp[1][0].r === 'cry' && lp[1][1].r === 'laugh', 'real reply: pretty JSON with inner quotes + cut off still parsed', lp);
+    const lp2 = G.ev(`csCmtParse('[{"p":4,"c":[{"n":"a","t":"x","r":"fire"}]}]', ${V})`);
+    ok(lp2 && lp2[2] && lp2[2][0].t === 'x', 'unknown paragraph number snaps to nearest', lp2);
     let tries = 0;
     G.ctx.generateRaw = async (...a) => { const { responseLength } = a[0] || {}; tries++; if (tries === 1) throw new Error('No message generated'); G.w.__len = responseLength; return '[{"p":0,"c":[{"n":"a","t":"ok","r":"heart"}]}]'; };
     G.chat.push({ name: 'อาเรีย', is_user: false, mes: 'อาเรีย: ลองใหม่', extra: {} });
@@ -690,8 +696,15 @@ const REPLY = `<think>วางแผน</think>
     G.chat.push({ name: 'อาเรีย', is_user: false, mes: 'อาเรีย: อีกที', extra: {} });
     await G.ev(`csCmtGenerate(${G.chat.length - 1}, true)`);
     ok(G.ev('csCfg().cmtLast.ok') === false && /ขอโทษ/.test(G.ev('csCfg().cmtLast.raw')), 'status saved (failed + raw reply)');
+    // กู้จากคำตอบเดิมที่เคยพลาด
+    const rid = G.chat.length - 1;
+    G.ev(`csCfg().cmtLast = { ok:false, why:'x', raw:${JSON.stringify(USERRAW.replace('"p": 1', '"p": 0'))}, t:Date.now(), mes:${rid}, idx:[0], chat: csChatKey() }`);
+    G.ev("csOpenSettings('cmt')");
+    G.d.querySelector('#cs-settings [data-act="cmt-reparse"]').click();
+    ok(G.chat[rid].extra.cs_cmt && G.chat[rid].extra.cs_cmt.list[0].length === 3 && G.ev('csCfg().cmtLast.ok') === true, 'reparse stored reply recovers comments without a call');
+    G.ev('csCloseSettings()'); await sleep(250);
     G.ev("csCfg().cmtOn = false; csOpenSettings('cmt')");
-    ok(/ยังปิดคอมเมนต์อยู่/.test(G.d.querySelector('#cs-settings .cs-sbody').innerHTML) && /ไม่สำเร็จ/.test(G.d.querySelector('#cs-settings .cs-sbody').innerHTML), 'settings warn when comments off + show last failure');
+    ok(/ยังปิดคอมเมนต์อยู่/.test(G.d.querySelector('#cs-settings .cs-sbody').innerHTML) && /ครั้งล่าสุด/.test(G.d.querySelector('#cs-settings .cs-sbody').innerHTML), 'settings warn when comments off + show last result');
     const ev = G.d.querySelector('#cs-settings [data-k="cmtEvery"]'); ev.value = '2'; ev.dispatchEvent(new G.w.Event('input', { bubbles: true }));
     ok(G.ev('csCfg().cmtOn') === true, 'setting "every N" turns comments on');
     G.ev('csCloseSettings()'); await sleep(250);
