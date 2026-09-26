@@ -109,7 +109,7 @@ const REPLY = `<think>วางแผน</think>
   E.ev('csCfg().typingMs = 0; csOpenMessage(1)');
   E.d.getElementById('cs-open-settings').click();
   const S = () => E.d.getElementById('cs-settings');
-  ok(!!S() && S().querySelectorAll('.cs-tabs button').length === 7 && S().querySelectorAll('.cs-preview .cs-item').length === 6, 'settings sheet + live preview');
+  ok(!!S() && S().querySelectorAll('.cs-tabs button').length === 8 && S().querySelectorAll('.cs-preview .cs-item').length === 6, 'settings sheet + live preview');
   S().querySelector('[data-preset="night"]').click();
   ok(E.ev('csCfg().preset') === 'night' && R().style.getPropertyValue('--cs-bg') === '#14131c' && S().classList.contains('cs-sdark'), 'preset applies live to reader & sheet');
   const col = S().querySelector('[data-color="outBg"]'); col.value = '#ff0000'; col.dispatchEvent(new E.w.Event('input', { bubbles: true }));
@@ -261,6 +261,61 @@ const REPLY = `<think>วางแผน</think>
   ta2.value = ''; ta2.selectionStart = ta2.selectionEnd = 0;
   ok(bi('(') === false, 'respects Auto-Closer chat toggle');
   E.ev('csCloseReader(true)');
+
+  // ── คอมเมนต์และรีแอคชันท้ายย่อหน้า ──
+  E.ctx.getTokenCountAsync = async t => Math.ceil(String(t).length / 4);
+  E.ctx.saveChat = async () => { E.w.__saved = (E.w.__saved || 0) + 1; };
+  E.w.__rawCalls = [];
+  E.ctx.generateRaw = async function ({ prompt, systemPrompt, responseLength } = {}) {
+    E.w.__rawCalls.push({ prompt, systemPrompt, responseLength });
+    return 'นี่ค่ะ ```json\n[{"p":1,"c":[{"n":"janyaahri","t":"งื้อออ น่ารักกกก","r":"heart"},{"n":"ploy_22","t":"ใจบาง","r":"cry"}]},{"p":2,"c":[{"n":"moo","t":"ตายแล้ว","r":"fire"}]},{"p":99,"c":[{"n":"x","t":"ย่อหน้าไม่มีจริง","r":"heart"}]}]\n```';
+  };
+  E.chat.push({ name: 'อาเรีย', is_user: false, mes: '## บทแห่งฝน\nฝนตกหนักทั้งคืน\n\nเธอยื่นผ้าให้ “เช็ดก่อนสิ”\n\nแล้วทั้งคู่ก็เงียบไป' }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1);
+  const cid = E.chat.length - 1;
+  E.ev("csCfg().style = 'novel'; csCfg().mode = 'reader'; csCfg().cmtOn = false; csOpenNovel()");
+  ok(!N().querySelector('.cs-cmt'), 'comments off by default = no icons');
+  E.ev('csCloseNovel(true); csCfg().cmtOn = true; csOpenNovel()');
+  const last2 = () => [...N().querySelectorAll('.cs-chapter')].pop();
+  ok(last2().querySelectorAll('.cs-cmt').length === 3 && !last2().querySelector('.cs-ctitle .cs-cmt'), 'icon at end of each paragraph (not title)');
+  last2().querySelector('.cs-cmt').click();
+  await sleep(30);
+  const sh = () => N().querySelector('.cs-cmt-sheet');
+  ok(N().classList.contains('cmt-open') && /ยังไม่มีใครมาคอมเมนต์/.test(sh().innerHTML) && E.w.__rawCalls.length === 0, 'sheet opens, nothing generated yet (0 tokens)');
+  ok(/ใช้ประมาณ \d[\d,]* โทเคน/.test(sh().querySelector('[data-est]').textContent), 'token estimate shown before generating', sh().querySelector('[data-est]').textContent);
+  sh().querySelector('[data-cs="cmtgen"]').click();
+  await sleep(60);
+  const call = E.w.__rawCalls[0];
+  ok(call && /janyaahri/.test(call.prompt) && /\[1\] ฝนตกหนักทั้งคืน/.test(call.prompt) && !/บทแห่งฝน\n/.test(call.prompt.split('Write')[0].replace('[', '')) && call.responseLength === 420, 'one raw call with chapter paragraphs + janyaahri', call && call.prompt.slice(0, 200));
+  ok(!/POCKET|อาเรีย: มาช้านะ/.test(call.prompt), 'prompt has only this chapter, no chat history');
+  const d = E.ev(`csCmtData(${cid})`);
+  ok(d && d.list[1].length === 2 && d.list[2].length === 1 && !d.list[99] && d.tok.in > 0 && d.tok.out > 0 && E.w.__saved > 0, 'comments stored with message, invalid paragraph dropped, saved');
+  ok(E.ev('csCfg().cmtUsed.calls') === 1 && E.ev('csCfg().cmtUsed.tokens') === d.tok.in + d.tok.out, 'token usage counted');
+  ok(last2().querySelectorAll('.cs-cmt.has').length === 2 && /2<\/span>/.test(last2().querySelectorAll('.cs-cmt.has')[0].innerHTML), 'reaction icons + counts on paragraphs');
+  ok(sh().querySelector('.cs-cmt-row.janya') && /janyaahri/.test(sh().innerHTML) && /ใช้ไป \d/.test(sh().innerHTML), 'janyaahri comment with badge + tokens used');
+  sh().querySelector('.cs-cmt-in').value = 'ชอบมากค่ะ'; sh().querySelector('[data-cs="cmtsend"]').click();
+  ok(E.ev(`csCmtFor(${cid}, 1).some(c=>c.me && c.t==='ชอบมากค่ะ')`) && E.w.__rawCalls.length === 1, 'own comment added, no tokens');
+  sh().querySelector('a[data-cs="cmtgen"]').click(); await sleep(60);
+  ok(E.w.__rawCalls.length === 2 && E.ev(`csCmtFor(${cid}, 1).some(c=>c.me)`), 'regenerate keeps own comment');
+  E.d.dispatchEvent(new E.w.KeyboardEvent('keydown', { key: 'Escape' }));
+  ok(!N().classList.contains('cmt-open') && !!N(), 'esc closes sheet first');
+  E.chat[cid].mes += '\nเพิ่มย่อหน้าใหม่';
+  ok(E.ev(`csCmtData(${cid})`) === null, 'edited chapter invalidates old comments');
+  E.ev("csCfg().cmtJanya = false");
+  ok(!/janyaahri/.test(E.ev(`csCmtPrompt(${cid}).prompt`)), 'janyaahri off = not in prompt');
+  E.ev("csCfg().cmtJanya = true; csCfg().cmtAuto = true; csGenerating = false");
+  E.chat.push({ name: 'อาเรีย', is_user: false, mes: 'ย่อหน้าใหม่ของบทต่อไป' }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1);
+  E.fire('gs', 'normal', {}, false); E.fire('cmr', E.chat.length - 1);
+  await sleep(1100);
+  ok(E.w.__rawCalls.length === 3, 'auto mode generates for new chapter', E.w.__rawCalls.length);
+  E.ev("csCfg().cmtAuto = false");
+  // ตัวเลขโทเคนในหน้าตั้งค่า
+  E.ev("csOpenSettings('cmt')");
+  await sleep(50);
+  ok(/~\d+ โทเคน/.test(S().querySelector('[data-tok="cmt"]').textContent) && /~\d+ โทเคน/.test(S().querySelector('[data-tok="format"]').textContent), 'token numbers in settings');
+  S().querySelector('[data-act="cmt-reset"]').click();
+  ok(E.ev('csCfg().cmtUsed.tokens') === 0, 'reset usage counter');
+  S().querySelector('[data-act="close"]').click(); await sleep(260);
+  E.ev("csCloseNovel(true); csCfg().style = 'chat'; csCfg().cmtOn = false");
   // ย้ายค่าจาก 1.0
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {theme:'mint'}");
   ok(E.ev('csCfg().preset') === 'mint', 'migrates 1.0 theme');
