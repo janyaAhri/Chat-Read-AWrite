@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.12.0';
+const CS_VERSION = '1.13.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -97,7 +97,9 @@ const CS_DEFAULTS = {
  chapterWord: 'บท',     // บท | ตอน
  cmtOn: false,          // คอมเมนต์และรีแอคชันท้ายย่อหน้า (หน้านิยาย)
  cmtAuto: true,         // เรียกคอมเมนต์เองตามเงื่อนไข (โมเดลเลือก · ครบรอบ · สุ่ม · คีย์เวิร์ด)
- cmtAmount: 'normal',   // few | normal | many
+ cmtAmount: 'normal',   // (เก่า) few | normal | many
+ cmtPer: 3,             // ★ 1.13 คอมเมนต์ต่อย่อหน้า
+ cmtParas: 4,           // ★ 1.13 จำนวนย่อหน้าที่คนอ่านเลือกคอมเมนต์ (ตอนไม่ได้ให้โมเดลเลือกบรรทัด)
  cmtEvery: 3,           // ★ 1.9 ครบกี่ข้อความของบอทแล้วเรียกคอมเมนต์ (0 = ไม่ใช้)
  cmtRandom: 30,         // ★ 1.9 โอกาสสุ่มเรียกต่อข้อความ (%) (0 = ไม่ใช้)
  cmtPick: 'model',     // ไอคอนขึ้นตรงไหน: model โมเดลเลือกบรรทัดตอนเขียน · all ทุกย่อหน้า
@@ -125,7 +127,8 @@ function csCfg() {
  if ((s._v || 0) < 13) { if (s.paraGap === 0.9) s.paraGap = 1.2; s._v = 13; } // หน้านิยายแบบใหม่ห่างขึ้น
  if (s._v < 15) { if (s.userInNovel === 'mark') s.userInNovel = 'same'; delete s.cmtJanya; s._v = 15; } // ★ 1.5 ค่าเริ่มต้นใหม่
  if (s._v < 16) { if (s.cmtGate === 'ask') s.cmtGate = 'keyword'; s._v = 16; } // ★ 1.6 ถามโมเดลกลายเป็นให้โมเดลเลือกบรรทัด
- if (s._v < 18) { s.cmtAuto = true; s._v = 18; } // ★ 1.9 คอมเมนต์มาเองเป็นค่าเริ่มต้น (ครบรอบ/สุ่ม/โมเดลเลือก)
+ if (s._v < 18) { s.cmtAuto = true; s._v = 18; }
+ if (s._v < 19) { const m = { few: [2, 2], normal: [4, 3], many: [6, 4] }[s.cmtAmount] || [4, 3]; s.cmtParas = m[0]; s.cmtPer = m[1]; s._v = 19; } // ★ 1.13 ตั้งจำนวนเองเป็นตัวเลข // ★ 1.9 คอมเมนต์มาเองเป็นค่าเริ่มต้น (ครบรอบ/สุ่ม/โมเดลเลือก)
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -1383,7 +1386,7 @@ function csTabHTML(tab) {
     ${s.cmtGate === 'keyword' ? `<div class="cs-hint2" style="margin:2px 0 6px">ไม่ใช้โทเคน ดูคำในบท เจอครบตามที่ตั้งถึงเรียก</div>${csRange('cmtMinHits', 'ต้องเจออย่างน้อย', 1, 6, 1, ' คำ')}
      <div class="cs-srow" style="flex-direction:column;align-items:stretch;gap:6px"><div class="cs-slb"><span>คีย์เวิร์ด</span><small>คั่นด้วยจุลภาค เพิ่มหรือลบเองได้</small></div><textarea class="cs-text cs-kw" data-k="cmtKeywords" rows="3">${csEsc(s.cmtKeywords)}</textarea></div>` : ''}
     ${s.cmtGate === 'always' ? `<div class="cs-hint2" style="margin:2px 0 6px">เรียกทุกบทใหม่ ใช้โทเคนทุกบท</div>` : ''}</div>` : ''}
-   <div class="cs-card"><div class="cs-cardh">จำนวนคอมเมนต์ต่อบท</div>${csSeg('cmtAmount', [['few', 'น้อย'], ['normal', 'ปกติ'], ['many', 'เยอะ']])}</div>
+   <div class="cs-card"><div class="cs-cardh">จำนวนคอมเมนต์<small>ต่อครั้งที่คนอ่านมา</small></div>${csRange('cmtPer', 'คอมเมนต์ต่อย่อหน้า', 1, 10, 1, ' คอมเมนต์')}${csRange('cmtParas', 'จำนวนย่อหน้าที่มีคนเม้นท์', 1, 12, 1, ' ย่อหน้า')}<div class="cs-hint2" style="margin:-2px 0 6px">ถ้าโมเดลเลือกบรรทัดไว้ ใช้บรรทัดที่เลือก (บวกย่อหน้าที่แตะ) แทนจำนวนย่อหน้า · รวมสูงสุดราว <b data-cmt-total>${Math.max(1, s.cmtPer | 0) * Math.max(1, s.cmtParas | 0)}</b> คอมเมนต์</div></div>
    <div class="cs-card cs-tokcard"><div class="cs-cardh">โทเคนที่ใช้</div>
     <div class="cs-srow"><div class="cs-slb"><span>คอมเมนต์ต่อครั้ง</span><small>เรียกแยก ไม่แนบแชท ไม่เข้าโรลหลัก · คำนวณจากบทล่าสุด</small></div><div class="cs-sctl"><b data-tok="cmt">…</b></div></div>
     <details class="cs-tokbd"><summary>ดูว่ามีอะไรบ้าง ทำไมใช้เท่านี้</summary><div data-tok="bd">กำลังคำนวณ…</div></details>
@@ -1638,6 +1641,7 @@ function csSettingsInput(e) {
  if (el.dataset.k && el.type === 'range') {
   const v = +el.value;
   csSet(el.dataset.k, v);
+  if (el.dataset.k === 'cmtPer' || el.dataset.k === 'cmtParas') { const t = document.querySelector('#cs-settings [data-cmt-total]'); if (t) t.textContent = csCmtPer() * csCmtNParas(); }
   if ((el.dataset.k === 'cmtEvery' || el.dataset.k === 'cmtRandom') && v > 0 && !csCfg().cmtOn) { csCfg().cmtOn = true; csApplyPrompt(); setTimeout(csRenderSettingsBody, 0); } // ตั้งให้คอมเมนต์มา = เปิดคอมเมนต์ให้เลย
   const lab = document.querySelector(`#cs-settings [data-v="${el.dataset.k}"]`);
   if (lab) lab.textContent = v + (el.dataset.unit || '');
@@ -2242,6 +2246,8 @@ function csCmtHost() {
  csApplyVars(h);
  return h;
 }
+function csCmtPer() { return Math.max(1, Math.min(10, csCfg().cmtPer | 0 || 3)); }
+function csCmtNParas() { return Math.max(1, Math.min(12, csCfg().cmtParas | 0 || 4)); }
 /** ย่อหน้าของบท (ที่มีคอมเมนต์ได้) พร้อมเลขลำดับ */
 function csCmtParas(m) {
  return csNovelLines(m).map((l, i) => ({ l, i })).filter(x => x.l.k === 'p' || x.l.k === 'say' || x.l.k === 'think');
@@ -2255,9 +2261,10 @@ function csCmtPrompt(mesId, extraIdx) {
  if (s.cmtPick === 'model' && extraIdx !== undefined && extraIdx !== null && all.some(x => x.i === extraIdx)) want.add(extraIdx);
  const picked = all.filter(x => want.has(x.i));
  const paras = (picked.length ? picked : all).slice(0, 24);
- const n = picked.length ? paras.length : ({ few: 2, normal: 4, many: 6 }[s.cmtAmount] || 4);
+ const n = picked.length ? paras.length : Math.min(paras.length, csCmtNParas());
+ const per = csCmtPer();
  const body = paras.map(x => `[${x.i}] ${x.l.k === 'say' ? `${x.l.who}: ${x.l.text}` : x.l.text}`.slice(0, 125)).join('\n');
- const instr = `${picked.length ? 'For each paragraph above' : `Pick ${n} paragraphs;`} 1-3 short casual Thai comments each from different reader handles (fangirling, shipping, jokes, theories, tears, anger).`;
+ const instr = `${picked.length ? 'For each paragraph above' : `Pick ${n} paragraphs;`} ${per === 1 ? '1 short casual Thai comment' : `${per} short casual Thai comments`} each from different reader handles (fangirling, shipping, jokes, theories, tears, anger).`;
  const readers = csCmtReadersLine();
  const fmt = `Compact JSON only, no " inside text: [{"p":n,"c":[{"n":"handle","t":"text","r":"heart|fire|laugh|cry|shock|angry"}]}]`;
  const system = 'Thai web-novel reader comments.';
@@ -2283,8 +2290,9 @@ async function csCmtEstimate(mesId, extraIdx) {
  const q = csCmtPrompt(mesId, extraIdx);
  const inTok = await csCountTokens(q.system + '\n' + q.prompt);
  // คำตอบกลับ: ประมาณจากจำนวนย่อหน้าที่ต้องคอมเมนต์ × คอมเมนต์ละ ~30 โทเคน
- const per = { few: 1, normal: 2, many: 3 }[csCfg().cmtAmount] || 2;
- const outTok = Math.min(560, 30 + q.paras.length * per * 30 * (q.parts.picked ? 1 : 0) + (q.parts.picked ? 0 : ({ few: 130, normal: 250, many: 400 }[csCfg().cmtAmount] || 250)));
+ const per = csCmtPer();
+ const np = q.parts.picked ? q.paras.length : Math.min(q.paras.length, csCmtNParas());
+ const outTok = 30 + np * per * 45;
  return { inTok, outTok, total: inTok + outTok, q };
 }
 /** แยกให้ดูว่าโทเคนไปอยู่ตรงไหนบ้าง */
@@ -2325,7 +2333,7 @@ function csCmtParse(raw, validIdx) {
   const p = snap(parseInt(x.p ?? x.para ?? x.paragraph ?? x.i, 10));
   const cs = x.c || x.comments || x.cmt;
   if (!validIdx.has(p) || !Array.isArray(cs)) return;
-  cs.slice(0, 4).forEach(c => {
+  cs.slice(0, csCmtPer() + 2).forEach(c => {
    const t = String(c && (c.t ?? c.text ?? c.comment) || '').trim().slice(0, 200);
    if (!t) return;
    const n = String(c.n ?? c.name ?? c.user ?? 'reader').trim().slice(0, 30) || 'reader';
@@ -2480,7 +2488,8 @@ async function csCmtGenerate(mesId, quiet, extraIdx) {
  csCmtSheetRefresh();
  try {
   // ★ 1.11 เผื่อที่ให้โมเดลที่คิดก่อนตอบ (Gemini / R1) และภาษาไทยที่กินโทเคน · ใช้จริงเท่าที่ตอบ
-  const len = { few: 1200, normal: 2000, many: 3000 }[csCfg().cmtAmount] || 2000;
+  // เผื่อที่ตามจำนวนที่ตั้ง (ภาษาไทย ~80 โทเคน/คอมเมนต์ + ที่คิดของโมเดล)
+  const len = Math.min(8000, Math.max(2000, 800 + q.paras.length * csCmtPer() * 110));
   let raw = '';
   try { raw = await csCallRaw(q.prompt, q.system, len); }
   catch (e) { if (/no message|empty/i.test(String(e && e.message || e))) raw = await csCallRaw(q.prompt, q.system, len * 2); else throw e; }

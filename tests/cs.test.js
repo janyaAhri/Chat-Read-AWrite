@@ -708,6 +708,22 @@ const REPLY = `<think>วางแผน</think>
     const ev = G.d.querySelector('#cs-settings [data-k="cmtEvery"]'); ev.value = '2'; ev.dispatchEvent(new G.w.Event('input', { bubbles: true }));
     ok(G.ev('csCfg().cmtOn') === true, 'setting "every N" turns comments on');
     G.ev('csCloseSettings()'); await sleep(250);
+    // ★ 1.13 ตั้งจำนวนคอมเมนต์เอง
+    G.ev("csCfg().cmtPick = 'all'; csCfg().cmtPer = 6; csCfg().cmtParas = 2");
+    const q6 = G.ev(`csCmtPrompt(${nid}).prompt`);
+    ok(/Pick 2 paragraphs; 6 short casual Thai comments each/.test(q6), 'prompt asks the set number of comments', q6.slice(-260));
+    G.ev("csCfg().cmtPer = 1");
+    ok(/1 short casual Thai comment each/.test(G.ev(`csCmtPrompt(${nid}).prompt`)), 'singular wording for 1');
+    G.ev("csCfg().cmtPer = 6");
+    const many = '[{"p":0,"c":[' + Array.from({ length: 8 }, (_, i) => `{"n":"u${i}","t":"t${i}","r":"heart"}`).join(',') + ']}]';
+    ok(G.ev(`csCmtParse(${JSON.stringify(many)}, new Set([0]))[0].length`) === 8, 'keeps up to set number (+2 slack)');
+    G.ev("csOpenSettings('cmt')");
+    const sp = G.d.querySelector('#cs-settings [data-k="cmtPer"]');
+    ok(!!sp && !!G.d.querySelector('#cs-settings [data-k="cmtParas"]'), 'count sliders in comments tab');
+    sp.value = '5'; sp.dispatchEvent(new G.w.Event('input', { bubbles: true }));
+    ok(G.ev('csCfg().cmtPer') === 5 && G.d.querySelector('#cs-settings [data-cmt-total]').textContent === '10', 'slider updates total');
+    G.ev('csCloseSettings()'); await sleep(250);
+    G.ev("csCfg().cmtPick = 'model'");
     ok(!G.errors.length, 'no uncaught (1.10)', G.errors.map(String));
   }
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}");
@@ -716,6 +732,8 @@ const REPLY = `<think>วางแผน</think>
   ok(E.ev('csCfg().preset') === 'mint', 'migrates 1.0 theme');
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:17, cmtAuto:false}");
   ok(E.ev('csCfg().cmtAuto') === true && E.ev('csCfg().cmtEvery') === 3 && E.ev('csCfg().cmtRandom') === 30, 'migrates to auto comments with every/random defaults');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:18, cmtAmount:'many'}");
+  ok(E.ev('csCfg().cmtParas') === 6 && E.ev('csCfg().cmtPer') === 4, 'old few/normal/many migrates to numbers');
   ok(!E.errors.length, 'no uncaught', E.errors.map(String));
   console.log(`\nPASS ${pass}  FAIL ${fail}`);
   process.exit(fail ? 1 : 0);
