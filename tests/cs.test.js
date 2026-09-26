@@ -723,6 +723,37 @@ const REPLY = `<think>วางแผน</think>
     sp.value = '5'; sp.dispatchEvent(new G.w.Event('input', { bubbles: true }));
     ok(G.ev('csCfg().cmtPer') === 5 && G.d.querySelector('#cs-settings [data-cmt-total]').textContent === '10', 'slider updates total');
     G.ev('csCloseSettings()'); await sleep(250);
+    // ★ 1.14 โหมดจำนวน: ตั้งเอง / ให้โมเดลคิด / สุ่ม
+    G.ev("csCfg().cmtPick = 'all'; csCfg().cmtCountMode = 'auto'; csCfg().cmtPer = 5; csCfg().cmtParas = 3");
+    const qa = G.ev(`csCmtPrompt(${nid}).prompt`);
+    ok(/Pick the paragraphs readers would react to most \(1-2\); 1-5 short casual Thai comments each \(more for bigger moments/.test(qa), 'auto: model decides within max', qa.slice(-240));
+    G.ev("csCfg().cmtCountMode = 'random'; csCfg().cmtPerMin = 2; csCfg().cmtPer = 4; csCfg().cmtParasMin = 1; csCfg().cmtParas = 2");
+    const seen = new Set();
+    for (let i = 0; i < 30; i++) { const q = G.ev(`csCmtPrompt(${nid}).prompt`); const m = q.match(/Pick (\d) paragraphs; 2-4 short casual Thai comments each \(vary/); ok(m && +m[1] >= 1 && +m[1] <= 2, 'random: paragraphs in range'); seen.add(m && m[1]); }
+    ok(seen.size === 2, 'random: varies between calls', [...seen]);
+    // สุ่มแบบโมเดลเลือกบรรทัด: ระบุจำนวนรายย่อหน้า
+    G.ev(`SillyTavern.getContext().chat[${nid}].extra.cs_cmt_marks = { h: csHash(SillyTavern.getContext().chat[${nid}].mes), lines: SillyTavern.getContext().chat[${nid}].mes.split('\\n') }`);
+    G.ev("csCfg().cmtPick = 'model'");
+    const qr = G.ev(`csCmtPrompt(${nid}).prompt`);
+    const per = [...qr.matchAll(/\[(\d+)\]=(\d+)/g)].map(m => +m[2]);
+    ok(per.length === 2 && per.every(k => k >= 2 && k <= 4), 'random + model picks: exact count per paragraph', qr.slice(-200));
+    G.ev("csCfg().cmtCountMode = 'set'");
+    ok(/For each paragraph above 4 short casual Thai comments each/.test(G.ev(`csCmtPrompt(${nid}).prompt`)), 'set + model picks');
+    // หน้าตั้งค่าแต่ละโหมด
+    G.ev("csOpenSettings('cmt')");
+    const SS = () => G.d.querySelector('#cs-settings');
+    ok(SS().querySelector('[data-seg="cmtCountMode"][data-val="auto"]') && !SS().querySelector('[data-k="cmtPerMin"]'), 'set mode: 2 sliders');
+    SS().querySelector('[data-seg="cmtCountMode"][data-val="random"]').click();
+    ok(G.ev('csCfg().cmtCountMode') === 'random' && SS().querySelector('[data-k="cmtPerMin"]') && SS().querySelector('[data-k="cmtParasMin"]'), 'random mode: min/max sliders');
+    ok(SS().querySelector('[data-cmt-total]').textContent === '2–8', 'random total range', SS().querySelector('[data-cmt-total]').textContent);
+    const mn = SS().querySelector('[data-k="cmtPerMin"]'); mn.value = '7'; mn.dispatchEvent(new G.w.Event('input', { bubbles: true }));
+    ok(G.ev('csCfg().cmtPer') === 7 && SS().querySelector('[data-k="cmtPer"]').value === '7', 'min above max pushes max up');
+    const mx = SS().querySelector('[data-k="cmtPer"]'); mx.value = '3'; mx.dispatchEvent(new G.w.Event('input', { bubbles: true }));
+    ok(G.ev('csCfg().cmtPerMin') === 3, 'max below min pulls min down');
+    SS().querySelector('[data-seg="cmtCountMode"][data-val="auto"]').click();
+    ok(/ไม่เกิน/.test(SS().querySelector('[data-cmt-total]').textContent) && /ไม่เกิน/.test(SS().querySelector('.cs-sbody').innerHTML), 'auto mode labels');
+    G.ev('csCloseSettings()'); await sleep(250);
+    G.ev("csCfg().cmtCountMode = 'set'; csCfg().cmtPer = 3; csCfg().cmtParas = 4");
     G.ev("csCfg().cmtPick = 'model'");
     ok(!G.errors.length, 'no uncaught (1.10)', G.errors.map(String));
   }
