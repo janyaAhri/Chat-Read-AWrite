@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.17.0';
+const CS_VERSION = '1.18.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -12,9 +12,8 @@ const CS_PROMPT_KEY = 'chat_story_format';
 const CS_COLOR_KEYS = ['bg', 'bar', 'ink', 'ink2', 'inBg', 'inInk', 'outBg', 'outInk', 'narrBg', 'accent', 'name'];
 const CS_COLOR_LABELS = { bg: 'พื้นหลัง', bar: 'แถบบนและช่องพิมพ์', ink: 'ตัวหนังสือ', ink2: 'ตัวหนังสือรอง / บรรยาย', inBg: 'ฟองตัวละคร', inInk: 'ตัวหนังสือในฟองตัวละคร', outBg: 'ฟองของเรา', outInk: 'ตัวหนังสือในฟองของเรา', narrBg: 'พื้นบรรยาย', accent: 'สีเน้น', name: 'ชื่อตัวละคร' };
 const CS_PRESETS = {
- // ★ 1.17 ธีมเริ่มต้นของเราเอง: กระดาษนวลใต้แสงจันทร์ หมึกม่วงเข้ม แต้มส้มอิฐ
+ classic: { name: 'ขาวดำเรียบ', c: { bg: '#ffffff', bar: '#ffffff', ink: '#141414', ink2: '#8f8f8f', inBg: '#f2f2f0', inInk: '#141414', outBg: '#141414', outInk: '#ffffff', narrBg: '#f7f7f5', accent: '#141414', name: '#595959' } },
  moon: { name: 'จันทร์นวล', c: { bg: '#faf7f2', bar: '#faf7f2', ink: '#2a2530', ink2: '#8b8394', inBg: '#efe9e1', inInk: '#2a2530', outBg: '#5b4b8a', outInk: '#ffffff', narrBg: '#f2ede5', accent: '#c26d5a', name: '#7a6f86' } },
- classic: { name: 'ขาวดำเรียบ', c: { bg: '#ffffff', bar: '#ffffff', ink: '#111111', ink2: '#8e8e8e', inBg: '#f0f0f0', inInk: '#111111', outBg: '#111111', outInk: '#ffffff', narrBg: '#f6f6f6', accent: '#111111', name: '#6b6b6b' } },
  ink: { name: 'ดำขาว', c: { bg: '#0e0e0e', bar: '#0e0e0e', ink: '#f1f1f1', ink2: '#8a8a8a', inBg: '#242424', inInk: '#f1f1f1', outBg: '#f1f1f1', outInk: '#0e0e0e', narrBg: '#181818', accent: '#f1f1f1', name: '#a3a3a3' } },
  sepia: { name: 'กระดาษเก่า', c: { bg: '#f4ecdf', bar: '#f4ecdf', ink: '#3b3024', ink2: '#8c7a62', inBg: '#fffaf1', inInk: '#3b3024', outBg: '#5b4632', outInk: '#fff7ea', narrBg: '#ebe0cd', accent: '#7a5c3e', name: '#8c7a62' } },
  soft: { name: 'ชมพูพาสเทล', c: { bg: '#fff5f8', bar: '#ffffff', ink: '#3b2a33', ink2: '#9a7b88', inBg: '#ffffff', inInk: '#3b2a33', outBg: '#ff7aa2', outInk: '#ffffff', narrBg: '#ffe8ef', accent: '#ff5c8d', name: '#c0567c' } },
@@ -63,7 +62,7 @@ const CS_DEFAULTS = {
  mode: 'reader',        // reader | inline
  autoOpen: true,
  forceFormat: true,
- preset: 'moon',
+ preset: 'classic',
  custom: null,          // สีที่ปรับเอง (คัดลอกจากธีมที่เลือกตอนเริ่มแก้)
  font: 'sarabun',
  fontCustom: '',
@@ -74,7 +73,7 @@ const CS_DEFAULTS = {
  avatar: 'circle',      // circle | rounded | square | none
  showNames: true,
  nameColor: 'theme',    // theme | rainbow
- narrStyle: 'plain',    // plain | box | italic
+ narrStyle: 'plain',    // plain ร้อยแก้วชิดซ้าย · center กลางจอ · box ในกล่อง · italic ตัวเอียง
  sound: 'pop',
  volume: 0.6,
  pitchVary: true,
@@ -130,15 +129,16 @@ function csCfg() {
  for (const k of Object.keys(CS_DEFAULTS)) if (s[k] === undefined) s[k] = (CS_DEFAULTS[k] && typeof CS_DEFAULTS[k] === 'object') ? JSON.parse(JSON.stringify(CS_DEFAULTS[k])) : CS_DEFAULTS[k];
  // ธีมเก่าจาก 1.0.0
  if (s.theme && !s._migrated) { if (CS_PRESETS[s.theme]) s.preset = s.theme; s._migrated = true; }
- if (!CS_PRESETS[s.preset] && s.preset !== 'custom') s.preset = 'moon';
- if (s.preset === 'custom' && !s.custom) s.custom = { ...CS_PRESETS.moon.c };
+ if (!CS_PRESETS[s.preset] && s.preset !== 'custom') s.preset = 'classic';
+ if (s.preset === 'custom' && !s.custom) s.custom = { ...CS_PRESETS.classic.c };
  if (!s.chars || typeof s.chars !== 'object') s.chars = {};
  if ((s._v || 0) < 13) { if (s.paraGap === 0.9) s.paraGap = 1.2; s._v = 13; } // หน้านิยายแบบใหม่ห่างขึ้น
  if (s._v < 15) { if (s.userInNovel === 'mark') s.userInNovel = 'same'; delete s.cmtJanya; s._v = 15; } // ★ 1.5 ค่าเริ่มต้นใหม่
  if (s._v < 16) { if (s.cmtGate === 'ask') s.cmtGate = 'keyword'; s._v = 16; } // ★ 1.6 ถามโมเดลกลายเป็นให้โมเดลเลือกบรรทัด
  if (s._v < 18) { s.cmtAuto = true; s._v = 18; } // ★ 1.9 คอมเมนต์มาเองเป็นค่าเริ่มต้น (ครบรอบ/สุ่ม/โมเดลเลือก)
  if (s._v < 19) { const m = { few: [2, 2], normal: [4, 3], many: [6, 4] }[s.cmtAmount] || [4, 3]; s.cmtParas = m[0]; s.cmtPer = m[1]; s._v = 19; } // ★ 1.13 ตั้งจำนวนเองเป็นตัวเลข
- if (s._v < 20) { if (s.preset === 'classic') s.preset = 'moon'; s._v = 20; } // ★ 1.17 หน้าตาใหม่ของเราเอง (ขาวดำยังเลือกได้)
+ if (s._v < 20) s._v = 20;
+ if (s._v < 21) { if (s.preset === 'moon') s.preset = 'classic'; s._v = 21; } // ★ 1.18 กลับมาเริ่มที่ขาวดำเรียบ (จันทร์นวลยังเลือกได้)
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -173,7 +173,7 @@ function csTextOn(bg) { return csLum(bg) > .45 ? '#111111' : '#ffffff'; }
 // ══ ธีมที่ใช้อยู่ → ตัวแปร CSS ══
 function csColors() {
  const s = csCfg();
- return s.preset === 'custom' ? { ...CS_PRESETS.moon.c, ...(s.custom || {}) } : { ...CS_PRESETS[s.preset].c };
+ return s.preset === 'custom' ? { ...CS_PRESETS.classic.c, ...(s.custom || {}) } : { ...CS_PRESETS[s.preset].c };
 }
 function csFont() { const s = csCfg(); return CS_FONTS.find(f => f.id === s.font) || CS_FONTS[0]; }
 function csFontFamily() {
@@ -763,7 +763,7 @@ function csCharOpt(who, ck) {
  return { color: own.color || legacy.color || '', sound: own.sound || legacy.sound || '' };
 }
 function csItemHTML(it, prev) {
- const html = csItemHTML0(it, prev);
+ const html = (it.hd ? `<div class="cs-turn" aria-label="${csChWord()}ที่ ${it.hd}"><span>${csChWord()} ${it.hd}</span></div>` : '') + csItemHTML0(it, prev);
  return it.cm !== undefined && csCfg().cmtOn ? html + csCmtBarHTML(it.cm) : html;
 }
 function csItemHTML0(it, prev) {
@@ -971,9 +971,13 @@ let csReader = null; // { el, player, auto }
 let csGenerating = false;
 let csSentByReader = false;
 function csItemsForMessage(mesId) {
- const m = (csCtx().chat || [])[mesId];
+ const chat = csCtx().chat || [];
+ const m = chat[mesId];
  if (!m || m.is_system) return [];
- return csMarkCmt(csParseMessage(m), m, mesId);
+ const items = csMarkCmt(csParseMessage(m), m, mesId);
+ // ★ 1.18 เส้นคั่นบทตอนเริ่มคำตอบของบอท (เลขเดียวกับหน้านิยาย)
+ if (items.length && !m.is_user) { let n = 0; for (let i = 0; i <= mesId; i++) if (chat[i] && !chat[i].is_user && !chat[i].is_system) n++; items[0].hd = n; }
+ return items;
 }
 /** ★ 1.10 ฟองสุดท้ายของข้อความบอทมีแถบคอมเมนต์ (แชทนิยายก็ดูคอมเมนต์ได้) · จำว่ามาจากข้อความไหนไว้เซฟตำแหน่งอ่าน */
 function csMarkCmt(items, m, mesId) {
@@ -1061,6 +1065,7 @@ function csReaderUpdate() {
  if (csReader.key === 'all') { const it = player.items[Math.min(player.i, player.items.length) - 1]; if (it && it._m !== undefined) csPosSave('chat', { m: it._m, k: it._k }); }
  const send = el.querySelector('.cs-send i');
  if (send) send.className = csGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-paper-plane';
+ const sb = el.querySelector('.cs-send'); if (sb) { sb.title = csGenerating ? 'หยุด' : 'ส่ง'; sb.setAttribute('aria-label', sb.title); }
  if (player.done) csStopAuto();
 }
 function csShowWaiting(on) {
@@ -1468,7 +1473,7 @@ function csTabHTML(tab) {
   const card = (id, p) => `<button class="cs-preset${s.preset === id ? ' on' : ''}" data-preset="${id}" style="background:${p.bg}">
    <span class="cs-pv-b in" style="background:${p.inBg}"></span><span class="cs-pv-b out" style="background:${p.outBg}"></span><span class="cs-pv-b in s" style="background:${p.inBg}"></span>
    <i style="color:${p.ink}">${csEsc(id === 'custom' ? 'ปรับเอง' : CS_PRESETS[id].name)}</i></button>`;
-  return `<div class="cs-card"><div class="cs-cardh">ธีมสำเร็จรูป</div><div class="cs-presets">${Object.keys(CS_PRESETS).map(id => card(id, CS_PRESETS[id].c)).join('')}${card('custom', { ...CS_PRESETS.moon.c, ...(s.custom || {}) })}</div></div>
+  return `<div class="cs-card"><div class="cs-cardh">ธีมสำเร็จรูป</div><div class="cs-presets">${Object.keys(CS_PRESETS).map(id => card(id, CS_PRESETS[id].c)).join('')}${card('custom', { ...CS_PRESETS.classic.c, ...(s.custom || {}) })}</div></div>
    <div class="cs-card"><div class="cs-cardh">ปรับสีเอง <small>แก้สีไหนก็ได้ ระบบจะเปลี่ยนเป็นธีม "ปรับเอง" ให้</small></div>
     <div class="cs-colors">${CS_COLOR_KEYS.map(k => `<label class="cs-color"><input type="color" data-color="${k}" value="${c[k]}"><span class="cs-sw" style="background:${c[k]}"></span><span class="cs-cl"><b>${CS_COLOR_LABELS[k]}</b><small>${c[k]}</small></span></label>`).join('')}</div>
    </div>`;
@@ -1516,7 +1521,7 @@ function csTabHTML(tab) {
  if (tab === 'bubble') {
   return `<div class="cs-card">${csRange('radius', 'ความมนของฟอง', 2, 26, 1, 'px')}${csRange('bubbleMax', 'ความกว้างสูงสุด', 55, 95, 1, '%')}</div>
    <div class="cs-card"><div class="cs-cardh">รูปตัวละคร</div>${csSeg('avatar', [['circle', 'วงกลม'], ['rounded', 'มน'], ['square', 'เหลี่ยม'], ['none', 'ไม่แสดง']])}</div>
-   <div class="cs-card"><div class="cs-cardh">บรรยาย</div>${csSeg('narrStyle', [['plain', 'ตัวหนังสือกลางจอ'], ['box', 'ในกล่อง'], ['italic', 'ตัวเอียง']])}</div>
+   <div class="cs-card"><div class="cs-cardh">บรรยาย</div>${csSeg('narrStyle', [['plain', 'ร้อยแก้ว'], ['center', 'กลางจอ'], ['box', 'ในกล่อง'], ['italic', 'ตัวเอียง']])}</div>
    <div class="cs-card">${csToggle('showNames', 'แสดงชื่อเหนือฟอง')}${csSelect('nameColor', 'สีชื่อ', [['theme', 'ตามธีม'], ['rainbow', 'สีต่างกันรายคน']])}${csSelect('userSide', 'ฝั่งของเรา', [['right', 'ขวา'], ['left', 'ซ้าย']])}${csToggle('userLinesRight', 'บทของตัวเราที่บอทเขียน อยู่ฝั่งเรา', 'ปิดไว้ = ฝั่งเรามีแต่ข้อความที่เราพิมพ์เอง บทที่บอทเขียนแทนอยู่ซ้ายพร้อมชื่อ')}</div>`;
  }
  if (tab === 'sound') {

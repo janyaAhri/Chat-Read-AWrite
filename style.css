@@ -29,7 +29,7 @@
 #cs-reader .cs-end{display:none;justify-content:center;margin-top:22px;color:var(--cs-ink2);font-size:12px;letter-spacing:.5px;}
 #cs-reader.done:not(.generating) .cs-end{display:flex;}
 #cs-reader .cs-end span::before,#cs-reader .cs-end span::after{content:'';display:inline-block;width:28px;height:1px;background:currentColor;opacity:.4;vertical-align:middle;margin:0 10px;}
-.cs-old{opacity:.55;}
+.cs-old{opacity:1;} /* ★ 1.18 ของเก่าไม่จางแล้ว อ่านสบายเท่ากัน */
 @keyframes cs-blink{0%,100%{opacity:.3}50%{opacity:1}}
 
 /* ช่องพิมพ์ */
@@ -444,3 +444,47 @@ body:has(#cs-reader.show) #cs-edge,body:has(#cs-novel.show) #cs-edge,body:has(#c
 /* ★ 1.17 ไอคอนคอมเมนต์ใต้ข้อความในแชท: ตรงกับโน้ตชายขอบ */
 .cs-cmtbar.has{padding:0 7px;gap:4px;}
 .cs-cmtbar.has svg{opacity:1;width:13px;height:13px;}
+
+/* ══ ★ 1.18 แชทนิยายโฉมใหม่: มินิมอล อ่านแบบหนังสือ ══ */
+#cs-reader .cs-top{border-bottom:none;box-shadow:0 1px 0 color-mix(in srgb,var(--cs-ink) 7%,transparent);}
+#cs-reader .cs-title b{font-size:15px;font-weight:700;letter-spacing:.2px;}
+#cs-reader .cs-sub{letter-spacing:.8px;font-variant-numeric:tabular-nums;}
+#cs-reader .cs-body{padding:26px 18px 36px;}
+#cs-reader .cs-list{max-width:620px;gap:2px;}
+/* บรรยาย = ร้อยแก้ว */
+.cs-narr{align-self:stretch;max-width:none;text-align:left;margin:14px 2px;color:color-mix(in srgb,var(--cs-ink) 84%,transparent);font-size:.97em;line-height:1.85;}
+[data-narr="center"] .cs-narr{align-self:center;max-width:88%;text-align:center;color:var(--cs-ink2);font-size:.92em;line-height:inherit;}
+[data-narr="box"] .cs-narr{text-align:left;padding:.7em 1em;border-radius:14px;background:var(--cs-narr);}
+[data-narr="italic"] .cs-narr{font-style:italic;}
+/* ฟองคำพูด: มุมฝั่งคนพูดแหลม เหมือนหางคำพูด */
+.cs-row{margin-top:10px;gap:10px;}
+.cs-row.cont{margin-top:3px;}
+.cs-avwrap{width:34px;}
+.cs-av{width:34px;height:34px;font-size:13px;box-shadow:0 0 0 2px var(--cs-bg),0 0 0 3px color-mix(in srgb,var(--cs-ink) 10%,transparent);}
+.cs-name{font-size:.72em;letter-spacing:.6px;margin:0 0 4px 4px;}
+.cs-bubble{padding:.6em .95em;line-height:1.6;border-radius:var(--cs-radius,18px);border-top-left-radius:6px;}
+.cs-row.cont .cs-bubble{border-top-left-radius:var(--cs-radius,18px);}
+.cs-row.right .cs-bubble{border-top-left-radius:var(--cs-radius,18px);border-top-right-radius:6px;}
+.cs-row.right.cont .cs-bubble{border-top-right-radius:var(--cs-radius,18px);}
+.cs-bubble.think{border-radius:var(--cs-radius,18px) !important;}
+/* ฉาก: ตัวเล็กเว้นระยะ มีเส้นบางสองข้าง */
+.cs-scene{align-items:center;gap:12px;margin:26px 0 14px;}
+.cs-scene::before,.cs-scene::after{content:'';flex:1;max-width:80px;height:1px;background:color-mix(in srgb,var(--cs-ink) 16%,transparent);}
+.cs-scene span{border:none;padding:0;font-size:.72em;letter-spacing:1.6px;color:var(--cs-ink2);text-transform:uppercase;}
+/* เส้นคั่นบทตอนเริ่มคำตอบ */
+.cs-turn{display:flex;align-items:center;justify-content:center;gap:14px;margin:30px 0 8px;color:var(--cs-ink2);}
+.cs-turn::before,.cs-turn::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--cs-ink) 18%,transparent));}
+.cs-turn::after{background:linear-gradient(90deg,color-mix(in srgb,var(--cs-ink) 18%,transparent),transparent);}
+.cs-turn span{font-size:.68em;letter-spacing:3px;font-weight:600;}
+.cs-list > .cs-item:first-child .cs-turn{margin-top:4px;}
+.mes_text .cs-inline .cs-turn{display:none;}
+/* ช่องพิมพ์ + ปุ่มส่ง: ตอนกำลังเขียนเห็นต่างชัด (วงหมุน + ปุ่มหยุด) */
+#cs-reader .cs-inputbar,#cs-novel .cs-inputbar{border-top:none;box-shadow:0 -1px 0 color-mix(in srgb,var(--cs-ink) 7%,transparent);}
+#cs-reader .cs-input{border-radius:22px;background:color-mix(in srgb,var(--cs-ink) 4%,var(--cs-bg));border-color:transparent;}
+#cs-reader .cs-input:focus{border-color:color-mix(in srgb,var(--cs-ink) 25%,transparent);}
+.cs-send{position:relative;transition:background .2s,color .2s,box-shadow .2s;}
+#cs-reader.generating .cs-send,#cs-novel.writing .cs-send{background:var(--cs-bg) !important;color:var(--cs-ink) !important;box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--cs-ink) 18%,transparent);}
+#cs-reader.generating .cs-send::after,#cs-novel.writing .cs-send::after{content:'';position:absolute;inset:0;border-radius:50%;border:2px solid transparent;border-top-color:var(--cs-ink);animation:cs-spin .9s linear infinite;}
+#cs-novel.writing .cs-send i::before{content:"\f04d";}
+#cs-reader.generating .cs-send i,#cs-novel.writing .cs-send i{font-size:12px;}
+@media (prefers-reduced-motion: reduce){#cs-reader.generating .cs-send::after,#cs-novel.writing .cs-send::after{animation:none;border-color:color-mix(in srgb,var(--cs-ink) 40%,transparent);}}
