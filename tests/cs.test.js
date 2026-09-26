@@ -602,6 +602,17 @@ const REPLY = `<think>วางแผน</think>
     C.characters[0].name = 'พล';
     const sc = P(SCENE, 'พล').filter(x => x.k === 'say').map(x => x.who + (x.u ? ':U' : '')).join(',');
     ok(sc === 'ม่านฝัน,ม่านฝัน,พล,พล,ต้น,พล', 'user scene: every speaker right, all on the left in a bot message', sc);
+    // ★ 1.16 จากภาพผู้ใช้: ข้อความของเราเอง ชื่อพลเป็นกรรม (มองพล) → ต้องเป็นของเรา
+    const MINE = 'เธอเงยหน้ามองพลอย่างช้าๆ ก่อนจะปิดมือถือคว่ำลงแล้วเอ่ยคุย "มันค่อนข้างร้อนน่ะค่ะ เลยเข้ามานั่งดูคนเล่นบาส" เธอยิ้มเล็กน้อยและเสยผม "คุณ เล่นเก่งนะเรามองอยู่เมื่อกี้"';
+    const mine = P(MINE, 'ม่านฝัน', true).filter(x => x.k === 'say').map(x => x.who + (x.u ? ':U' : '')).join(',');
+    ok(mine === 'ม่านฝัน:U,ม่านฝัน:U', 'own message: name as object does not steal the line', mine);
+    const mineBot = P(MINE, 'พล').filter(x => x.k === 'say').map(x => x.who).join(',');
+    ok(mineBot === 'ม่านฝัน,ม่านฝัน', 'same text in bot message: เธอ + ค่ะ → the woman, not พล', mineBot);
+    const BOT2 = 'ต้นตะโกนเรียกเพื่อนอยู่ไกลๆ\n"ตรงนี้มันค่อนข้างร้อนนะ" พลเอ่ย\nพลเปิดบทสนทนาด้วยน้ำเสียงเรียบเรื่อย เขาเลิกคิ้วขึ้นเล็กน้อย นัยน์ตาสีเข้มมองตรงไปยังคนตรงหน้า\n"หรือว่า... มีธุระอะไรกับชมรมบาสหรือเปล่า ถึงมานั่งอยู่ตรงนี้"';
+    const b2 = P(BOT2, 'พล').filter(x => x.k === 'say').map(x => x.who).join(',');
+    ok(b2 === 'พล,พล', 'quote-only after narration about พล stays พล (not ต้น)', b2);
+    const BOT3 = '"ไปกันเถอะ" พลบอก\nม่านฝันพยักหน้าช้า ๆ\n"ได้ค่ะ"';
+    ok(P(BOT3, 'พล').filter(x => x.k === 'say').map(x => x.who).join(',') === 'พล,ม่านฝัน', 'quote-only after narration about someone else → that person');
     C.characters[0].name = 'อาเรีย'; C.name1 = 'มินา';
     F.ev("csCastSet('พล', {g:'f'})");
     ok(F.ev("csGenderOf('พล')") === 'f', 'gender set by user wins');
@@ -737,6 +748,90 @@ const REPLY = `<think>วางแผน</think>
     sp.value = '5'; sp.dispatchEvent(new G.w.Event('input', { bubbles: true }));
     ok(G.ev('csCfg().cmtPer') === 5 && G.d.querySelector('#cs-settings [data-cmt-total]').textContent === '10', 'slider updates total');
     G.ev('csCloseSettings()'); await sleep(250);
+    // ★ 1.16 ตอบกลับกันเอง
+    ok(/"to":"handle \(only if replying\)"/.test(G.ev(`csCmtPrompt(${nid}).prompt`)) && /reply to each other/.test(G.ev(`csCmtPrompt(${nid}).prompt`)), 'prompt allows replies');
+    const th = G.ev(`csCmtParse('[{"p":0,"c":[{"n":"a","t":"หนึ่ง","r":"heart"},{"n":"b","t":"ตอบเอ","r":"laugh","to":"a"},{"n":"c","t":"ตอบบี","r":"cry","to":"@b"}]}]', new Set([0]))`);
+    ok(th[0][1].to === 'a' && th[0][2].to === 'b', 'parse keeps "to"', th);
+    const thl = G.ev(`csCmtParse('[{"p":0,"c":[{"n":"a","t":"เขาว่า "ไป" แหละ","r":"heart"},{"n":"b","t":"จริง","to":"a","r":"fire"}]', new Set([0]))`);
+    ok(thl && thl[0][1].to === 'a' && thl[0][1].r === 'fire', 'loose parse keeps "to" in any order', thl);
+    G.chat[nid].extra.cs_cmt.list[0] = [{ n: 'a', t: 'หนึ่ง', r: 'heart' }, { n: 'b', t: 'ตอบเอ', r: 'laugh', to: 'a' }, { n: 'x', t: 'อีกเรื่อง', r: 'fire' }];
+    G.ev(`csOpenMessage(${nid}); csReader.player.all()`);
+    G.d.querySelector(`#cs-reader .cs-cmtbar[data-mes="${nid}"]`).click(); await sleep(20);
+    const shh = () => G.d.querySelector('#cs-reader .cs-cmt-sheet');
+    ok(shh().querySelector('.cs-cmt-replies .cs-cmt-row') && /ตอบ @a/.test(shh().querySelector('.cs-cmt-replies').textContent), 'replies render nested under parent');
+    shh().querySelector('[data-cs="cmtreply"][data-p="0"][data-k="2"]').click();
+    ok(/ตอบกลับ\s*@x/.test(shh().querySelector('.cs-cmt-replying').textContent), 'reply bar shows target');
+    const rin = shh().querySelector('.cs-cmt-in'); rin.value = 'เห็นด้วย';
+    shh().querySelector('[data-cs="cmtsend"]').click();
+    const last0 = G.chat[nid].extra.cs_cmt.list[0].slice(-1)[0];
+    ok(last0.me && last0.to === 'x' && !shh().querySelector('.cs-cmt-replying'), 'own reply saved with target');
+    G.ctx.generateRaw = async () => '[{"p":0,"c":[{"n":"ploy","t":"จริงมาก","r":"laugh"},{"n":"moo","t":"555","r":"laugh","to":"ploy"}]}]';
+    shh().querySelector('[data-cs="cmtask"][data-p="0"][data-k="0"]').click(); await sleep(80);
+    const L0 = G.chat[nid].extra.cs_cmt.list[0];
+    ok(L0[2].n === 'ploy' && L0[2].to === 'a' && L0[3].to === 'ploy' && L0[4].n === 'x', 'ask readers to reply: inserted under that comment, default target', L0.map(c => c.n + '>' + (c.to || '')));
+    G.ev('csCmtClose(); csCloseReader(true)');
+    // ★ 1.16 ไอคอนคอมเมนต์ในแชทหลักปกติ
+    G.ev("csCfg().mode = 'reader'; csCfg().cmtOn = true; csInlineAll()"); await sleep(10);
+    const mc = () => G.d.querySelector(`#chat .mes[mesid="${nid}"] .cs-mescmt`);
+    ok(mc() && mc().previousElementSibling.classList.contains('mes_text') && !G.d.querySelector('#chat .mes[mesid="0"] .cs-mescmt'), 'icon under bot messages in normal chat (not user)');
+    mc().querySelector('.cs-cmtbar').click(); await sleep(20);
+    ok(G.d.getElementById('cs-cmthost').classList.contains('cmt-open'), 'opens sheet over chat');
+    G.ev('csCmtClose()');
+    G.ev("csCfg().mode = 'inline'; csInlineAll()"); await sleep(10);
+    ok(!mc(), 'no duplicate icon when chat shows bubbles inline');
+    G.ev("csCfg().mode = 'reader'; csCfg().cmtOn = false; csInlineAll()"); await sleep(10);
+    ok(!mc(), 'removed when comments off');
+    G.ev("csCfg().cmtOn = true; csInlineAll()"); await sleep(10);
+    // ★ 1.16 แจ้งเตือนเล็ก
+    G.w.toastr = { info() { G.w.__toastr = 1; } };
+    G.ev("csToast('ทดสอบ')");
+    const tt = G.d.getElementById('cs-toast');
+    ok(tt && tt.classList.contains('show') && tt.textContent === 'ทดสอบ' && !G.w.__toastr, 'own small toast instead of toastr');
+    G.ev("csToast('คอมเมนต์ไม่มา · x')");
+    ok(tt.classList.contains('err') && G.d.querySelectorAll('#cs-toast').length === 1, 'one toast at a time, error style');
+    // ★ 1.16 เจนใหม่ / ลบ จากในหน้าอ่าน
+    G.ev("csCfg().style = 'chat'; csCfg().mode = 'reader'");
+    const rg = G.d.createElement('a'); rg.id = 'option_regenerate'; G.w.__regen = 0; rg.addEventListener('click', () => G.w.__regen++); G.d.body.appendChild(rg);
+    const lastId = G.chat.length - 1;
+    G.ev(`csOpenMessage(${lastId}); csReader.player.all()`);
+    const beforeN = G.ev('csReader.player.items.length');
+    G.d.querySelector('#cs-reader [data-cs="more"]').click();
+    ok(!!G.d.querySelector('#cs-reader .cs-menu [data-cs="regen"]') && !!G.d.querySelector('#cs-reader .cs-menu [data-cs="dellast"]'), 'regen + delete live in the ... menu (no new buttons)');
+    G.d.querySelector('#cs-reader .cs-menu [data-cs="regen"]').click();
+    ok(G.w.__regen === 1 && G.ev('csReader.player.items.length') < beforeN, 'regen clicks SillyTavern regenerate and clears old bubbles');
+    G.ev('csCloseReader(true)');
+    G.ctx.deleteLastMessage = async () => { G.chat.pop(); };
+    const n0 = G.chat.length;
+    G.ev(`csOpenMessage(${G.chat.length - 1}); csReader.player.all()`);
+    await G.ev('csDeleteLast()');
+    ok(G.chat.length === n0 - 1 && G.ev('csReader.player.items.filter(it => it._m >= SillyTavern.getContext().chat.length).length') === 0, 'delete last message, reader updated in place');
+    G.ev('csCloseReader(true)');
+    G.ev("csCfg().style = 'novel'; csOpenNovel()");
+    ok(!!G.d.querySelector('#cs-novel .cs-nacts [data-cs="regen"]') && G.d.querySelectorAll('#cs-novel .cs-nacts').length === 1, 'novel: small links only under the latest chapter');
+    G.ev('csCloseNovel(true)'); G.ev("csCfg().style = 'chat'");
+    // ★ 1.16 คอมเมนต์รอให้ว่างก่อน
+    G.ctx.generateRaw = async () => { G.w.__qr = (G.w.__qr || 0) + 1; return '[{"p":0,"c":[{"n":"a","t":"x","r":"heart"}]}]'; };
+    G.ev(`csGenerating = true; csCmtAutoQueue(${lastId - 1})`); await sleep(900);
+    ok(!G.w.__qr, 'queued comment call waits while generating');
+    G.ev('csGenerating = false'); await sleep(1700);
+    ok(G.w.__qr === 1, 'runs after generation is done');
+    // ★ 1.16 ปุ่มลัดข้างจอ
+    ok(!!G.d.getElementById('cs-edge'), 'edge button present');
+    const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };
+    G.w.innerHeight = 800; G.w.innerWidth = 400;
+    G.ev("csCfg().edgeY = 0.5; csCfg().edgeSide = 'right'; csEdgeRender()");
+    ok(G.d.getElementById('cs-edge').style.top === '400px', 'placed by saved position');
+    pe('pointerdown', 390, 400); pe('pointermove', 390, 5000); pe('pointerup', 390, 5000);
+    ok(G.ev('csCfg().edgeY') <= (800 - 46 - 8) / 800 + .001 && G.d.getElementById('cs-edge').style.top === '746px', 'drag clamped inside screen', G.d.getElementById('cs-edge').style.top);
+    pe('pointerdown', 390, 700); pe('pointermove', 20, 300); pe('pointerup', 20, 300);
+    ok(G.ev('csCfg().edgeSide') === 'left' && G.d.getElementById('cs-edge').classList.contains('left'), 'drag across switches side');
+    G.ev('csCloseReader(true); csCloseNovel(true)');
+    pe('pointerdown', 10, 300); pe('pointerup', 10, 300);
+    ok(!!(G.d.getElementById('cs-reader') || G.d.getElementById('cs-novel')), 'tap opens reader');
+    G.ev('csCloseReader(true); csCloseNovel(true)');
+    G.ev("csCfg().edgeBtn = false; csEdgeRender()");
+    ok(!G.d.getElementById('cs-edge'), 'can turn off');
+    G.ev("csCfg().edgeBtn = true; csEdgeRender()");
     // ★ 1.14 โหมดจำนวน: ตั้งเอง / ให้โมเดลคิด / สุ่ม
     G.ev("csCfg().cmtPick = 'all'; csCfg().cmtCountMode = 'auto'; csCfg().cmtPer = 5; csCfg().cmtParas = 3");
     const qa = G.ev(`csCmtPrompt(${nid}).prompt`);
