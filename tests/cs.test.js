@@ -274,7 +274,7 @@ const REPLY = `<think>วางแผน</think>
   const cid = E.chat.length - 1;
   E.ev("csCfg().style = 'novel'; csCfg().mode = 'reader'; csCfg().cmtOn = false; csOpenNovel()");
   ok(!N().querySelector('.cs-cmt'), 'comments off by default = no icons');
-  E.ev('csCloseNovel(true); csCfg().cmtOn = true; csOpenNovel()');
+  E.ev("csCloseNovel(true); csCfg().cmtOn = true; csCfg().cmtPick = 'all'; csOpenNovel()");
   const last2 = () => [...N().querySelectorAll('.cs-chapter')].pop();
   ok(last2().querySelectorAll('.cs-cmt').length === 3 && !last2().querySelector('.cs-ctitle .cs-cmt'), 'icon at end of each paragraph (not title)');
   last2().querySelector('.cs-cmt').click();
@@ -339,34 +339,55 @@ const REPLY = `<think>วางแผน</think>
   ok(/overflow-y:auto|overflow-y: auto/.test(require('fs').readFileSync(require('path').join(__dirname,'..','style.css'),'utf8').match(/\.cs-preview\{[^}]*\}/)[0]), 'preview scrollable');
   E.ev('csCloseSettings()'); await sleep(260);
 
-  // ── ด่านก่อนเรียกคอมเมนต์อัตโนมัติ ──
-  E.ev("csCfg().style = 'novel'; csCfg().cmtOn = true; csCfg().cmtAuto = true; csCfg().cmtGate = 'keyword'; csCfg().cmtMinHits = 2; csGenerating = false");
+  // ── ด่านเรียกเอง (แบบทุกย่อหน้า) ──
+  E.ev("csCfg().style = 'novel'; csCfg().cmtOn = true; csCfg().cmtPick = 'all'; csCfg().cmtAuto = true; csCfg().cmtGate = 'keyword'; csCfg().cmtMinHits = 2; csGenerating = false; csApplyPrompt()");
+  ok(!/\[c\]/.test(E.prompts.chat_story_format.v), 'all-paragraphs mode adds nothing to main prompt');
   const calls0 = E.w.__rawCalls.length;
-  const addBot = t => { E.chat.push({ name: 'อาเรีย', is_user: false, mes: t }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1); E.fire('gs', 'normal', {}, false); E.fire('cmr', E.chat.length - 1); };
+  const addBot = t => { E.chat.push({ name: 'อาเรีย', is_user: false, mes: t }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1); E.fire('gs', 'normal', {}, false); E.fire('cmr', E.chat.length - 1); return E.chat.length - 1; };
   addBot('วันนี้อากาศดี เธอเดินไปซื้อขนม');
   await sleep(1100);
   ok(E.w.__rawCalls.length === calls0, 'keyword gate: quiet chapter = no call');
   addBot('เธอร้องไห้แล้วกอดเขาไว้แน่น น้ำตาไหลไม่หยุด');
   await sleep(1100);
-  ok(E.w.__rawCalls.length === calls0 + 1 && E.ev('csCmtHits(E_last())'.replace('E_last()', 'SillyTavern.getContext().chat.length-1')).length >= 2, 'keyword gate: dramatic chapter = one call');
-  E.ev("csCfg().cmtGate = 'ask'; csApplyPrompt()");
-  ok(/\[cmt\] as the very last line/.test(E.prompts.chat_story_format.v) && /novel prose/.test(E.prompts.chat_story_format.v), 'ask gate adds one short line to the same prompt');
-  addBot('เธอร้องไห้ กอด จูบ');
-  await sleep(1100);
-  ok(E.w.__rawCalls.length === calls0 + 1, 'ask gate: no tag = no call even with keywords');
-  addBot('เขาหันหลังเดินจากไป\n[cmt]');
-  const lastId = E.chat.length - 1;
-  ok(!/\[cmt\]/.test(E.chat[lastId].mes) && E.chat[lastId].extra.cs_cmt_want === true, 'tag removed from the message itself');
-  await sleep(1100);
-  ok(E.w.__rawCalls.length === calls0 + 2, 'ask gate: tagged = call');
+  ok(E.w.__rawCalls.length === calls0 + 1, 'keyword gate: dramatic chapter = one call');
   E.ev("csCfg().cmtGate = 'always'");
   addBot('ธรรมดามาก');
   await sleep(1100);
-  ok(E.w.__rawCalls.length === calls0 + 3, 'always gate');
-  E.ev("csCfg().cmtAuto = false; csApplyPrompt()");
-  ok(!/\[cmt\]/.test(E.prompts.chat_story_format.v), 'ask line gone when auto off');
-  ok(!/cmt/.test(E.ev("csCleanText('ก\\n[cmt]')")), 'tag never shown in readers');
-  E.ev("csCfg().style = 'chat'; csCfg().cmtOn = false; csApplyPrompt()");
+  ok(E.w.__rawCalls.length === calls0 + 2, 'always gate');
+  // ── โมเดลเลือกบรรทัดที่สมควรมีคอมเมนต์ ──
+  E.ev("csCfg().cmtPick = 'model'; csCfg().cmtAuto = false; csApplyPrompt()");
+  ok(/end that line with \[c\]/.test(E.prompts.chat_story_format.v) && /novel prose/.test(E.prompts.chat_story_format.v), 'model-pick line rides the same main prompt');
+  const mid = addBot('## คืนนั้น\nลมพัดแรงจนหน้าต่างสั่น\n\n“ฉันไม่เคยลืมเธอเลย” เขากระซิบ [c]\n\nเธอหันหลังแล้วเดินจากไปทั้งน้ำตา [c]\n\nเสียงประตูปิดลงเบา ๆ');
+  ok(!/\[c\]/.test(E.chat[mid].mes) && E.chat[mid].extra.cs_cmt_marks.lines.length === 2, 'tags removed from the message, 2 lines remembered', E.chat[mid].extra.cs_cmt_marks);
+  E.ev('csCloseNovel(true); csOpenNovel()');
+  const lastCh = [...N().querySelectorAll('.cs-chapter')].pop();
+  const icons = [...lastCh.querySelectorAll('.cs-cmt')].map(b => b.closest('p').textContent);
+  ok(icons.length === 2 && /ไม่เคยลืม/.test(icons[0]) && /เดินจากไป/.test(icons[1]), 'icons only on the lines the model picked', icons);
+  const calls1 = E.w.__rawCalls.length;
+  lastCh.querySelector('.cs-cmt').click(); await sleep(20);
+  N().querySelector('.cs-cmt-go').click(); await sleep(60);
+  const pr = E.w.__rawCalls[calls1].prompt;
+  ok(/ไม่เคยลืม/.test(pr) && /เดินจากไป/.test(pr) && !/ลมพัดแรง/.test(pr) && !/ประตูปิด/.test(pr) && /For each paragraph above/.test(pr), 'comment call sends only the picked lines');
+  E.ev('csCmtClose()');
+  const plain = addBot('เช้าวันใหม่ เธอตื่นสาย');
+  E.ev('csCloseNovel(true); csOpenNovel()');
+  ok(![...N().querySelectorAll('.cs-chapter')].pop().querySelector('.cs-cmt'), 'nothing picked = no icons (clean page)');
+  E.ev("csCfg().cmtAuto = true");
+  const calls2 = E.w.__rawCalls.length;
+  addBot('เรียบ ๆ ไม่มีอะไร');
+  await sleep(1100);
+  ok(E.w.__rawCalls.length === calls2, 'auto: no picked lines = no call');
+  addBot('เธอตบหน้าเขาเต็มแรง [c]');
+  await sleep(1100);
+  ok(E.w.__rawCalls.length === calls2 + 1, 'auto: picked lines = one call');
+  E.ev('csCloseNovel(true)');
+  // ป้ายไม่โผล่ในหน้าอ่านไหนเลย
+  ok(!/\[c\]|cmt/.test(E.ev("csCleanText('ก [c]\\nข\\n[cmt]')")), 'tags never shown');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory.cmtAuto = false; csCfg().cmtAuto = false; csCfg().style = 'chat'; csCfg().cmtOn = false; csApplyPrompt()");
+  ok(!/\[c\]/.test(E.prompts.chat_story_format.v), 'model-pick line gone when comments off');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v: 15, cmtGate: 'ask'}");
+  ok(E.ev('csCfg().cmtGate') === 'keyword' && E.ev('csCfg().cmtPick') === 'model', 'migrate old ask gate');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}");
   // ย้ายค่าจาก 1.0
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {theme:'mint'}");
   ok(E.ev('csCfg().preset') === 'mint', 'migrates 1.0 theme');

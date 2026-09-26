@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.5.0';
+const CS_VERSION = '1.6.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -96,7 +96,8 @@ const CS_DEFAULTS = {
  cmtOn: false,          // คอมเมนต์และรีแอคชันท้ายย่อหน้า (หน้านิยาย)
  cmtAuto: false,        // เรียกคอมเมนต์เองทุกบทใหม่ (ใช้โทเคนทุกบท)
  cmtAmount: 'normal',   // few | normal | many
- cmtGate: 'keyword',    // ด่านก่อนเรียกอัตโนมัติ: keyword คำในบท (0 โทเคน) · ask ถามโมเดลไปกับคำตอบ · always ทุกบท
+ cmtPick: 'model',     // ไอคอนขึ้นตรงไหน: model โมเดลเลือกบรรทัดตอนเขียน · all ทุกย่อหน้า
+ cmtGate: 'keyword',    // (แบบทุกย่อหน้า) ด่านก่อนเรียกอัตโนมัติ: keyword คำในบท · always ทุกบท
  cmtKeywords: 'จูบ, กอด, รัก, สารภาพ, หึง, ร้องไห้, น้ำตา, เลือด, ตาย, ฆ่า, ตบ, โกรธ, ทรยศ, ความลับ, เลิก, แต่งงาน, ตกใจ, กรีดร้อง, เจ็บ, คิดถึง, จับมือ, หน้าแดง, kiss, love, confess, cry, blood, die, betray',
  cmtMinHits: 2,         // เจอคีย์เวิร์ดกี่คำถึงเรียก
  cmtUsed: null,         // { tokens, calls } สะสม
@@ -118,6 +119,7 @@ function csCfg() {
  if (!s.chars || typeof s.chars !== 'object') s.chars = {};
  if ((s._v || 0) < 13) { if (s.paraGap === 0.9) s.paraGap = 1.2; s._v = 13; } // หน้านิยายแบบใหม่ห่างขึ้น
  if (s._v < 15) { if (s.userInNovel === 'mark') s.userInNovel = 'same'; delete s.cmtJanya; s._v = 15; } // ★ 1.5 ค่าเริ่มต้นใหม่
+ if (s._v < 16) { if (s.cmtGate === 'ask') s.cmtGate = 'keyword'; s._v = 16; } // ★ 1.6 ถามโมเดลกลายเป็นให้โมเดลเลือกบรรทัด
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -193,8 +195,9 @@ function csFormatPrompt() {
  return `[Format: chat novel, one short line per bubble. Speech: Name: text | Thought: Name (คิด): text | Narration: own line, no name | Scene change: [place / time]. Never write ${un}'s words or actions.]`;
 }
 // ★ 1.5 ถามโมเดลไปกับคำตอบโรลหลักเลย ไม่ต้องเรียกแยก
-const CS_CMT_ASK = `[If this reply has a big emotional or dramatic moment, add [cmt] as the very last line.]`;
-function csCmtAskOn() { const s = csCfg(); return s.enabled && s.cmtOn && s.cmtAuto && s.cmtGate === 'ask' && s.style === 'novel'; }
+// ★ 1.6 โมเดลเลือกเองตอนเขียนว่าบทพูดหรือการกระทำไหนสมควรมีคนคอมเมนต์
+const CS_CMT_ASK = `[If a line of dialogue or action here would make readers react, end that line with [c]. At most 3 lines; none if nothing stands out.]`;
+function csCmtAskOn() { const s = csCfg(); return s.enabled && s.cmtOn && s.cmtPick === 'model' && s.style === 'novel'; }
 function csPromptText() {
  const s = csCfg();
  return [s.enabled && s.forceFormat ? csFormatPrompt() : '', csCmtAskOn() ? CS_CMT_ASK : ''].filter(Boolean).join('\n');
@@ -216,6 +219,7 @@ function csCleanText(t) {
   .replace(/<br\s*\/?>/gi, '\n')
   .replace(/<[^>]+>/g, '')
   .replace(/^\s*\[cmt\]\s*$/gim, '')
+  .replace(/\s*\[c\]/gi, '')
   .replace(/\r/g, '');
 }
 function csStripQuotes(s) { return String(s).trim().replace(/^["“”「『]+/, '').replace(/["“”」』]+$/, '').trim(); }
@@ -884,11 +888,12 @@ function csTabHTML(tab) {
  if (tab === 'cmt') {
   const u = s.cmtUsed || { tokens: 0, calls: 0 };
   return `<div class="cs-hint2">ไอคอนท้ายย่อหน้าในหน้านิยาย แตะแล้วดูว่าคนอ่านรีแอคชันและคอมเมนต์ว่าอะไร เหมือนแอพอ่านนิยาย</div>
-   <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'มี janyaahri นักอ่านขาประจำมาคอมเมนต์ทุกครั้ง · ไอคอนอยู่ท้ายทุกย่อหน้า ยังไม่ใช้โทเคนจนกว่าจะกดเรียกคนอ่าน')}${csToggle('cmtAuto', 'เรียกคอมเมนต์เองเมื่อบทน่าคอมเมนต์', 'ปิดไว้ = เรียกเฉพาะบทที่กดดู')}</div>
-   ${s.cmtAuto ? `<div class="cs-card"><div class="cs-cardh">เรียกเองเมื่อไหร่<small>กันไม่ให้มีคอมเมนต์ทุกเทิร์นจนเกะกะและเปลือง</small></div>${csSeg('cmtGate', [['keyword', 'เจอคีย์เวิร์ด'], ['ask', 'ถามโมเดล'], ['always', 'ทุกบท']])}
+   <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'มี janyaahri นักอ่านขาประจำมาคอมเมนต์ทุกครั้ง · ยังไม่เรียกคนอ่านจนกว่าจะแตะไอคอน')}${csToggle('cmtAuto', 'เรียกคอมเมนต์เองเมื่อบทน่าคอมเมนต์', s.cmtPick === 'model' ? 'บทที่โมเดลเลือกบรรทัดไว้จะเรียกเอง · ปิดไว้ = เรียกเมื่อแตะไอคอน' : 'ปิดไว้ = เรียกเฉพาะบทที่กดดู')}</div>
+   <div class="cs-card"><div class="cs-cardh">ไอคอนคอมเมนต์ขึ้นตรงไหน</div>${csSeg('cmtPick', [['model', 'ตรงที่โมเดลเลือก'], ['all', 'ทุกย่อหน้า']])}
+    ${s.cmtPick === 'model' ? `<div class="cs-hint2" style="margin:2px 0 6px">ตอนเขียนบท โมเดลเลือกเองว่าบทพูดหรือการกระทำไหนสมควรมีคนคอมเมนต์ (ไม่เกิน 3 บรรทัด ไม่มีฉากเด็ดก็ไม่เลือก) ติดป้ายไว้ท้ายบรรทัด ระบบลบป้ายออกให้ก่อนแสดง ไอคอนจึงขึ้นเฉพาะตรงนั้น ไม่รก · ฝากไปกับคำตอบโรลหลัก ใช้ <b data-tok="ask">…</b> ต่อเทิร์น · ตอนเรียกคอมเมนต์ส่งแค่บรรทัดที่เลือก</div>` : ''}</div>
+   ${s.cmtAuto && s.cmtPick !== 'model' ? `<div class="cs-card"><div class="cs-cardh">เรียกเองเมื่อไหร่<small>กันไม่ให้มีคอมเมนต์ทุกเทิร์นจนเกะกะและเปลือง</small></div>${csSeg('cmtGate', [['keyword', 'เจอคีย์เวิร์ด'], ['always', 'ทุกบท']])}
     ${s.cmtGate === 'keyword' ? `<div class="cs-hint2" style="margin:2px 0 6px">ไม่ใช้โทเคน ดูคำในบท เจอครบตามที่ตั้งถึงเรียก</div>${csRange('cmtMinHits', 'ต้องเจออย่างน้อย', 1, 6, 1, ' คำ')}
      <div class="cs-srow" style="flex-direction:column;align-items:stretch;gap:6px"><div class="cs-slb"><span>คีย์เวิร์ด</span><small>คั่นด้วยจุลภาค เพิ่มหรือลบเองได้</small></div><textarea class="cs-text cs-kw" data-k="cmtKeywords" rows="3">${csEsc(s.cmtKeywords)}</textarea></div>` : ''}
-    ${s.cmtGate === 'ask' ? `<div class="cs-hint2" style="margin:2px 0 6px">ฝากถามไปกับคำตอบโรลหลักเลย ไม่เรียกแยก บทไหนมีฉากใหญ่ โมเดลจะติดป้ายท้ายคำตอบ แล้วระบบลบป้ายออกให้ก่อนแสดง · ใช้ <b data-tok="ask">…</b> ต่อเทิร์น</div>` : ''}
     ${s.cmtGate === 'always' ? `<div class="cs-hint2" style="margin:2px 0 6px">เรียกทุกบทใหม่ ใช้โทเคนทุกบท</div>` : ''}</div>` : ''}
    <div class="cs-card"><div class="cs-cardh">จำนวนคอมเมนต์ต่อบท</div>${csSeg('cmtAmount', [['few', 'น้อย'], ['normal', 'ปกติ'], ['many', 'เยอะ']])}</div>
    <div class="cs-card cs-tokcard"><div class="cs-cardh">โทเคนที่ใช้</div>
@@ -1152,10 +1157,10 @@ function csNovelLines(m) {
   if (r && csLooksLikeName(r[1].replace(/\*/g, ''))) {
    const who = r[1].replace(/\*/g, '').trim();
    const body = csStripQuotes(r[3].replace(/\*([^*]+)\*/g, '$1'));
-   out.push({ k: r[2] && CS_THOUGHT.test(r[2]) ? 'think' : 'say', who, text: body });
+   out.push({ k: r[2] && CS_THOUGHT.test(r[2]) ? 'think' : 'say', who, text: body, raw: line });
    return;
   }
-  out.push({ k: 'p', text: line });
+  out.push({ k: 'p', text: line, raw: line });
  });
  return out;
 }
@@ -1201,7 +1206,7 @@ function csNovelChapterHTML(ch, n) {
    <span class="cs-cline"></span>
   </header>
   ${userPart}
-  ${lines.map((l, i) => l === title ? '' : csNovelLineHTML(l, false, s.cmtOn && ch.bot ? { mes: ch.botId, i } : null)).join('')}
+  ${lines.map((l, i) => l === title ? '' : csNovelLineHTML(l, false, s.cmtOn && ch.bot && csCmtShowIcon(ch.botId, i, l) ? { mes: ch.botId, i } : null)).join('')}
   ${ch.bot ? `<footer class="cs-cfoot">จบ${w}ที่ ${n}</footer>` : ''}
  </section>`;
 }
@@ -1496,13 +1501,16 @@ function csCmtParas(m) {
 function csCmtPrompt(mesId) {
  const s = csCfg();
  const m = (csCtx().chat || [])[mesId];
- const paras = csCmtParas(m).slice(0, 24);
- const n = { few: 2, normal: 4, many: 6 }[s.cmtAmount] || 4;
+ const all = csCmtParas(m);
+ // ★ 1.6 โหมดโมเดลเลือก: ส่งแค่บรรทัดที่เลือกไว้ ประหยัดกว่าส่งทั้งบทมาก
+ const picked = s.cmtPick === 'model' ? all.filter(x => csCmtIsMarked(mesId, x.l)) : [];
+ const paras = (picked.length ? picked : all).slice(0, 24);
+ const n = picked.length ? paras.length : ({ few: 2, normal: 4, many: 6 }[s.cmtAmount] || 4);
  // ★ 1.5 ย่อหน้าละไม่เกิน 120 ตัวอักษร คำสั่งสั้นที่สุด janyaahri อยู่ในการเรียกเดียวกันเสมอ
  const body = paras.map(x => `[${x.i}] ${x.l.k === 'say' ? `${x.l.who}: ${x.l.text}` : x.l.text}`.slice(0, 125)).join('\n');
  return {
   system: 'Thai web-novel reader comments.',
-  prompt: `${body}\n\nPick ${n} paragraphs; 1-3 short casual Thai comments each from different reader handles (fangirling, shipping, jokes, theories, tears, anger).\n${CS_JANYA_LINE}\nJSON only: [{"p":n,"c":[{"n":"handle","t":"text","r":"heart|fire|laugh|cry|shock|angry"}]}]`,
+  prompt: `${body}\n\n${picked.length ? 'For each paragraph above' : `Pick ${n} paragraphs;`} 1-3 short casual Thai comments each from different reader handles (fangirling, shipping, jokes, theories, tears, anger).\n${CS_JANYA_LINE}\nJSON only: [{"p":n,"c":[{"n":"handle","t":"text","r":"heart|fire|laugh|cry|shock|angry"}]}]`,
   paras,
  };
 }
@@ -1543,18 +1551,38 @@ async function csCallRaw(prompt, system, len) {
  // รุ่นใหม่รับเป็นก้อน object รุ่นเก่ารับเป็นลำดับ
  return f.length === 0 ? await f({ prompt, systemPrompt: system, responseLength: len }) : await f(prompt, null, false, false, system, len);
 }
-/** ป้าย [cmt] ท้ายคำตอบ: ลบออกจากข้อความจริง จำไว้ว่าโมเดลอยากให้มีคอมเมนต์ */
+/** ป้าย [c] ท้ายบรรทัดที่โมเดลเลือก: ลบออกจากข้อความจริง แล้วจำว่าบรรทัดไหน */
 function csCmtTakeMark(mesId) {
  const ctx = csCtx();
  const m = (ctx.chat || [])[mesId];
- if (!m || m.is_user || !/\[cmt\]/i.test(m.mes || '')) return false;
- m.mes = m.mes.replace(/\s*\[cmt\]\s*/gi, '\n').replace(/\n{3,}/g, '\n\n').trim();
+ if (!m || m.is_user || !/\[c(mt)?\]/i.test(m.mes || '')) return false;
+ const marked = [];
+ const lines = String(m.mes).split('\n').map(line => {
+  if (!/\[c\]/i.test(line)) return line;
+  const clean = line.replace(/\s*\[c\]/gi, '');
+  if (clean.trim()) marked.push(clean.trim());
+  return clean;
+ });
+ m.mes = lines.join('\n').replace(/\s*\[cmt\]\s*/gi, '\n').replace(/\n{3,}/g, '\n\n').trim();
  if (Array.isArray(m.swipes) && m.swipe_id !== undefined && typeof m.swipes[m.swipe_id] === 'string') m.swipes[m.swipe_id] = m.mes;
  m.extra = m.extra || {};
- m.extra.cs_cmt_want = true;
+ m.extra.cs_cmt_marks = { h: csHash(m.mes), lines: marked.slice(0, 5) };
  try { ctx.updateMessageBlock?.(mesId, m); } catch {}
  try { ctx.saveChat?.(); } catch {}
- return true;
+ return marked.length > 0;
+}
+/** บรรทัดที่โมเดลเลือกไว้ (ข้อความถูกแก้ = ใช้ไม่ได้) */
+function csCmtMarks(mesId) {
+ const m = (csCtx().chat || [])[mesId];
+ const d = m && m.extra && m.extra.cs_cmt_marks;
+ return d && d.h === csHash(m.mes) ? d.lines : [];
+}
+function csCmtIsMarked(mesId, l) { const mk = csCmtMarks(mesId); return !!(l && l.raw && mk.includes(l.raw.replace(/\s*\[c\]/gi, '').trim())); }
+/** ย่อหน้านี้ควรมีไอคอนไหม */
+function csCmtShowIcon(mesId, i, l) {
+ if (!l || !(l.k === 'p' || l.k === 'say' || l.k === 'think')) return false;
+ if (csCfg().cmtPick !== 'model') return true;
+ return csCmtIsMarked(mesId, l) || csCmtFor(mesId, i).length > 0;
 }
 /** คีย์เวิร์ดที่เจอในบท (ไม่ซ้ำคำ) */
 function csCmtHits(mesId) {
@@ -1565,8 +1593,8 @@ function csCmtHits(mesId) {
 /** ควรเรียกคอมเมนต์อัตโนมัติสำหรับบทนี้ไหม */
 function csCmtShouldAuto(mesId, want) {
  const s = csCfg();
+ if (s.cmtPick === 'model') return csCmtMarks(mesId).length > 0; // ★ 1.6 เรียกเฉพาะบทที่โมเดลเลือกบรรทัดไว้
  if (s.cmtGate === 'always') return true;
- if (s.cmtGate === 'ask') return !!want;
  return csCmtHits(mesId).length >= Math.max(1, s.cmtMinHits | 0);
 }
 const csCmtBusy = new Set();
@@ -1745,8 +1773,8 @@ function csOnCharRendered(mesId) {
  csGenerating = false;
  if (csReader) csShowWaiting(false);
  if (!s.enabled) return;
+ const want = csCmtTakeMark(id); // ★ 1.6 ป้าย [c] ที่โมเดลเลือก ลบออกก่อนแสดงทุกโหมด
  if (s.mode === 'inline') { csInlineRender(id, fresh); return; }
- const want = csCmtTakeMark(id); // ★ 1.5 ป้าย [cmt] จากโมเดล ลบออกก่อนแสดง
  if (fresh && s.style === 'novel' && s.cmtOn && s.cmtAuto && csCmtShouldAuto(id, want)) setTimeout(() => csCmtGenerate(id, true), 900);
  if (csNovel) { csNovelRefresh(fresh && id === csLastCharMesId()); return; }
  if (!fresh || id !== csLastCharMesId()) return;
