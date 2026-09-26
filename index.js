@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.14.0';
+const CS_VERSION = '1.15.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1471,8 +1471,8 @@ function csCmtCharsHTML() {
    ${c.builtin ? `<small class="cs-cc-note">นิสัยของ janyaahri ใช้คาร์เดิมครบ แก้ไม่ได้ เปลี่ยนรูปได้</small>` : `<textarea class="cs-text cs-cc-desc" rows="3" maxlength="300" placeholder="นิสัยคร่าว ๆ เช่น ขี้แซะ ชิปพระนาง ชอบเดาเนื้อเรื่อง">${csEsc(c.desc || '')}</textarea><small class="cs-cc-note">นิสัยยิ่งยาวยิ่งใช้โทเคน · ยาวสุด 300 ตัวอักษร</small>`}
    <div class="cs-cc-btns">${c.builtin || c.id === 'new' ? '' : `<button class="cs-btn2 danger" data-act="cc-del" data-id="${c.id}">ลบ</button>`}<span></span><button class="cs-btn2" data-act="cc-cancel">ยกเลิก</button><button class="cs-btn2 pri" data-act="cc-save" data-id="${c.id}">บันทึก</button></div>
   </div>`;
- return `<div class="cs-card"><div class="cs-cardh">คนอ่านประจำ<small>มาคอมเมนต์ทุกครั้งที่เรียก อยู่ในการเรียกเดียวกัน</small></div>
-  ${list.map(c => csCcEdit === c.id ? form(c) : `<div class="cs-cc-row">${av(c)}<span class="cs-cc-meta"><b>${csEsc(c.name)}${c.builtin ? ' <i>ขาประจำ</i>' : ''}</b><small>${csEsc(c.builtin ? 'สดใส น่ารัก ขี้อ้อน เจ้าชู้นิด ๆ บางทีเบื่อ งอนง่าย รู้ผิดรู้ถูก' : (c.desc || 'ยังไม่ได้ใส่นิสัย'))}</small></span>
+ return `<div class="cs-card"><div class="cs-cardh">คนอ่านประจำ<small>อยู่ในการเรียกเดียวกัน · แตะป้ายใต้ชื่อเพื่อเลือกว่ามาทุกครั้ง หรือให้โมเดลคิดเองว่าจะเม้นท์ไหม</small></div>
+  ${list.map(c => csCcEdit === c.id ? form(c) : `<div class="cs-cc-row">${av(c)}<span class="cs-cc-meta"><b>${csEsc(c.name)}${c.builtin ? ' <i>ขาประจำ</i>' : ''}</b><small>${csEsc(c.builtin ? 'สดใส น่ารัก ขี้อ้อน เจ้าชู้นิด ๆ บางทีเบื่อ งอนง่าย รู้ผิดรู้ถูก' : (c.desc || 'ยังไม่ได้ใส่นิสัย'))}</small><button class="cs-cc-when${c.when === 'always' ? ' always' : ''}" data-act="cc-when" data-id="${c.id}"><i class="fa-solid ${c.when === 'always' ? 'fa-thumbtack' : 'fa-dice'}"></i> ${csCcWhenLabel(c)}</button></span>
     <button class="cs-cc-edit" data-act="cc-edit" data-id="${c.id}" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
     <label class="cs-switch"><input type="checkbox" data-cc-on="${c.id}"${c.on ? ' checked' : ''}><span></span></label></div>`).join('')}
   ${csCcEdit === 'new' ? form({ id: 'new', name: '', desc: '', img: csCcNewImg || '' }) : `<button class="cs-cc-add" data-act="cc-add"><i class="fa-solid fa-plus"></i> เพิ่มคนอ่าน</button>`}
@@ -1506,6 +1506,7 @@ function csCcClick(act, el) {
  const id = el.dataset.id;
  if (act === 'cc-add') { csCcEdit = 'new'; csCcNewImg = ''; return true; }
  if (act === 'cc-edit') { csCcEdit = id; return true; }
+ if (act === 'cc-when') { const c = list.find(x => x.id === id); if (c) { c.when = c.when === 'always' ? 'maybe' : 'always'; csSave(); } return true; }
  if (act === 'cc-cancel') { csCcEdit = null; csCcNewImg = ''; return true; }
  if (act === 'cc-del') { const c = list.find(x => x.id === id); if (c && !c.builtin && confirm(`ลบ ${c.name} ออกจากคนอ่านประจำ?`)) { list.splice(list.indexOf(c), 1); csCcEdit = null; csSave(); } return true; }
  if (act === 'cc-save') {
@@ -2208,8 +2209,13 @@ function csCmtCharByName(n) { const k = String(n || '').trim().toLowerCase(); re
 function csCmtReadersLine() {
  const on = csCmtChars().filter(c => c.on && c.name.trim());
  if (!on.length) return '';
- return 'These readers MUST each comment 1-2 times in their own voice:\n' + on.map(c => `- ${c.name.trim()}: ${c.builtin ? CS_JANYA_DESC : String(c.desc || 'a regular reader').trim().slice(0, 300)}`).join('\n');
+ const line = c => `- ${c.name.trim()}: ${c.builtin ? CS_JANYA_DESC : String(c.desc || 'a regular reader').trim().slice(0, 300)}`;
+ // ★ 1.15 แต่ละคน: มาทุกครั้ง หรือให้โมเดลคิดเองว่าคนนี้จะเม้นท์ไหม
+ const must = on.filter(c => c.when === 'always'), maybe = on.filter(c => c.when !== 'always');
+ return [must.length ? 'These readers MUST each comment 1-2 times in their own voice:\n' + must.map(line).join('\n') : '',
+  maybe.length ? 'These readers comment only if they would want to here, your call (0-2 times each, own voice):\n' + maybe.map(line).join('\n') : ''].filter(Boolean).join('\n');
 }
+function csCcWhenLabel(c) { return c.when === 'always' ? 'มาเม้นท์ทุกครั้ง' : 'โมเดลคิดเองว่าจะเม้นท์ไหม'; }
 function csReactSVG(r, size) {
  const x = CS_REACT[r] || CS_REACT.heart;
  return `<svg class="cs-react" viewBox="0 0 24 24" width="${size || 16}" height="${size || 16}" fill="${x.c}">${x.svg}</svg>`;
@@ -2266,7 +2272,7 @@ function csCmtCountCard() {
  const rows = md === 'set' ? R('cmtPer', 'คอมเมนต์ต่อย่อหน้า', 10, ' คอมเมนต์') + R('cmtParas', 'จำนวนย่อหน้าที่มีคนเม้นท์', 12, ' ย่อหน้า')
   : md === 'auto' ? R('cmtPer', 'ต่อย่อหน้าไม่เกิน', 10, ' คอมเมนต์') + R('cmtParas', 'ย่อหน้าไม่เกิน', 12, ' ย่อหน้า')
   : R('cmtPerMin', 'ต่อย่อหน้า ตั้งแต่', 10, ' คอมเมนต์') + R('cmtPer', 'ถึง', 10, ' คอมเมนต์') + R('cmtParasMin', 'จำนวนย่อหน้า ตั้งแต่', 12, ' ย่อหน้า') + R('cmtParas', 'ถึง', 12, ' ย่อหน้า');
- const hint = md === 'set' ? 'ได้เท่านี้ทุกครั้ง' : md === 'auto' ? 'โมเดลดูเองว่าย่อหน้าไหนเด็ดแค่ไหน ฉากเด็ดคอมเมนต์เยอะ ฉากเรียบ ๆ น้อย ไม่เกินที่ตั้ง' : 'สุ่มใหม่ทุกครั้ง แต่ละย่อหน้าได้ไม่เท่ากัน';
+ const hint = md === 'set' ? 'ได้เท่านี้ทุกครั้ง' : md === 'auto' ? 'โมเดลเลือกเองอิสระ ย่อหน้าไหน กี่คอมเมนต์ก็ได้ ไม่เกินที่ตั้ง' : 'สุ่มใหม่ทุกครั้ง แต่ละย่อหน้าได้ไม่เท่ากัน';
  return `<div class="cs-card"><div class="cs-cardh">จำนวนคอมเมนต์<small>ต่อครั้งที่คนอ่านมา</small></div>${csSeg('cmtCountMode', [['set', 'ตั้งเอง'], ['auto', 'ให้โมเดลคิด'], ['random', 'สุ่ม']])}
   <div class="cs-hint2" style="margin:2px 0 6px">${hint}</div>${rows}
   <div class="cs-hint2" style="margin:-2px 0 6px">ถ้าโมเดลเลือกบรรทัดไว้ตอนเขียน จำนวนย่อหน้าตามบรรทัดที่เลือก (บวกย่อหน้าที่แตะ) · รวม <b data-cmt-total>${csCmtTotalText()}</b> คอมเมนต์</div></div>`;
@@ -2290,9 +2296,9 @@ function csCmtPlan(paras, pickedCount) {
  const cw = k => k === 1 ? '1 short casual Thai comment' : `${k} short casual Thai comments`;
  let n, head, each;
  if (pickedCount) { n = paras.length; head = 'For each paragraph above'; }
- else if (mode === 'auto') { n = Math.min(paras.length, nMax); head = `Pick the paragraphs readers would react to most (1-${n});`; }
+ else if (mode === 'auto') { n = Math.min(paras.length, nMax); head = `Pick any paragraphs you like, up to ${n};`; }
  else { n = Math.min(paras.length, mode === 'random' ? csRnd(nMin, nMax) : nMax); head = `Pick ${n} paragraphs;`; }
- if (mode === 'auto') each = pMax === 1 ? '1 short casual Thai comment each' : `1-${pMax} short casual Thai comments each (more for bigger moments, fewer for quiet ones)`;
+ if (mode === 'auto') each = pMax === 1 ? '1 short casual Thai comment each' : `short casual Thai comments, any number from 1 to ${pMax} each, your choice,`;
  else if (mode === 'random') each = pickedCount ? `short casual Thai comments, exactly this many per paragraph: ${paras.map(x => `[${x.i}]=${csRnd(pMin, pMax)}`).join(' ')},` : pMin === pMax ? cw(pMax) + ' each' : `${pMin}-${pMax} short casual Thai comments each (vary the number)`;
  else each = cw(pMax) + ' each';
  return { n, head, each, perMax: pMax, perAvg: (pMin + pMax) / 2, mode };

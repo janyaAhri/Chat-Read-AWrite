@@ -314,7 +314,10 @@ const REPLY = `<think>วางแผน</think>
   E.chat[cid].mes += '\nเพิ่มย่อหน้าใหม่';
   ok(E.ev(`csCmtData(${cid})`) === null, 'edited chapter invalidates old comments');
   const jp = E.ev(`csCmtPrompt(${cid}).prompt`);
-  ok(/MUST each comment/.test(jp) && /- janyaahri: /.test(jp) && /Knows right from wrong/.test(jp) && /Kuromi/.test(jp) && /trypophobia/.test(jp), 'janyaahri always in the same call, full card + right/wrong');
+  ok(/comment only if they would want to here, your call/.test(jp) && !/MUST/.test(jp) && /- janyaahri: /.test(jp) && /Knows right from wrong/.test(jp) && /Kuromi/.test(jp) && /trypophobia/.test(jp), 'janyaahri in the same call, model decides if she comments, full card + right/wrong');
+  E.ev("csCmtChars()[0].when = 'always'");
+  ok(/MUST each comment 1-2 times[^]*- janyaahri:/.test(E.ev('csCmtReadersLine()')), 'janyaahri set to always → must comment');
+  E.ev("delete csCmtChars()[0].when");
   ok(!E.d.body.innerHTML.includes('data-k="cmtJanya"'), 'no separate janyaahri switch');
   E.ev("csCfg().cmtAuto = true; csCfg().cmtGate = 'always'; csGenerating = false");
   E.chat.push({ name: 'อาเรีย', is_user: false, mes: 'ย่อหน้าใหม่ของบทต่อไป' }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1);
@@ -434,6 +437,17 @@ const REPLY = `<think>วางแผน</think>
   S().querySelector('[data-act="cc-edit"][data-id="janya"]').click();
   ok(S().querySelector('.cs-cc-form .cs-cc-name').disabled && !S().querySelector('.cs-cc-form .cs-cc-desc'), 'janyaahri card is fixed (image only)');
   S().querySelector('[data-act="cc-cancel"]').click();
+  // ★ 1.15 ป้ายเลือกว่าจะมาทุกครั้งหรือให้โมเดลคิด
+  const wj = () => S().querySelector('[data-act="cc-when"][data-id="janya"]');
+  E.ev('csCmtChars()[0].on = true');
+  ok(wj() && /โมเดลคิดเอง/.test(wj().textContent), 'reader chip: model decides by default');
+  wj().click();
+  ok(E.ev("csCmtChars()[0].when") === 'always' && /ทุกครั้ง/.test(wj().textContent) && /MUST[^]*janyaahri/.test(E.ev('csCmtReadersLine()')), 'tap chip → always');
+  wj().click();
+  ok(E.ev("csCmtChars()[0].when") === 'maybe' && !/MUST/.test(E.ev('csCmtReadersLine()')), 'tap again → model decides');
+  const mix = E.ev("(() => { const l = csCmtChars(); l.forEach(c => c.on = true); l[1].when = 'always'; const r = csCmtReadersLine(); l[1].when = 'maybe'; return r; })()");
+  ok(/MUST[^]*แม่ยก_ชิปเปอร์[^]*only if they would want[^]*janyaahri/.test(mix), 'mixed: one always, one maybe', mix);
+  E.ev("csCmtChars()[0].on = false");
   // รายละเอียดโทเคน
   await sleep(80);
   const bd = S().querySelector('[data-tok="bd"]').innerHTML;
@@ -726,7 +740,7 @@ const REPLY = `<think>วางแผน</think>
     // ★ 1.14 โหมดจำนวน: ตั้งเอง / ให้โมเดลคิด / สุ่ม
     G.ev("csCfg().cmtPick = 'all'; csCfg().cmtCountMode = 'auto'; csCfg().cmtPer = 5; csCfg().cmtParas = 3");
     const qa = G.ev(`csCmtPrompt(${nid}).prompt`);
-    ok(/Pick the paragraphs readers would react to most \(1-2\); 1-5 short casual Thai comments each \(more for bigger moments/.test(qa), 'auto: model decides within max', qa.slice(-240));
+    ok(/Pick any paragraphs you like, up to 2; short casual Thai comments, any number from 1 to 5 each, your choice,/.test(qa) && !/bigger moments|dramatic|react to most/.test(qa), 'auto: free choice within max, no "big moments" rule', qa.slice(-300));
     G.ev("csCfg().cmtCountMode = 'random'; csCfg().cmtPerMin = 2; csCfg().cmtPer = 4; csCfg().cmtParasMin = 1; csCfg().cmtParas = 2");
     const seen = new Set();
     for (let i = 0; i < 30; i++) { const q = G.ev(`csCmtPrompt(${nid}).prompt`); const m = q.match(/Pick (\d) paragraphs; 2-4 short casual Thai comments each \(vary/); ok(m && +m[1] >= 1 && +m[1] <= 2, 'random: paragraphs in range'); seen.add(m && m[1]); }
