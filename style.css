@@ -462,10 +462,6 @@ body:has(#cs-reader.show) #cs-edge,body:has(#cs-novel.show) #cs-edge,body:has(#c
 .cs-avwrap{width:34px;}
 .cs-av{width:34px;height:34px;font-size:13px;box-shadow:0 0 0 2px var(--cs-bg),0 0 0 3px color-mix(in srgb,var(--cs-ink) 10%,transparent);}
 .cs-name{font-size:.72em;letter-spacing:.6px;margin:0 0 4px 4px;}
-.cs-bubble{padding:.6em .95em;line-height:1.6;border-radius:var(--cs-radius,18px);border-top-left-radius:6px;}
-.cs-row.cont .cs-bubble{border-top-left-radius:var(--cs-radius,18px);}
-.cs-row.right .cs-bubble{border-top-left-radius:var(--cs-radius,18px);border-top-right-radius:6px;}
-.cs-row.right.cont .cs-bubble{border-top-right-radius:var(--cs-radius,18px);}
 .cs-bubble.think{border-radius:var(--cs-radius,18px) !important;}
 /* ฉาก: ตัวเล็กเว้นระยะ มีเส้นบางสองข้าง */
 .cs-scene{align-items:center;gap:12px;margin:26px 0 14px;}
@@ -488,3 +484,34 @@ body:has(#cs-reader.show) #cs-edge,body:has(#cs-novel.show) #cs-edge,body:has(#c
 #cs-novel.writing .cs-send i::before{content:"\f04d";}
 #cs-reader.generating .cs-send i,#cs-novel.writing .cs-send i{font-size:12px;}
 @media (prefers-reduced-motion: reduce){#cs-reader.generating .cs-send::after,#cs-novel.writing .cs-send::after{animation:none;border-color:color-mix(in srgb,var(--cs-ink) 40%,transparent);}}
+
+/* ══ ★ 1.19 ความรู้สึกแบบ iOS: ฟอนต์ระบบ แถบโปร่งเบลอ เมนูแบบ iOS (ฟองยังทรงเดิม) ══ */
+#cs-reader,#cs-novel{-webkit-font-smoothing:antialiased;}
+/* แถบบนโปร่งเบลอ ลอยทับเนื้อหา */
+#cs-reader .cs-top{position:absolute;top:0;left:0;right:0;z-index:4;background:var(--cs-bar);box-shadow:0 .5px 0 color-mix(in srgb,var(--cs-ink) 16%,transparent);}
+#cs-reader .cs-title b{font-size:17px;font-weight:600;letter-spacing:-.2px;}
+#cs-reader .cs-sub{font-size:11px;letter-spacing:0;}
+#cs-reader .cs-btn{font-size:19px;}
+#cs-reader .cs-progress{position:absolute;top:calc(56px + env(safe-area-inset-top,0px));left:0;right:0;z-index:5;}
+#cs-reader .cs-body{padding:calc(76px + env(safe-area-inset-top,0px)) 14px 28px;}
+/* เมนูแบบ iOS */
+#cs-reader .cs-menu{border-radius:14px;padding:0;min-width:230px;overflow:hidden;background:var(--cs-bar);box-shadow:0 12px 40px rgba(0,0,0,.2);}
+#cs-reader .cs-menu button{border-radius:0;padding:12px 16px;justify-content:space-between;flex-direction:row-reverse;font-size:16px;}
+#cs-reader .cs-menu button + button{box-shadow:inset 0 .5px 0 color-mix(in srgb,var(--cs-ink) 14%,transparent);}
+#cs-reader .cs-menu button[data-cs="dellast"],#cs-reader .cs-menu button[data-cs="dellast"] i{color:#ff3b30;}
+#cs-reader .cs-menu i{width:auto;color:var(--cs-ink);}
+/* ช่องพิมพ์: ช่องมนแบบ iOS + ปุ่มส่งวงกลมแยก */
+#cs-reader .cs-inputbar,#cs-novel .cs-inputbar{background:var(--cs-bar);box-shadow:0 -.5px 0 color-mix(in srgb,var(--cs-ink) 16%,transparent);align-items:center;}
+#cs-reader .cs-input,#cs-novel .cs-input{border-radius:20px;border:none !important;background:color-mix(in srgb,var(--cs-ink) 6%,var(--cs-bg)) !important;padding:9px 15px;font-size:16px;line-height:1.35;}
+#cs-reader .cs-send,#cs-novel .cs-send{width:38px;height:38px;font-size:15px;}
+/* หน้านิยาย: แถบบน-ล่างโปร่งเบลอเหมือนกัน */
+#cs-novel .cs-ntop,#cs-novel .cs-nbottom{background:var(--cs-bar);}
+#cs-novel .cs-ntop{border-bottom:none;box-shadow:0 .5px 0 color-mix(in srgb,var(--cs-ink) 16%,transparent);}
+#cs-novel .cs-nbottom{border-top:none;box-shadow:0 -.5px 0 color-mix(in srgb,var(--cs-ink) 16%,transparent);}
+#cs-novel .cs-nnav button{background:color-mix(in srgb,var(--cs-ink) 7%,transparent);}
+/* ปุ่มลัดขอบจอแบบ iOS */
+#cs-edge{background:color-mix(in srgb,#8e8e93 55%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:14px 0 0 14px;}
+#cs-edge.left{border-radius:0 14px 14px 0;}
+/* ★ 1.19 ฟองมนเท่ากันทุกมุม ทรงเดิม มินิมอล (ไม่ใช่ iMessage) */
+.cs-bubble{border-radius:var(--cs-radius,18px);padding:.6em .95em;line-height:1.6;}
+.cs-name{font-size:.74em;font-weight:600;letter-spacing:.2px;}

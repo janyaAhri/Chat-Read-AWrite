@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.18.0';
+const CS_VERSION = '1.19.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -25,7 +25,7 @@ const CS_PRESETS = {
 
 // ══ ฟอนต์ (Google Fonts โหลดเมื่อเลือก) ══
 const CS_FONTS = [
- { id: 'system', name: 'ตามเครื่อง', ff: 'inherit' },
+ { id: 'system', name: 'ตามเครื่อง', ff: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue','Sukhumvit Set','Thonburi','Noto Sans Thai',system-ui,sans-serif" }, // ★ 1.19 ฟอนต์ระบบแบบ iOS
  { id: 'sarabun', name: 'Sarabun', ff: "'Sarabun',sans-serif", g: 'Sarabun:wght@400;600' },
  { id: 'noto', name: 'Noto Sans Thai', ff: "'Noto Sans Thai',sans-serif", g: 'Noto+Sans+Thai:wght@400;600' },
  { id: 'ibm', name: 'IBM Plex Sans Thai', ff: "'IBM Plex Sans Thai',sans-serif", g: 'IBM+Plex+Sans+Thai:wght@400;600' },
@@ -775,7 +775,7 @@ function csItemHTML0(it, prev) {
  const cont = prev && (prev.k === 'say' || prev.k === 'think') && prev.who === it.who && csItemIsUser(prev) === user && (prev.ck || '') === (it.ck || '');
  const hue = csHash(it.ck || it.who) % 360;
  const co = csCharOpt(it.who, it.ck);
- const bstyle = co.color && it.k !== 'think' ? ` style="background:${csEsc(co.color)};color:${csTextOn(co.color)}"` : '';
+ const bstyle = co.color && it.k !== 'think' ? ` style="--cs-bb:${csEsc(co.color)};background:${csEsc(co.color)};color:${csTextOn(co.color)}"` : '';
  const nstyle = s.nameColor === 'rainbow' ? ` style="color:hsl(${hue} 55% ${csLum(csColors().bg) < .2 ? 72 : 42}%)"` : (co.color ? ` style="color:${csEsc(co.color)}"` : '');
  const showAv = side === 'left' && s.avatar !== 'none';
  return `<div class="cs-row ${side}${cont ? ' cont' : ''}">
