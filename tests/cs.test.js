@@ -314,7 +314,7 @@ const REPLY = `<think>วางแผน</think>
   E.chat[cid].mes += '\nเพิ่มย่อหน้าใหม่';
   ok(E.ev(`csCmtData(${cid})`) === null, 'edited chapter invalidates old comments');
   const jp = E.ev(`csCmtPrompt(${cid}).prompt`);
-  ok(/janyaahri MUST comment/.test(jp) && /Knows right from wrong/.test(jp) && /Kuromi/.test(jp) && /trypophobia/.test(jp), 'janyaahri always in the same call, full card + right/wrong');
+  ok(/MUST each comment/.test(jp) && /- janyaahri: /.test(jp) && /Knows right from wrong/.test(jp) && /Kuromi/.test(jp) && /trypophobia/.test(jp), 'janyaahri always in the same call, full card + right/wrong');
   ok(!E.d.body.innerHTML.includes('data-k="cmtJanya"'), 'no separate janyaahri switch');
   E.ev("csCfg().cmtAuto = true; csCfg().cmtGate = 'always'; csGenerating = false");
   E.chat.push({ name: 'อาเรีย', is_user: false, mes: 'ย่อหน้าใหม่ของบทต่อไป' }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1);
@@ -356,22 +356,28 @@ const REPLY = `<think>วางแผน</think>
   ok(E.w.__rawCalls.length === calls0 + 2, 'always gate');
   // ── โมเดลเลือกบรรทัดที่สมควรมีคอมเมนต์ ──
   E.ev("csCfg().cmtPick = 'model'; csCfg().cmtAuto = false; csApplyPrompt()");
-  ok(/end that line with \[c\]/.test(E.prompts.chat_story_format.v) && /novel prose/.test(E.prompts.chat_story_format.v), 'model-pick line rides the same main prompt');
+  ok(/with \[c\]/.test(E.prompts.chat_story_format.v) && !/none if nothing/.test(E.prompts.chat_story_format.v) && /novel prose/.test(E.prompts.chat_story_format.v), 'model-pick line rides the same main prompt');
   const mid = addBot('## คืนนั้น\nลมพัดแรงจนหน้าต่างสั่น\n\n“ฉันไม่เคยลืมเธอเลย” เขากระซิบ [c]\n\nเธอหันหลังแล้วเดินจากไปทั้งน้ำตา [c]\n\nเสียงประตูปิดลงเบา ๆ');
   ok(!/\[c\]/.test(E.chat[mid].mes) && E.chat[mid].extra.cs_cmt_marks.lines.length === 2, 'tags removed from the message, 2 lines remembered', E.chat[mid].extra.cs_cmt_marks);
   E.ev('csCloseNovel(true); csOpenNovel()');
   const lastCh = [...N().querySelectorAll('.cs-chapter')].pop();
   const icons = [...lastCh.querySelectorAll('.cs-cmt')].map(b => b.closest('p').textContent);
-  ok(icons.length === 2 && /ไม่เคยลืม/.test(icons[0]) && /เดินจากไป/.test(icons[1]), 'icons only on the lines the model picked', icons);
+  ok(icons.length === 4, 'comment box at the end of every paragraph (like the app)', icons);
   const calls1 = E.w.__rawCalls.length;
-  lastCh.querySelector('.cs-cmt').click(); await sleep(20);
+  [...lastCh.querySelectorAll('.cs-cmt')].find(b => /ไม่เคยลืม/.test(b.closest('p').textContent)).click(); await sleep(20);
   N().querySelector('.cs-cmt-go').click(); await sleep(60);
   const pr = E.w.__rawCalls[calls1].prompt;
   ok(/ไม่เคยลืม/.test(pr) && /เดินจากไป/.test(pr) && !/ลมพัดแรง/.test(pr) && !/ประตูปิด/.test(pr) && /For each paragraph above/.test(pr), 'comment call sends only the picked lines');
   E.ev('csCmtClose()');
   const plain = addBot('เช้าวันใหม่ เธอตื่นสาย');
   E.ev('csCloseNovel(true); csOpenNovel()');
-  ok(![...N().querySelectorAll('.cs-chapter')].pop().querySelector('.cs-cmt'), 'nothing picked = no icons (clean page)');
+  ok(!![...N().querySelectorAll('.cs-chapter')].pop().querySelector('.cs-cmt'), 'nothing picked still shows comment boxes');
+  // แตะย่อหน้าที่โมเดลไม่ได้เลือก = ส่งย่อหน้านั้นด้วย
+  const pc = [...N().querySelectorAll('.cs-chapter')].pop().querySelector('.cs-cmt'); pc.click(); await sleep(20);
+  const cBefore = E.w.__rawCalls.length;
+  N().querySelector('.cs-cmt-go').click(); await sleep(60);
+  ok(E.w.__rawCalls.length === cBefore + 1 && /ตื่นสาย/.test(E.w.__rawCalls[cBefore].prompt), 'tapped unpicked paragraph gets sent');
+  E.ev('csCmtClose()');
   E.ev("csCfg().cmtAuto = true");
   const calls2 = E.w.__rawCalls.length;
   addBot('เรียบ ๆ ไม่มีอะไร');
@@ -387,6 +393,31 @@ const REPLY = `<think>วางแผน</think>
   ok(!/\[c\]/.test(E.prompts.chat_story_format.v), 'model-pick line gone when comments off');
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v: 15, cmtGate: 'ask'}");
   ok(E.ev('csCfg().cmtGate') === 'keyword' && E.ev('csCfg().cmtPick') === 'model', 'migrate old ask gate');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}");
+
+  // ── คนอ่านประจำ ──
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}; csCfg().style = 'novel'; csCfg().cmtOn = true");
+  ok(E.ev('csCmtChars().length') === 1 && E.ev('csCmtChars()[0].name') === 'janyaahri' && E.ev('csCmtChars()[0].on') === true, 'janyaahri is there by default');
+  E.ev("csOpenSettings('cmt')"); await sleep(30);
+  S().querySelector('[data-act="cc-add"]').click();
+  const f = () => S().querySelector('.cs-cc-form');
+  f().querySelector('.cs-cc-name').value = 'แม่ยก_ชิปเปอร์';
+  f().querySelector('.cs-cc-desc').value = 'ชิปพระนางสุดใจ แซะตัวร้ายตลอด';
+  f().querySelector('[data-act="cc-save"]').click();
+  ok(E.ev('csCmtChars().length') === 2 && E.ev('csCmtChars()[1].name') === 'แม่ยก_ชิปเปอร์' && E.ev('csCmtChars()[1].on') === true, 'add reader with + button');
+  ok(/- แม่ยก_ชิปเปอร์: ชิปพระนางสุดใจ/.test(E.ev('csCmtReadersLine()')) && /- janyaahri:/.test(E.ev('csCmtReadersLine()')), 'both readers in the same call');
+  E.ev("csCmtChars()[1].img = 'data:image/jpeg;base64,AAA'");
+  ok(/<img class="cs-cmt-av" src="data:image\/jpeg/.test(E.ev("(() => { const m = SillyTavern.getContext().chat; m.push({name:'อาเรีย',is_user:false,mes:'ก',extra:{}}); const id = m.length-1; m[id].extra.cs_cmt = {h: csHash('ก'), list:{0:[{n:'แม่ยก_ชิปเปอร์',t:'กรี๊ด',r:'heart'}]}}; return csCmtSheetHTML(id, 0); })()")), 'custom reader avatar in comments');
+  const janSw = S().querySelector('[data-cc-on="janya"]'); janSw.checked = false; janSw.dispatchEvent(new E.w.Event('change', { bubbles: true }));
+  ok(E.ev('csCmtChars()[0].on') === false && !/janyaahri/.test(E.ev('csCmtReadersLine()')), 'janyaahri can be switched off');
+  S().querySelector('[data-act="cc-edit"][data-id="janya"]').click();
+  ok(S().querySelector('.cs-cc-form .cs-cc-name').disabled && !S().querySelector('.cs-cc-form .cs-cc-desc'), 'janyaahri card is fixed (image only)');
+  S().querySelector('[data-act="cc-cancel"]').click();
+  // รายละเอียดโทเคน
+  await sleep(80);
+  const bd = S().querySelector('[data-tok="bd"]').innerHTML;
+  ok(/เนื้อบทที่ส่งไป/.test(bd) && /คนอ่านประจำ/.test(bd) && /คำตอบที่ได้กลับ/.test(bd) && /รวม/.test(bd), 'token breakdown lists every part');
+  S().querySelector('[data-act="close"]').click(); await sleep(260);
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}");
   // ย้ายค่าจาก 1.0
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {theme:'mint'}");

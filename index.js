@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.6.0';
+const CS_VERSION = '1.7.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -196,7 +196,7 @@ function csFormatPrompt() {
 }
 // ★ 1.5 ถามโมเดลไปกับคำตอบโรลหลักเลย ไม่ต้องเรียกแยก
 // ★ 1.6 โมเดลเลือกเองตอนเขียนว่าบทพูดหรือการกระทำไหนสมควรมีคนคอมเมนต์
-const CS_CMT_ASK = `[If a line of dialogue or action here would make readers react, end that line with [c]. At most 3 lines; none if nothing stands out.]`;
+const CS_CMT_ASK = `[End 1-3 lines readers would react to (any dialogue or action) with [c].]`;
 function csCmtAskOn() { const s = csCfg(); return s.enabled && s.cmtOn && s.cmtPick === 'model' && s.style === 'novel'; }
 function csPromptText() {
  const s = csCfg();
@@ -888,16 +888,18 @@ function csTabHTML(tab) {
  if (tab === 'cmt') {
   const u = s.cmtUsed || { tokens: 0, calls: 0 };
   return `<div class="cs-hint2">ไอคอนท้ายย่อหน้าในหน้านิยาย แตะแล้วดูว่าคนอ่านรีแอคชันและคอมเมนต์ว่าอะไร เหมือนแอพอ่านนิยาย</div>
-   <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'มี janyaahri นักอ่านขาประจำมาคอมเมนต์ทุกครั้ง · ยังไม่เรียกคนอ่านจนกว่าจะแตะไอคอน')}${csToggle('cmtAuto', 'เรียกคอมเมนต์เองเมื่อบทน่าคอมเมนต์', s.cmtPick === 'model' ? 'บทที่โมเดลเลือกบรรทัดไว้จะเรียกเอง · ปิดไว้ = เรียกเมื่อแตะไอคอน' : 'ปิดไว้ = เรียกเฉพาะบทที่กดดู')}</div>
-   <div class="cs-card"><div class="cs-cardh">ไอคอนคอมเมนต์ขึ้นตรงไหน</div>${csSeg('cmtPick', [['model', 'ตรงที่โมเดลเลือก'], ['all', 'ทุกย่อหน้า']])}
-    ${s.cmtPick === 'model' ? `<div class="cs-hint2" style="margin:2px 0 6px">ตอนเขียนบท โมเดลเลือกเองว่าบทพูดหรือการกระทำไหนสมควรมีคนคอมเมนต์ (ไม่เกิน 3 บรรทัด ไม่มีฉากเด็ดก็ไม่เลือก) ติดป้ายไว้ท้ายบรรทัด ระบบลบป้ายออกให้ก่อนแสดง ไอคอนจึงขึ้นเฉพาะตรงนั้น ไม่รก · ฝากไปกับคำตอบโรลหลัก ใช้ <b data-tok="ask">…</b> ต่อเทิร์น · ตอนเรียกคอมเมนต์ส่งแค่บรรทัดที่เลือก</div>` : ''}</div>
+   <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'กล่องคอมเมนต์ท้ายทุกย่อหน้า · ยังไม่ใช้โทเคนจนกว่าจะเรียกคนอ่าน')}${csToggle('cmtAuto', 'เรียกคอมเมนต์เองเมื่อบทน่าคอมเมนต์', s.cmtPick === 'model' ? 'บทที่โมเดลเลือกบรรทัดไว้จะเรียกเอง · ปิดไว้ = เรียกเมื่อแตะไอคอน' : 'ปิดไว้ = เรียกเฉพาะบทที่กดดู')}</div>
+   ${csCmtCharsHTML()}
+   <div class="cs-card"><div class="cs-cardh">ใครเลือกว่าจะคอมเมนต์บรรทัดไหน</div>${csSeg('cmtPick', [['model', 'โมเดลเลือกตอนเขียน'], ['all', 'คนอ่านเลือกเอง']])}
+    ${s.cmtPick === 'model' ? `<div class="cs-hint2" style="margin:2px 0 6px">ทุกบท โมเดลเลือก 1–3 บทพูดหรือการกระทำที่คนอ่านน่าจะรีแอค ติดป้ายไว้ ระบบลบป้ายออกให้ก่อนแสดง · ฝากไปกับคำตอบโรลหลัก ใช้ <b data-tok="ask">…</b> ต่อเทิร์น · ตอนเรียกคอมเมนต์ส่งแค่บรรทัดที่เลือก (กับย่อหน้าที่แตะ) ไม่ส่งทั้งบท</div>` : `<div class="cs-hint2" style="margin:2px 0 6px">ส่งทั้งบทให้คนอ่านเลือกเองว่าจะเม้นท์ตรงไหน ไม่เพิ่มโทเคนในโรลหลัก แต่ต่อครั้งแพงกว่า</div>`}</div>
    ${s.cmtAuto && s.cmtPick !== 'model' ? `<div class="cs-card"><div class="cs-cardh">เรียกเองเมื่อไหร่<small>กันไม่ให้มีคอมเมนต์ทุกเทิร์นจนเกะกะและเปลือง</small></div>${csSeg('cmtGate', [['keyword', 'เจอคีย์เวิร์ด'], ['always', 'ทุกบท']])}
     ${s.cmtGate === 'keyword' ? `<div class="cs-hint2" style="margin:2px 0 6px">ไม่ใช้โทเคน ดูคำในบท เจอครบตามที่ตั้งถึงเรียก</div>${csRange('cmtMinHits', 'ต้องเจออย่างน้อย', 1, 6, 1, ' คำ')}
      <div class="cs-srow" style="flex-direction:column;align-items:stretch;gap:6px"><div class="cs-slb"><span>คีย์เวิร์ด</span><small>คั่นด้วยจุลภาค เพิ่มหรือลบเองได้</small></div><textarea class="cs-text cs-kw" data-k="cmtKeywords" rows="3">${csEsc(s.cmtKeywords)}</textarea></div>` : ''}
     ${s.cmtGate === 'always' ? `<div class="cs-hint2" style="margin:2px 0 6px">เรียกทุกบทใหม่ ใช้โทเคนทุกบท</div>` : ''}</div>` : ''}
    <div class="cs-card"><div class="cs-cardh">จำนวนคอมเมนต์ต่อบท</div>${csSeg('cmtAmount', [['few', 'น้อย'], ['normal', 'ปกติ'], ['many', 'เยอะ']])}</div>
    <div class="cs-card cs-tokcard"><div class="cs-cardh">โทเคนที่ใช้</div>
-    <div class="cs-srow"><div class="cs-slb"><span>คอมเมนต์ต่อครั้ง</span><small>ส่งเฉพาะเนื้อบทนั้น (ย่อหน้าละไม่เกิน 120 ตัวอักษร) รวม janyaahri ในการเรียกเดียวกัน ไม่แนบแชท ไม่เข้าโรลหลัก</small></div><div class="cs-sctl"><b data-tok="cmt">…</b></div></div>
+    <div class="cs-srow"><div class="cs-slb"><span>คอมเมนต์ต่อครั้ง</span><small>เรียกแยก ไม่แนบแชท ไม่เข้าโรลหลัก · คำนวณจากบทล่าสุด</small></div><div class="cs-sctl"><b data-tok="cmt">…</b></div></div>
+    <details class="cs-tokbd"><summary>ดูว่ามีอะไรบ้าง ทำไมใช้เท่านี้</summary><div data-tok="bd">กำลังคำนวณ…</div></details>
     <div class="cs-srow"><div class="cs-slb"><span>ใช้ไปแล้วทั้งหมด</span><small>${u.calls} ครั้ง</small></div><div class="cs-sctl"><b>${u.tokens.toLocaleString()} โทเคน</b><button class="cs-btn2" data-act="cmt-reset">ล้างตัวนับ</button></div></div>
     <div class="cs-srow"><div class="cs-slb"><span>คำสั่งรูปแบบที่แทรกในโรลหลัก</span><small>${s.enabled && s.forceFormat ? 'แทรกทุกเทิร์น ปิดได้ที่แท็บการอ่าน' : 'ปิดอยู่ ไม่ใช้โทเคน'}</small></div><div class="cs-sctl"><b data-tok="format">…</b></div></div>
    </div>`;
@@ -973,6 +975,71 @@ function csRenderSettingsBody() {
  csFillTokens(body);
  csRenderPreview();
 }
+// ── คนอ่านประจำ ──
+let csCcEdit = null; // id ที่กำลังแก้ หรือ 'new'
+function csCmtCharsHTML() {
+ const list = csCmtChars();
+ const av = c => c.img ? `<img class="cs-cc-av" src="${csEsc(c.img)}" alt="">` : `<span class="cs-cc-av${c.builtin ? ' janya' : ''}" style="${c.builtin ? '' : `background:hsl(${csHash(c.name) % 360} 45% 60%)`}">${csEsc((c.name || '?')[0])}</span>`;
+ const form = c => `<div class="cs-cc-form">
+   <label class="cs-cc-pic">${av(c)}<span>เปลี่ยนรูป</span><input type="file" accept="image/*" data-upload="ccimg" data-id="${c.id}" hidden></label>
+   <input class="cs-text cs-cc-name" value="${csEsc(c.name)}" placeholder="ชื่อคนอ่าน" maxlength="30"${c.builtin ? ' disabled' : ''}>
+   ${c.builtin ? `<small class="cs-cc-note">นิสัยของ janyaahri ใช้คาร์เดิมครบ แก้ไม่ได้ เปลี่ยนรูปได้</small>` : `<textarea class="cs-text cs-cc-desc" rows="3" maxlength="300" placeholder="นิสัยคร่าว ๆ เช่น ขี้แซะ ชิปพระนาง ชอบเดาเนื้อเรื่อง">${csEsc(c.desc || '')}</textarea><small class="cs-cc-note">นิสัยยิ่งยาวยิ่งใช้โทเคน · ยาวสุด 300 ตัวอักษร</small>`}
+   <div class="cs-cc-btns">${c.builtin || c.id === 'new' ? '' : `<button class="cs-btn2 danger" data-act="cc-del" data-id="${c.id}">ลบ</button>`}<span></span><button class="cs-btn2" data-act="cc-cancel">ยกเลิก</button><button class="cs-btn2 pri" data-act="cc-save" data-id="${c.id}">บันทึก</button></div>
+  </div>`;
+ return `<div class="cs-card"><div class="cs-cardh">คนอ่านประจำ<small>มาคอมเมนต์ทุกครั้งที่เรียก อยู่ในการเรียกเดียวกัน</small></div>
+  ${list.map(c => csCcEdit === c.id ? form(c) : `<div class="cs-cc-row">${av(c)}<span class="cs-cc-meta"><b>${csEsc(c.name)}${c.builtin ? ' <i>ขาประจำ</i>' : ''}</b><small>${csEsc(c.builtin ? 'สดใส น่ารัก ขี้อ้อน เจ้าชู้นิด ๆ บางทีเบื่อ งอนง่าย รู้ผิดรู้ถูก' : (c.desc || 'ยังไม่ได้ใส่นิสัย'))}</small></span>
+    <button class="cs-cc-edit" data-act="cc-edit" data-id="${c.id}" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
+    <label class="cs-switch"><input type="checkbox" data-cc-on="${c.id}"${c.on ? ' checked' : ''}><span></span></label></div>`).join('')}
+  ${csCcEdit === 'new' ? form({ id: 'new', name: '', desc: '', img: csCcNewImg || '' }) : `<button class="cs-cc-add" data-act="cc-add"><i class="fa-solid fa-plus"></i> เพิ่มคนอ่าน</button>`}
+ </div>`;
+}
+let csCcNewImg = '';
+/** ย่อรูปเป็น 96×96 เก็บในตั้งค่าได้ไม่อ้วน */
+function csShrinkImage(file) {
+ return new Promise(resolve => {
+  const r = new FileReader();
+  r.onload = () => {
+   const img = new Image();
+   img.onload = () => {
+    try {
+     const c = document.createElement('canvas'); c.width = c.height = 96;
+     const g = c.getContext('2d');
+     const k = Math.max(96 / img.width, 96 / img.height), w = img.width * k, h = img.height * k;
+     g.drawImage(img, (96 - w) / 2, (96 - h) / 2, w, h);
+     resolve(c.toDataURL('image/jpeg', 0.82));
+    } catch { resolve(String(r.result || '')); }
+   };
+   img.onerror = () => resolve('');
+   img.src = String(r.result || '');
+  };
+  r.onerror = () => resolve('');
+  r.readAsDataURL(file);
+ });
+}
+function csCcClick(act, el) {
+ const list = csCmtChars();
+ const id = el.dataset.id;
+ if (act === 'cc-add') { csCcEdit = 'new'; csCcNewImg = ''; return true; }
+ if (act === 'cc-edit') { csCcEdit = id; return true; }
+ if (act === 'cc-cancel') { csCcEdit = null; csCcNewImg = ''; return true; }
+ if (act === 'cc-del') { const c = list.find(x => x.id === id); if (c && !c.builtin && confirm(`ลบ ${c.name} ออกจากคนอ่านประจำ?`)) { list.splice(list.indexOf(c), 1); csCcEdit = null; csSave(); } return true; }
+ if (act === 'cc-save') {
+  const f = el.closest('.cs-cc-form');
+  const name = (f.querySelector('.cs-cc-name')?.value || '').trim().slice(0, 30);
+  const desc = (f.querySelector('.cs-cc-desc')?.value || '').trim().slice(0, 300);
+  if (id === 'new') {
+   if (!name) { csToast('ใส่ชื่อคนอ่านก่อนนะ'); return false; }
+   list.push({ id: 'cc' + Date.now().toString(36), name, desc, img: csCcNewImg || '', on: true });
+  } else {
+   const c = list.find(x => x.id === id);
+   if (c) { if (!c.builtin && name) c.name = name; if (!c.builtin) c.desc = desc; }
+  }
+  csCcEdit = null; csCcNewImg = '';
+  csSave();
+  return true;
+ }
+ return false;
+}
 /** เติมตัวเลขโทเคนในหน้าตั้งค่า (นับจริงด้วยตัวนับของ SillyTavern) */
 function csFillTokens(root) {
  const s = csCfg();
@@ -982,6 +1049,14 @@ function csFillTokens(root) {
   el.textContent = `~${(await csCountTokens(t)).toLocaleString()} โทเคน`;
  });
  root.querySelectorAll('[data-tok="ask"]').forEach(async el => { el.textContent = `~${(await csCountTokens(CS_CMT_ASK)).toLocaleString()} โทเคน`; });
+ root.querySelectorAll('[data-tok="bd"]').forEach(async el => {
+  const id = csLastCharMesId();
+  if (id < 0) { el.textContent = 'ยังไม่มีบท'; return; }
+  const b = await csCmtBreakdown(id);
+  el.innerHTML = b.rows.map(([k, sub, n]) => `<div class="cs-bdrow"><span><b>${csEsc(k)}</b><small>${csEsc(sub)}</small></span><em>${n.toLocaleString()}</em></div>`).join('')
+   + `<div class="cs-bdrow total"><span><b>รวม</b></span><em>~${b.total.toLocaleString()}</em></div>`
+   + `<p class="cs-bdnote">ภาษาไทยใช้โทเคนมากกว่าภาษาอังกฤษราว 2–3 เท่าต่อข้อความยาวเท่ากัน ส่วนที่หนักที่สุดคือเนื้อบท · ถ้าให้โมเดลเลือกบรรทัด จะส่งแค่ 1–3 บรรทัดแทนทั้งบท ถูกลงมาก · คนอ่านประจำแต่ละคนเพิ่มตามความยาวนิสัยที่ใส่ ปิดคนที่ไม่ใช้ได้</p>`;
+ });
  root.querySelectorAll('[data-tok="cmt"]').forEach(async el => {
   const id = csLastCharMesId();
   if (id < 0) { el.textContent = 'ยังไม่มีบท'; return; }
@@ -1039,6 +1114,7 @@ function csSettingsClick(e) {
  if (!a) return;
  const act = a.dataset.act;
  if (act === 'close') return csCloseSettings();
+ if (act.startsWith('cc-')) { if (csCcClick(act, a)) csRenderSettingsBody(); return; }
  if (act === 'cmt-reset') { s.cmtUsed = { tokens: 0, calls: 0 }; csSave(); return csRenderSettingsBody(); }
  if (act === 'test-sound') { [['in', csCharName() || 'A'], ['in', 'B'], ['out', csUserName()], ['narr'], ['scene']].forEach(([k, w], i) => setTimeout(() => csPlaySound(s.sound, k, w), i * 360)); return; }
  if (act === 'read-last') { csCloseSettings(); csOpenLatest(); return; }
@@ -1094,6 +1170,22 @@ function csSettingsChange(e) {
   if (!el.value) delete s.chars[el.dataset.char].sound;
   csAfterChange();
   if (el.value) csPlaySound(el.value, 'in', el.dataset.char);
+  return;
+ }
+ if (el.dataset.ccOn) { const c = csCmtChars().find(x => x.id === el.dataset.ccOn); if (c) { c.on = el.checked; csSave(); csFillTokens(document.getElementById('cs-settings')); } return; }
+ if (el.dataset.upload === 'ccimg' && el.files && el.files[0]) {
+  const id = el.dataset.id;
+  csShrinkImage(el.files[0]).then(url => {
+   if (!url) { csToast('อ่านรูปไม่ได้'); return; }
+   if (id === 'new') csCcNewImg = url;
+   else { const c = csCmtChars().find(x => x.id === id); if (c) c.img = url; csSave(); }
+   // เก็บค่าที่พิมพ์ค้างไว้ก่อนวาดใหม่
+   const f = el.closest('.cs-cc-form');
+   const keep = f ? { n: f.querySelector('.cs-cc-name')?.value, d: f.querySelector('.cs-cc-desc')?.value } : null;
+   csRenderSettingsBody();
+   const f2 = document.querySelector('#cs-settings .cs-cc-form');
+   if (f2 && keep) { if (keep.n !== undefined && f2.querySelector('.cs-cc-name')) f2.querySelector('.cs-cc-name').value = keep.n; if (keep.d !== undefined && f2.querySelector('.cs-cc-desc')) f2.querySelector('.cs-cc-desc').value = keep.d; }
+  });
   return;
  }
  if (el.dataset.upload === 'sound' && el.files && el.files[0]) {
@@ -1472,7 +1564,19 @@ const CS_REACT = {
 const CS_REACT_LABEL = { heart: 'ชอบ', fire: 'ปัง', laugh: 'ขำ', cry: 'เศร้า', shock: 'ตกใจ', angry: 'โกรธ' };
 const CS_CMT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9l-4.5 3.5V16.5H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="15.5" cy="11" r=".9" fill="currentColor" stroke="none"/></svg>';
 const CS_JANYA = 'janyaahri';
-const CS_JANYA_LINE = `Reader ${CS_JANYA} MUST comment 1-2 times in her own voice. Personality: usually cheerful, bright, cute, affectionate, friendly, easygoing; sometimes bored, easily annoyed, moody or distant. Hates being alone and losing people. Many exes, seems flirty. Bisexual. Likes plushies, Kuromi, pink, purple, cute soft things, sky, clouds, cozy places. Fears trypophobia and heights. Knows right from wrong: praises what is right, calls out what is wrong.`;
+const CS_JANYA_DESC = 'usually cheerful, bright, cute, affectionate, friendly, easygoing; sometimes bored, easily annoyed, moody or distant. Hates being alone and losing people. Many exes, seems flirty. Bisexual. Likes plushies, Kuromi, pink, purple, cute soft things, sky, clouds, cozy places. Fears trypophobia and heights. Knows right from wrong: praises what is right, calls out what is wrong.';
+function csCmtChars() {
+ const s = csCfg();
+ if (!Array.isArray(s.cmtChars)) s.cmtChars = [{ id: 'janya', name: CS_JANYA, desc: CS_JANYA_DESC, img: '', on: true, builtin: true }];
+ return s.cmtChars;
+}
+function csCmtCharByName(n) { const k = String(n || '').trim().toLowerCase(); return csCmtChars().find(c => c.name.trim().toLowerCase() === k); }
+/** บรรทัดคนอ่านประจำในคำสั่ง — ทุกคนที่เปิดไว้อยู่ในการเรียกเดียวกัน */
+function csCmtReadersLine() {
+ const on = csCmtChars().filter(c => c.on && c.name.trim());
+ if (!on.length) return '';
+ return 'These readers MUST each comment 1-2 times in their own voice:\n' + on.map(c => `- ${c.name.trim()}: ${c.builtin ? CS_JANYA_DESC : String(c.desc || 'a regular reader').trim().slice(0, 300)}`).join('\n');
+}
 function csReactSVG(r, size) {
  const x = CS_REACT[r] || CS_REACT.heart;
  return `<svg class="cs-react" viewBox="0 0 24 24" width="${size || 16}" height="${size || 16}" fill="${x.c}">${x.svg}</svg>`;
@@ -1498,31 +1602,58 @@ function csCmtButtonHTML(mesId, p) {
 function csCmtParas(m) {
  return csNovelLines(m).map((l, i) => ({ l, i })).filter(x => x.l.k === 'p' || x.l.k === 'say' || x.l.k === 'think');
 }
-function csCmtPrompt(mesId) {
+function csCmtPrompt(mesId, extraIdx) {
  const s = csCfg();
  const m = (csCtx().chat || [])[mesId];
  const all = csCmtParas(m);
- // ★ 1.6 โหมดโมเดลเลือก: ส่งแค่บรรทัดที่เลือกไว้ ประหยัดกว่าส่งทั้งบทมาก
- const picked = s.cmtPick === 'model' ? all.filter(x => csCmtIsMarked(mesId, x.l)) : [];
+ // ★ 1.7 ส่งแค่บรรทัดที่โมเดลเลือก + ย่อหน้าที่เราแตะ ถ้าไม่มีเลยให้คนอ่านเลือกเองจากทั้งบท
+ const want = new Set(s.cmtPick === 'model' ? all.filter(x => csCmtIsMarked(mesId, x.l)).map(x => x.i) : []);
+ if (s.cmtPick === 'model' && extraIdx !== undefined && extraIdx !== null && all.some(x => x.i === extraIdx)) want.add(extraIdx);
+ const picked = all.filter(x => want.has(x.i));
  const paras = (picked.length ? picked : all).slice(0, 24);
  const n = picked.length ? paras.length : ({ few: 2, normal: 4, many: 6 }[s.cmtAmount] || 4);
- // ★ 1.5 ย่อหน้าละไม่เกิน 120 ตัวอักษร คำสั่งสั้นที่สุด janyaahri อยู่ในการเรียกเดียวกันเสมอ
  const body = paras.map(x => `[${x.i}] ${x.l.k === 'say' ? `${x.l.who}: ${x.l.text}` : x.l.text}`.slice(0, 125)).join('\n');
- return {
-  system: 'Thai web-novel reader comments.',
-  prompt: `${body}\n\n${picked.length ? 'For each paragraph above' : `Pick ${n} paragraphs;`} 1-3 short casual Thai comments each from different reader handles (fangirling, shipping, jokes, theories, tears, anger).\n${CS_JANYA_LINE}\nJSON only: [{"p":n,"c":[{"n":"handle","t":"text","r":"heart|fire|laugh|cry|shock|angry"}]}]`,
-  paras,
+ const instr = `${picked.length ? 'For each paragraph above' : `Pick ${n} paragraphs;`} 1-3 short casual Thai comments each from different reader handles (fangirling, shipping, jokes, theories, tears, anger).`;
+ const readers = csCmtReadersLine();
+ const fmt = `JSON only: [{"p":n,"c":[{"n":"handle","t":"text","r":"heart|fire|laugh|cry|shock|angry"}]}]`;
+ const system = 'Thai web-novel reader comments.';
+ return { system, prompt: [body, '', instr, readers, fmt].filter(x => x !== null && x !== undefined && (x !== '' || true)).filter((x, i, a) => !(x === '' && i !== 1)).join('\n'), paras, parts: { system, body, instr, readers, fmt, count: paras.length, picked: picked.length } };
+}
+// นับทีละรายการ — ตัวนับของ SillyTavern ตอบ 0 ได้ถ้าเรียกพร้อมกันหลายอัน
+let csTokQueue = Promise.resolve();
+function csCountTokens(text) {
+ const t = String(text || '');
+ const est = () => Math.ceil(t.length / 2.6); // ประมาณคร่าว ๆ ถ้านับจริงไม่ได้
+ const run = async () => {
+  try {
+   const f = csCtx().getTokenCountAsync;
+   if (typeof f === 'function') { const n = await f(t); if (n > 0 || !t.trim()) return n; }
+  } catch {}
+  return est();
  };
+ const p = csTokQueue.then(run, run);
+ csTokQueue = p.catch(() => {});
+ return p;
 }
-async function csCountTokens(text) {
- try { const f = csCtx().getTokenCountAsync; if (typeof f === 'function') return await f(String(text || '')); } catch {}
- return Math.ceil(String(text || '').length / 2.6); // ประมาณคร่าว ๆ ถ้านับจริงไม่ได้
-}
-async function csCmtEstimate(mesId) {
- const q = csCmtPrompt(mesId);
+async function csCmtEstimate(mesId, extraIdx) {
+ const q = csCmtPrompt(mesId, extraIdx);
  const inTok = await csCountTokens(q.system + '\n' + q.prompt);
- const outTok = ({ few: 130, normal: 250, many: 400 }[csCfg().cmtAmount] || 250);
- return { inTok, outTok, total: inTok + outTok };
+ // คำตอบกลับ: ประมาณจากจำนวนย่อหน้าที่ต้องคอมเมนต์ × คอมเมนต์ละ ~30 โทเคน
+ const per = { few: 1, normal: 2, many: 3 }[csCfg().cmtAmount] || 2;
+ const outTok = Math.min(560, 30 + q.paras.length * per * 30 * (q.parts.picked ? 1 : 0) + (q.parts.picked ? 0 : ({ few: 130, normal: 250, many: 400 }[csCfg().cmtAmount] || 250)));
+ return { inTok, outTok, total: inTok + outTok, q };
+}
+/** แยกให้ดูว่าโทเคนไปอยู่ตรงไหนบ้าง */
+async function csCmtBreakdown(mesId) {
+ const e = await csCmtEstimate(mesId);
+ const P = e.q.parts;
+ const rows = [
+  ['เนื้อบทที่ส่งไป', `${P.count} ย่อหน้า ${P.picked ? '(เฉพาะบรรทัดที่เลือก)' : '(ทั้งบท ให้คนอ่านเลือกเอง)'} ย่อหน้าละไม่เกิน 120 ตัวอักษร`, await csCountTokens(P.body)],
+  ['คนอ่านประจำ', csCmtChars().filter(c => c.on).map(c => c.name).join(', ') || 'ไม่มี', P.readers ? await csCountTokens(P.readers) : 0],
+  ['คำสั่ง + รูปแบบคำตอบ', 'บอกให้เขียนคอมเมนต์สั้น ๆ และตอบเป็น JSON', await csCountTokens(P.system + '\n' + P.instr + '\n' + P.fmt)],
+  ['คำตอบที่ได้กลับ (ประมาณ)', 'คอมเมนต์ที่โมเดลเขียนกลับมา', e.outTok],
+ ];
+ return { rows, total: e.total };
 }
 function csCmtParse(raw, validIdx) {
  const s = String(raw || '').replace(/```(?:json)?/gi, '').replace(/[“”]/g, m => m); // คงเครื่องหมายคำพูดในเนื้อความ
@@ -1580,9 +1711,8 @@ function csCmtMarks(mesId) {
 function csCmtIsMarked(mesId, l) { const mk = csCmtMarks(mesId); return !!(l && l.raw && mk.includes(l.raw.replace(/\s*\[c\]/gi, '').trim())); }
 /** ย่อหน้านี้ควรมีไอคอนไหม */
 function csCmtShowIcon(mesId, i, l) {
- if (!l || !(l.k === 'p' || l.k === 'say' || l.k === 'think')) return false;
- if (csCfg().cmtPick !== 'model') return true;
- return csCmtIsMarked(mesId, l) || csCmtFor(mesId, i).length > 0;
+ // ★ 1.7 กล่องคอมเมนต์ท้ายทุกย่อหน้าเหมือนแอพอ่านนิยาย แม้ยังไม่มีคนเม้นท์
+ return !!l && (l.k === 'p' || l.k === 'say' || l.k === 'think');
 }
 /** คีย์เวิร์ดที่เจอในบท (ไม่ซ้ำคำ) */
 function csCmtHits(mesId) {
@@ -1598,11 +1728,11 @@ function csCmtShouldAuto(mesId, want) {
  return csCmtHits(mesId).length >= Math.max(1, s.cmtMinHits | 0);
 }
 const csCmtBusy = new Set();
-async function csCmtGenerate(mesId, quiet) {
+async function csCmtGenerate(mesId, quiet, extraIdx) {
  if (csCmtBusy.has(mesId)) return false;
  const m = (csCtx().chat || [])[mesId];
  if (!m || m.is_user) return false;
- const q = csCmtPrompt(mesId);
+ const q = csCmtPrompt(mesId, extraIdx);
  if (!q.paras.length) return false;
  csCmtBusy.add(mesId);
  csCmtSheetRefresh();
@@ -1617,10 +1747,15 @@ async function csCmtGenerate(mesId, quiet) {
   s.cmtUsed.tokens += inTok + outTok; s.cmtUsed.calls += 1; csSave();
   if (!list) { if (!quiet) csToast('โมเดลตอบกลับมาอ่านไม่ออก ลองใหม่อีกครั้ง'); return false; }
   const old = csCmtData(mesId);
-  // คอมเมนต์ที่เราเขียนเองเก็บไว้ ไม่หายตอนขอใหม่
-  if (old && old.list) Object.keys(old.list).forEach(p => old.list[p].filter(c => c.me).forEach(c => (list[p] = list[p] || []).push(c)));
+  // คอมเมนต์ที่เราเขียนเองเก็บไว้ ไม่หายตอนขอใหม่ · ย่อหน้าอื่นที่ไม่ได้ขอใหม่ก็เก็บไว้
+  const asked = new Set(q.paras.map(x => x.i));
+  if (old && old.list) Object.keys(old.list).forEach(p => {
+   const keep = asked.has(+p) ? old.list[p].filter(c => c.me) : old.list[p];
+   keep.forEach(c => (list[p] = list[p] || []).push(c));
+  });
   m.extra = m.extra || {};
-  m.extra.cs_cmt = { h: csHash(m.mes), list, tok: { in: inTok, out: outTok }, ts: Date.now() };
+  const prevTok = old && old.tok ? old.tok : { in: 0, out: 0 };
+  m.extra.cs_cmt = { h: csHash(m.mes), list, tok: { in: prevTok.in + inTok, out: prevTok.out + outTok }, ts: Date.now() };
   try { await csCtx().saveChat?.(); } catch {}
   return true;
  } catch (e) {
@@ -1645,12 +1780,13 @@ function csCmtSheetHTML(mesId, p) {
  list.forEach(c => { counts[c.r] = (counts[c.r] || 0) + 1; });
  const quote = para ? (para.l.k === 'say' ? `${para.l.who}: “${para.l.text}”` : para.l.text) : '';
  const row = (c, k) => {
-  const janya = c.n.toLowerCase() === CS_JANYA;
+  const ch = csCmtCharByName(c.n);
+  const janya = !!ch;
   const hue = csHash(c.n) % 360;
   const editing = k === csCmtEditing;
   const act = `data-mes="${mesId}" data-p="${p}" data-k="${k}"`;
   return `<div class="cs-cmt-row${janya ? ' janya' : ''}${c.me ? ' me' : ''}">
-   <span class="cs-cmt-av" style="${janya ? '' : `background:hsl(${hue} 45% 60%)`}">${csEsc(c.n[0] || '?')}</span>
+   ${ch && ch.img ? `<img class="cs-cmt-av" src="${csEsc(ch.img)}" alt="">` : `<span class="cs-cmt-av" style="${janya ? '' : `background:hsl(${hue} 45% 60%)`}">${csEsc(c.n[0] || '?')}</span>`}
    <div class="cs-cmt-b"><div class="cs-cmt-n">${csEsc(c.n)}${janya ? '<i>ขาประจำ</i>' : ''}${c.me ? '<i>คุณ</i>' : ''}</div>
     ${editing ? `<div class="cs-cmt-edit"><textarea class="cs-cmt-ein" rows="2" maxlength="200">${csEsc(c.t)}</textarea>
      <div class="cs-cmt-reacts">${Object.keys(CS_REACT).map(r => `<button class="${c.r === r ? 'on' : ''}" data-cs="cmtreact" data-r="${r}" title="${CS_REACT_LABEL[r]}">${csReactSVG(r, 18)}</button>`).join('')}</div>
@@ -1662,8 +1798,7 @@ function csCmtSheetHTML(mesId, p) {
  };
  let body;
  if (busy) body = `<div class="cs-cmt-empty"><span class="cs-cmt-spin"></span>คนอ่านกำลังพิมพ์คอมเมนต์…</div>`;
- else if (!data) body = `<div class="cs-cmt-empty">ยังไม่มีใครมาคอมเมนต์บทนี้<button class="cs-cmt-go" data-cs="cmtgen" data-mes="${mesId}">เรียกคนอ่านมาคอมเมนต์บทนี้</button><small class="cs-cmt-est" data-est="${mesId}">กำลังคำนวณโทเคน…</small></div>`;
- else if (!list.length) body = `<div class="cs-cmt-empty">ย่อหน้านี้ยังไม่มีคอมเมนต์<small>ย่อหน้าที่มีไอคอนรีแอคชันคือที่มีคนคอมเมนต์ไว้</small></div>`;
+ else if (!list.length) body = `<div class="cs-cmt-empty">${data ? 'ย่อหน้านี้ยังไม่มีคอมเมนต์' : 'ยังไม่มีใครมาคอมเมนต์'}<button class="cs-cmt-go" data-cs="cmtgen" data-mes="${mesId}" data-p="${p}">เรียกคนอ่านมาคอมเมนต์</button><small class="cs-cmt-est" data-est="${mesId}" data-p="${p}">กำลังคำนวณโทเคน…</small><small>หรือเขียนคอมเมนต์ของคุณเองด้านล่าง ไม่ใช้โทเคน</small></div>`;
  else body = `<div class="cs-cmt-sum">${Object.keys(counts).map(r => `<span>${csReactSVG(r, 16)}${CS_REACT_LABEL[r]} ${counts[r]}</span>`).join('')}</div><div class="cs-cmt-list">${list.map(row).join('')}</div>`;
  return `<div class="cs-cmt-grab"></div>
   <div class="cs-cmt-head"><b>ความคิดเห็น</b><button class="cs-btn" data-cs="cmtclose"><i class="fa-solid fa-xmark"></i></button></div>
@@ -1696,7 +1831,7 @@ function csCmtSheetRefresh() {
  if (!sh) return;
  sh.innerHTML = csCmtSheetHTML(csCmtOpen.mes, csCmtOpen.p);
  const est = sh.querySelector('[data-est]');
- if (est) csCmtEstimate(csCmtOpen.mes).then(e => { est.textContent = `ใช้ประมาณ ${e.total.toLocaleString()} โทเคน (ส่ง ~${e.inTok.toLocaleString()} · ได้กลับ ~${e.outTok.toLocaleString()}) · เรียกแยก ไม่เข้าโรลหลัก`; }).catch(() => {});
+ if (est) csCmtEstimate(csCmtOpen.mes, csCmtOpen.p).then(e => { est.textContent = `ใช้ประมาณ ${e.total.toLocaleString()} โทเคน (ส่ง ~${e.inTok.toLocaleString()} · ได้กลับ ~${e.outTok.toLocaleString()}) · เรียกแยก ไม่เข้าโรลหลัก`; }).catch(() => {});
 }
 function csCmtClose() {
  csCmtOpen = null;
@@ -1746,7 +1881,7 @@ function csCmtClick(a, b) {
  }
  if (a === 'cmt') { csCmtEditing = -1; csCmtShow(+b.dataset.mes, +b.dataset.p); return true; }
  if (a === 'cmtclose') { csCmtClose(); return true; }
- if (a === 'cmtgen') { csCmtGenerate(+b.dataset.mes); return true; }
+ if (a === 'cmtgen') { csCmtGenerate(+b.dataset.mes, false, b.dataset.p !== undefined ? +b.dataset.p : undefined); return true; }
  if (a === 'cmtsend') { const inp = b.parentElement.querySelector('.cs-cmt-in'); if (csCmtAddMine(+b.dataset.mes, +b.dataset.p, inp.value)) inp.value = ''; return true; }
  return false;
 }
