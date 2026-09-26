@@ -1,0 +1,1 @@
+{ "name": "chat-story-tests", "private": true, "scripts": { "test": "node cs.test.js" }, "devDependencies": { "jsdom": "^24.0.0" } }

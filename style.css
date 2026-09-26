@@ -1,7 +1,7 @@
 /* Chat Story (แชทนิยาย) 1.1 — สีทั้งหมดมาจากตัวแปรที่ index.js ใส่ให้ (ค่าเริ่มต้นขาวดำ) */
 
 /* ══ หน้าอ่าน ══ */
-#cs-reader{position:fixed;inset:0;z-index:10050;display:flex;flex-direction:column;height:100dvh;
+#cs-reader{position:fixed;inset:0;top:0;left:0;width:100vw;height:100vh;z-index:10050;display:flex;flex-direction:column;height:100dvh;
  background:var(--cs-bg);color:var(--cs-ink);font-family:var(--cs-ff,inherit);font-size:var(--cs-font,16px);line-height:var(--cs-lh,1.55);
  opacity:0;transform:translateY(12px);transition:opacity .2s ease,transform .22s ease;}
 #cs-reader.show{opacity:1;transform:none;}
@@ -22,7 +22,7 @@
 #cs-reader .cs-menu i{width:16px;color:var(--cs-ink2);}
 #cs-reader .cs-progress{height:2px;background:transparent;}
 #cs-reader .cs-progress i{display:block;height:100%;width:0;background:var(--cs-accent);transition:width .25s ease;}
-#cs-reader .cs-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:18px 14px 28px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+#cs-reader .cs-body{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:18px 14px 28px;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation;user-select:none;-webkit-user-select:none;}
 #cs-reader .cs-list{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:5px;}
 #cs-reader .cs-hint{text-align:center;font-size:12px;color:var(--cs-ink2);margin-top:22px;animation:cs-blink 1.6s ease-in-out infinite;}
 #cs-reader.done .cs-hint,#cs-reader.generating .cs-hint{display:none;}
@@ -44,8 +44,11 @@
 
 /* ══ ฟอง ══ */
 .cs-item{display:block;}
-.cs-pop{animation:cs-pop .3s cubic-bezier(.2,1.25,.4,1) both;}
-@keyframes cs-pop{from{opacity:0;transform:translateY(8px) scale(.94);}to{opacity:1;transform:none;}}
+.cs-pop{animation:cs-pop .26s cubic-bezier(.22,.9,.3,1) both;will-change:transform,opacity;}
+@keyframes cs-pop{from{opacity:0;transform:translate3d(0,8px,0);}to{opacity:1;transform:none;}}
+.cs-swap .cs-bubble{animation:cs-swap .2s ease-out both;}
+@keyframes cs-swap{from{opacity:.35;}to{opacity:1;}}
+.cs-item{contain:layout paint;}
 .cs-row{display:flex;align-items:flex-end;gap:8px;margin-top:6px;}
 .cs-row.cont{margin-top:0;}
 .cs-row.right{justify-content:flex-end;}
@@ -73,7 +76,7 @@
 @keyframes cs-dot{0%,80%,100%{transform:translateY(0);opacity:.35}40%{transform:translateY(-4px);opacity:.9}}
 
 /* ══ โหมดแชทหลัก ══ */
-.mes_text .cs-inline{font-family:var(--cs-ff,inherit);font-size:var(--cs-font,16px);line-height:var(--cs-lh,1.55);color:var(--cs-ink);background:var(--cs-bg);
+.mes_text .cs-inline{touch-action:manipulation;font-family:var(--cs-ff,inherit);font-size:var(--cs-font,16px);line-height:var(--cs-lh,1.55);color:var(--cs-ink);background:var(--cs-bg);
  border-radius:16px;padding:10px 10px 8px;margin:4px 0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .mes_text .cs-inline .cs-list{display:flex;flex-direction:column;gap:5px;}
 .mes_text .cs-inline p,.mes_text .cs-inline .cs-bubble{margin:0;}
@@ -84,7 +87,7 @@
 .cs-allbtn{border:1px solid color-mix(in srgb,var(--cs-ink) 18%,transparent);background:transparent;color:var(--cs-ink2);border-radius:99px;padding:3px 10px;font-size:11.5px;cursor:pointer;}
 
 /* ══ หน้าปรับแต่ง ══ */
-#cs-settings{--s-bg:#f5f5f7;--s-card:#ffffff;--s-ink:#111;--s-ink2:#86868b;--s-line:rgba(0,0,0,.08);--s-acc:#111;--s-acc-ink:#fff;--s-fill:rgba(0,0,0,.05);
+#cs-settings{width:100vw;height:100vh;height:100dvh;top:0;left:0;--s-bg:#f5f5f7;--s-card:#ffffff;--s-ink:#111;--s-ink2:#86868b;--s-line:rgba(0,0,0,.08);--s-acc:#111;--s-acc-ink:#fff;--s-fill:rgba(0,0,0,.05);
  position:fixed;inset:0;z-index:10060;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.4);
  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);opacity:0;transition:opacity .2s ease;font-family:system-ui,-apple-system,'Sarabun','Noto Sans Thai',sans-serif;}
 #cs-settings.cs-sdark{--s-bg:#111113;--s-card:#1c1c1f;--s-ink:#f2f2f2;--s-ink2:#8e8e93;--s-line:rgba(255,255,255,.08);--s-acc:#f2f2f2;--s-acc-ink:#111;--s-fill:rgba(255,255,255,.07);}
@@ -189,7 +192,7 @@
 @media (max-width:600px){#cs-reader .cs-body{padding:14px 10px 24px;}.cs-col{max-width:min(var(--cs-max,78%),86%);}}
 
 /* ══ หน้านิยาย (อ่านแบบหนังสือ) ══ */
-#cs-novel{position:fixed;inset:0;z-index:10050;display:flex;flex-direction:column;height:100dvh;background:var(--cs-bg);color:var(--cs-ink);
+#cs-novel{position:fixed;inset:0;top:0;left:0;width:100vw;height:100vh;z-index:10050;display:flex;flex-direction:column;height:100dvh;background:var(--cs-bg);color:var(--cs-ink);
  font-family:var(--cs-ff,inherit);font-size:var(--cs-font,16px);line-height:var(--cs-lh,1.55);opacity:0;transition:opacity .2s ease;}
 #cs-novel.show{opacity:1;}
 #cs-novel *{box-sizing:border-box;}
@@ -207,11 +210,34 @@
 #cs-novel .cs-nprog i{display:block;height:100%;width:0;background:var(--cs-accent);}
 #cs-novel .cs-nbody{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:76px 22px 150px;cursor:default;-webkit-tap-highlight-color:transparent;}
 #cs-novel .cs-page{max-width:var(--cs-pw,680px);margin:0 auto;}
-.cs-chapter{padding:6px 0 30px;}
-.cs-chapter + .cs-chapter{border-top:1px solid color-mix(in srgb,var(--cs-ink) 10%,transparent);padding-top:34px;}
-.cs-chead{display:flex;flex-direction:column;align-items:center;gap:4px;margin:0 0 1.4em;text-align:center;}
-.cs-chead small{font-size:.78em;letter-spacing:2px;color:var(--cs-ink2);}
-.cs-chead b{font-size:1.15em;font-weight:600;}
+.cs-chapter{padding:14px 0 10px;}
+.cs-chapter + .cs-chapter{padding-top:56px;}
+.cs-chead{display:flex;flex-direction:column;align-items:center;gap:6px;margin:0 0 2.2em;text-align:center;}
+.cs-cbook{font-size:.72em;color:var(--cs-ink2);letter-spacing:.3px;}
+.cs-cbook:empty{display:none;}
+.cs-cno{font-size:.95em;font-weight:600;letter-spacing:1px;color:var(--cs-ink);}
+.cs-ctitle{margin:2px 0 0;font-family:inherit;font-size:1.35em;font-weight:700;line-height:1.35;color:var(--cs-ink);}
+.cs-cline{width:44px;height:2px;border-radius:2px;background:var(--cs-ink);opacity:.8;margin-top:10px;}
+.cs-cfoot{text-align:center;color:var(--cs-ink2);font-size:.78em;letter-spacing:1px;margin:2.4em 0 0;}
+.cs-cfoot::before,.cs-cfoot::after{content:'';display:inline-block;width:32px;height:1px;background:currentColor;opacity:.45;vertical-align:middle;margin:0 12px;}
+#cs-novel .cs-aapanel{position:absolute;right:8px;top:calc(100% + 6px);width:min(320px,calc(100vw - 16px));padding:14px;border-radius:16px;z-index:4;display:none;flex-direction:column;gap:12px;
+ background:var(--cs-bar);color:var(--cs-ink);box-shadow:0 14px 40px rgba(0,0,0,.2),0 0 0 1px color-mix(in srgb,var(--cs-ink) 10%,transparent);font-family:system-ui,-apple-system,'Sarabun',sans-serif;}
+#cs-novel .cs-aapanel.open{display:flex;animation:cs-pop .18s ease both;}
+.cs-aarow{display:flex;align-items:center;gap:8px;}
+.cs-aabtn{flex:1;height:40px;border-radius:12px;border:1px solid color-mix(in srgb,var(--cs-ink) 15%,transparent);background:transparent;color:var(--cs-ink);cursor:pointer;font-weight:600;}
+.cs-aabtn.small{font-size:14px;}.cs-aabtn.big{font-size:22px;}
+.cs-aaval{min-width:40px;text-align:center;font-size:14px;color:var(--cs-ink2);}
+.cs-aaseg{padding:3px;border-radius:12px;background:color-mix(in srgb,var(--cs-ink) 7%,transparent);gap:3px;}
+.cs-aaseg button{flex:1;border:none;border-radius:9px;padding:8px 0;background:transparent;color:var(--cs-ink2);font:inherit;font-size:13px;cursor:pointer;}
+.cs-aaseg button.on{background:var(--cs-bg);color:var(--cs-ink);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12);}
+.cs-aathemes{justify-content:space-between;}
+.cs-aathemes button{width:40px;height:40px;border-radius:50%;border:1px solid rgba(0,0,0,.15);cursor:pointer;font-size:15px;font-weight:600;}
+.cs-aathemes button.on{box-shadow:0 0 0 2px var(--cs-bar),0 0 0 4px var(--cs-accent);}
+.cs-aafonts{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px;}
+.cs-aafonts::-webkit-scrollbar{display:none;}
+.cs-aafonts button{flex-shrink:0;border:1px solid color-mix(in srgb,var(--cs-ink) 15%,transparent);border-radius:99px;padding:6px 12px;background:transparent;color:var(--cs-ink);font-size:14px;cursor:pointer;white-space:nowrap;}
+.cs-aafonts button.on{background:var(--cs-ink);color:var(--cs-bg);border-color:var(--cs-ink);}
+.cs-aamore{border:none;background:none;color:var(--cs-ink2);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;align-self:center;}
 .cs-np{margin:0 0 var(--cs-pgap,.9em);}
 .cs-indent .cs-np{text-indent:2em;}
 .cs-justify .cs-np{text-align:justify;text-justify:inter-character;}
@@ -240,7 +266,10 @@
 #cs-novel .cs-send{width:40px;height:40px;flex-shrink:0;border-radius:50%;border:none;background:var(--cs-accent);color:var(--cs-accent-ink,#fff);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 #cs-novel.writing .cs-send{background:var(--cs-ink2);}
 /* นิยายในแชทหลัก */
-.mes_text .cs-ninline{font-family:var(--cs-ff,inherit);font-size:var(--cs-font,16px);line-height:var(--cs-lh,1.55);color:var(--cs-ink);background:var(--cs-bg);border-radius:14px;padding:14px 16px 4px;margin:4px 0;}
+.mes_text .cs-ninline{font-family:var(--cs-ff,inherit);font-size:var(--cs-font,16px);line-height:var(--cs-lh,1.55);color:var(--cs-ink);background:var(--cs-bg);border-radius:14px;padding:16px 18px 6px;margin:4px 0;}
+/* SillyTavern ตั้ง .mes_text p ไว้ชิดกว่า ต้องแรงกว่าถึงจะห่างตามที่ตั้ง */
+.mes_text .cs-ninline p.cs-np,.mes_text .cs-ninline p.cs-nscene{margin:0 0 calc(var(--cs-pgap,1.2em) + .15em) !important;line-height:var(--cs-lh,1.55) !important;}
+.mes_text .cs-ninline .cs-nuser{margin-bottom:calc(var(--cs-pgap,1.2em) + .15em);}
 .mes_text .cs-ninline.user{background:transparent;color:inherit;padding:4px 0;}
 /* ตัวอย่างในหน้าปรับแต่ง */
 .cs-preview.novel{padding:14px 18px;}
