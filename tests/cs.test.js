@@ -614,6 +614,37 @@ const REPLY = `<think>วางแผน</think>
     ok(b2 === 'พล,พล', 'quote-only after narration about พล stays พล (not ต้น)', b2);
     const BOT3 = '"ไปกันเถอะ" พลบอก\nม่านฝันพยักหน้าช้า ๆ\n"ได้ค่ะ"';
     ok(P(BOT3, 'พล').filter(x => x.k === 'say').map(x => x.who).join(',') === 'พล,ม่านฝัน', 'quote-only after narration about someone else → that person');
+    // ★ 1.20 ชื่อขยะจากภาพผู้ใช้
+    const JUNK = '"ก่อนหน้านี้มันไม่มีอะไรจริง ๆ" ความกลัวแล่นขึ้นมา\n"เจ็บดิ" ความเจ็บยังไม่หาย ความรู้สึกผิดตามมา\n"ชู่ว" คำพูดนั้นแผ่วลง คำพูดของเขาไม่มีน้ำหนัก\n"พอเถอะ" ปลายนิ้วเย็นเฉียบ ปลายเสียงสั่น\n"มึงจะด่า" น้ำเสียงอ่อนลง น้ำเสียงนั้นพร่า\n"เอออ" ภูมิพึมพำ ภูมิก้มหน้า';
+    const gj = F.ev(`csGuessNewNames(${JSON.stringify(JUNK)})`);
+    ok(!gj.some(n => /^(ความ|คำ|ปลาย|น้ำเ)/.test(n)) && gj.includes('ภูมิ'), 'no junk names (ความ คำ ปลาย น้ำเ), real name kept', gj);
+    ok(['ความ', 'คำ', 'ปลาย', 'น้ำเ', 'ความกลัว', 'คำพูด'].every(n => !F.ev(`csNameLooksValid(${JSON.stringify(n)})`)) && ['ภูมิ', 'ไทด์', 'ต้น', 'ม่านฝัน'].every(n => F.ev(`csNameLooksValid(${JSON.stringify(n)})`)), 'name validity rules');
+    ok(F.ev("csFindNames('น้ำเสียงอ่อนลง', [{alias:'น้ำเ',name:'น้ำเ'}]).length") === 0, 'cut-off alias never matches');
+    F.ev("csCast(true)['ความ'] = {auto:true}; csCast(true)['น้ำเ'] = {auto:true}; csCast(true)['คำ'] = {auto:true, img:'data:x'}");
+    const cleaned = F.ev("csCastCleanup(csCfg())");
+    ok(cleaned === 2 && !F.ev("csCast(false)['ความ']") && F.ev("!!csCast(false)['คำ']"), 'cleanup removes guessed junk, keeps entries the user touched', cleaned);
+    F.ev("delete csCast(true)['คำ']");
+    ok(F.ev("csCastNote(['ความ','ปลาย'])") === 0, 'junk never auto-added again');
+    // ★ 1.20 โค้ดและ HTML
+    const CODE = 'เธอยื่นโน้ตบุ๊กให้\n```python\ndef hi(name):\n    return f"hi {name}"   # "quoted"\n\nprint(hi("เคน"))\n```\n"ลองรันดูสิ" เคนพูด\nใช้คำสั่ง `npm i` ก่อนนะ\n<div class="status" style="color:red">\n  <b>HP</b> 90/100\n  <div>MP 30</div>\n</div>\nจบ';
+    const ci = P(CODE);
+    const kinds2 = ci.map(x => x.k + (x.who ? ':' + x.who : '')).join(',');
+    ok(kinds2 === 'narr,code,say:เคน,narr,narr,html,narr', 'code + html become single blocks, rest parsed normally', kinds2);
+    const cb = ci.find(x => x.k === 'code');
+    ok(cb.lang === 'python' && /print\(hi\("เคน"\)\)/.test(cb.text) && /\n\n/.test(cb.text) && /# "quoted"/.test(cb.text), 'code kept verbatim (blank lines, quotes)');
+    ok(/<b>HP<\/b>/.test(ci.find(x => x.k === 'html').text) && /MP 30<\/div>\n<\/div>/.test(ci.find(x => x.k === 'html').text), 'html block kept whole with nested div');
+    ok(/<code class="cs-ic">npm i<\/code>/.test(F.ev(`csItemHTML(${JSON.stringify(ci[4])})`)), 'inline code');
+    const ch = F.ev(`csItemHTML(${JSON.stringify(cb)})`);
+    ok(/class="cs-code"/.test(ch) && /cs-copy/.test(ch) && /&quot;quoted&quot;/.test(ch) && />python</.test(ch), 'code block html escaped, with language + copy');
+    ok(P('```\nno end fence\nline2').filter(x => x.k === 'code').length === 1, 'unclosed fence still a code block');
+    ok(F.ev(`csNovelLines({mes:${JSON.stringify(CODE)}}).map(l=>l.k).join()`).includes('code') && F.ev(`csNovelLines({mes:${JSON.stringify(CODE)}}).map(l=>l.k).join()`).includes('html'), 'novel view keeps code/html blocks');
+    ok(P('<i>คิดในใจ</i> เดินต่อ').every(x => x.k !== 'html'), 'inline tags at line start stay text');
+    F.w.DOMPurify = { sanitize: (h) => String(h).replace(/<script[\s\S]*?<\/script>/gi, '').replace(/\son\w+="[^"]*"/gi, '') };
+    const host = F.d.createElement('div'); host.innerHTML = F.ev(`csHtmlBlockHTML(${JSON.stringify('<div onclick="x()">ok<script>alert(1)</script></div>')})`); F.d.body.appendChild(host);
+    F.ev('csHydrateHTML(document)');
+    const shr = host.querySelector('.cs-html').shadowRoot;
+    ok(shr && /ok/.test(shr.innerHTML) && !/script|onclick/.test(shr.innerHTML), 'html sanitized and isolated in shadow DOM');
+    delete F.w.DOMPurify;
     C.characters[0].name = 'อาเรีย'; C.name1 = 'มินา';
     F.ev("csCastSet('พล', {g:'f'})");
     ok(F.ev("csGenderOf('พล')") === 'f', 'gender set by user wins');

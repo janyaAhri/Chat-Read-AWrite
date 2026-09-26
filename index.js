@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.19.0';
+const CS_VERSION = '1.20.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -138,7 +138,8 @@ function csCfg() {
  if (s._v < 18) { s.cmtAuto = true; s._v = 18; } // ★ 1.9 คอมเมนต์มาเองเป็นค่าเริ่มต้น (ครบรอบ/สุ่ม/โมเดลเลือก)
  if (s._v < 19) { const m = { few: [2, 2], normal: [4, 3], many: [6, 4] }[s.cmtAmount] || [4, 3]; s.cmtParas = m[0]; s.cmtPer = m[1]; s._v = 19; } // ★ 1.13 ตั้งจำนวนเองเป็นตัวเลข
  if (s._v < 20) s._v = 20;
- if (s._v < 21) { if (s.preset === 'moon') s.preset = 'classic'; s._v = 21; } // ★ 1.18 กลับมาเริ่มที่ขาวดำเรียบ (จันทร์นวลยังเลือกได้)
+ if (s._v < 21) { if (s.preset === 'moon') s.preset = 'classic'; s._v = 21; }
+ if (s._v < 22) { csCastCleanup(s); s._v = 22; } // ★ 1.20 ล้างชื่อที่เดาผิด (ความ คำ ปลาย น้ำเ …) // ★ 1.18 กลับมาเริ่มที่ขาวดำเรียบ (จันทร์นวลยังเลือกได้)
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -255,6 +256,64 @@ function csCleanText(t) {
   .replace(/\s*\[c\]/gi, '')
   .replace(/\r/g, '');
 }
+// ══ ★ 1.20 โค้ดและ HTML: แยกออกเป็นบล็อกก่อน ไม่ให้ถูกหั่นเป็นฟองหรือโดนลบแท็ก ══
+const CS_BLK_RE = /^\u0000CSBLK(\d+)\u0000$/;
+const CS_HTML_BLOCK = 'div|details|table|section|article|figure|center|blockquote|ul|ol|pre|style|svg|img|hr|aside|header|footer|nav|main|summary|dl';
+/** ดึง ```โค้ด``` และบล็อก HTML ออกมาเป็นชิ้น แทนที่ด้วยบรรทัดคั่นที่จะไม่ถูกแตะ */
+function csBlocks(text) {
+ const blocks = [];
+ let t = String(text || '').replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '').replace(/\[\[POCKET_PHONE_SYNC_V2\]\][\s\S]*?\[\[\/POCKET_PHONE_SYNC_V2\]\]/g, '').replace(/\r/g, '');
+ const mark = b => { blocks.push(b); return `\n\u0000CSBLK${blocks.length - 1}\u0000\n`; };
+ // ```lang ... ``` (ปิดไม่ครบก็เอาถึงท้ายข้อความ)
+ t = t.replace(/(^|\n)[ \t]*```([\w+#.-]*)[^\n]*\n([\s\S]*?)(?:\n[ \t]*```[ \t]*(?=\n|$)|$)/g, (m0, pre, lang, code) => pre + mark({ k: 'code', lang: lang || '', text: code.replace(/\n+$/, '') }));
+ // บล็อก HTML ที่ขึ้นต้นบรรทัดด้วยแท็กระดับบล็อก ไปจนแท็กปิดครบ
+ const lines = t.split('\n'), out = [];
+ const open = new RegExp(`<(${CS_HTML_BLOCK})\\b(?![^>]*\\/>)`, 'gi'), close = new RegExp(`</(${CS_HTML_BLOCK})\\s*>`, 'gi');
+ const voidOnly = new RegExp(`^<(img|hr)\\b`, 'i');
+ for (let i = 0; i < lines.length; i++) {
+  const L = lines[i];
+  if (!new RegExp(`^\\s*<(${CS_HTML_BLOCK})\\b`, 'i').test(L)) { out.push(L); continue; }
+  let depth = 0, j = i, buf = [];
+  do {
+   const x = lines[j];
+   buf.push(x);
+   depth += ((x.match(open) || []).filter(tag => !voidOnly.test(tag)).length) - (x.match(close) || []).length;
+   j++;
+  } while (depth > 0 && j < lines.length);
+  out.push(mark({ k: 'html', text: buf.join('\n') }).trim());
+  i = j - 1;
+ }
+ return { text: out.join('\n'), blocks };
+}
+function csBlockItem(line, blocks) {
+ const m = String(line).match(CS_BLK_RE);
+ return m && blocks[+m[1]] ? { ...blocks[+m[1]] } : null;
+}
+/** HTML ที่ผู้ใช้/บอทใส่มา: ผ่านตัวกรองของ SillyTavern (DOMPurify) แล้วแสดงในกล่องแยก สไตล์ไม่รั่วไปทั้งหน้า */
+const csHtmlStore = new Map();
+function csHtmlBlockHTML(html) {
+ const key = 'h' + csHash(html);
+ csHtmlStore.set(key, html);
+ return `<div class="cs-html" data-hk="${key}"></div>`;
+}
+function csSanitize(html) {
+ const P = window.DOMPurify || (window.SillyTavern && SillyTavern.libs && SillyTavern.libs.DOMPurify);
+ if (!P || typeof P.sanitize !== 'function') return null;
+ return P.sanitize(String(html), { ADD_TAGS: ['style'], FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'textarea', 'select', 'link', 'meta', 'base'], FORBID_ATTR: ['srcdoc'] });
+}
+function csHydrateHTML(root) {
+ (root || document).querySelectorAll('.cs-html[data-hk]:not([data-h])').forEach(el => {
+  el.dataset.h = '1';
+  const raw = csHtmlStore.get(el.dataset.hk) || '';
+  const clean = csSanitize(raw);
+  if (clean === null || !el.attachShadow) { el.innerHTML = `<pre class="cs-code-pre"><code>${csEsc(raw)}</code></pre>`; el.classList.add('as-code'); return; }
+  const sh = el.attachShadow({ mode: 'open' });
+  sh.innerHTML = `<style>:host{display:block;all:initial;font:inherit;color:inherit;}*{box-sizing:border-box;max-width:100%;}img{height:auto;}</style>${clean}`;
+ });
+}
+function csCodeBlockHTML(b) {
+ return `<div class="cs-code"><div class="cs-codeh"><span>${csEsc(b.lang || 'โค้ด')}</span><button class="cs-copy" type="button">คัดลอก</button></div><pre><code>${csEsc(b.text)}</code></pre></div>`;
+}
 function csStripQuotes(s) { return String(s).trim().replace(/^["“”「『]+/, '').replace(/["“”」』]+$/, '').trim(); }
 function csLooksLikeName(n) {
  const s = n.trim();
@@ -270,9 +329,10 @@ function csParse(text, opt) {
  const out = [];
  const isUser = !!o.isUser;
  const owner = String(o.owner || (isUser ? csUserName() : csCharName()) || '').trim();
- const lines = csCleanText(text).split(/\n+/).map(s => s.trim()).filter(Boolean);
+ const pb = csBlocks(text);
+ const lines = csCleanText(pb.text).split(/\n+/).map(s => s.trim()).filter(Boolean);
  // ★ 1.8 ชื่อที่รู้จักในแชทนี้ + ชื่อใหม่ที่เดาได้จากบท ใช้หาว่าใครพูดในร้อยแก้ว
- const known = o.known || csKnownNames([owner, ...csGuessNewNames(lines.join('\n'))]);
+ const known = o.known || csKnownNames([owner, ...csGuessNewNames(lines.filter(l => !CS_BLK_RE.test(l)).join('\n'))]);
  const st = { last: [], seen: [], since: [], sinceG: '', mention: null, pending: null, pc: '', ng: !!o.noGender, um: isUser };
  // ชื่อบทละครค้างไว้แต่บรรทัดถัดไปไม่ใช่คำพูด = เป็นบรรยายธรรมดา
  const flush = () => { if (st.pending) { out.push({ k: 'narr', text: st.pendingRaw || st.pending }); st.pending = null; } };
@@ -286,6 +346,8 @@ function csParse(text, opt) {
   csSee(st, [who]);
  };
  for (const raw of lines) {
+  const blk = csBlockItem(raw, pb.blocks);
+  if (blk) { flush(); out.push(blk); continue; } // โค้ด / HTML ทั้งก้อนเป็นหนึ่งชิ้น
   const line = raw.replace(/^>\s*/, '');
   if (/^[-=*_~]{3,}$/.test(line)) { flush(); continue; }
   let m = line.match(/^\[([^\]]{1,80})\]$/);
@@ -416,6 +478,14 @@ function csCastKey(name, file) {
  const n = String(name || '').trim();
  return file && csDupNames().has(n.toLowerCase()) ? `${n} · ${String(file).replace(/\.[a-z]+$/i, '')}` : '';
 }
+/** ผู้ใช้เคยแก้อะไรกับชื่อนี้ไหม (รูป สี เสียง ชื่อเรียกอื่น เพศ ตัวเรา) */
+function csCastTouched(o) { return !!(o && (o.img || o.color || o.sound || o.aliases || o.me || o.g || o.added)); }
+/** ★ 1.20 ล้างชื่อขยะที่เคยเดาผิดแล้วเก็บไว้ (เฉพาะที่เดาเองและผู้ใช้ไม่เคยแก้) */
+function csCastCleanup(s) {
+ let n = 0;
+ Object.values(s.cast || {}).forEach(c => Object.keys(c || {}).forEach(k => { const o = c[k]; if (o && o.auto && !o.ignored && !csCastTouched(o) && !csNameLooksValid(k)) { delete c[k]; n++; } }));
+ return n;
+}
 function csCastSet(name, patch) {
  const n = String(name || '').trim().slice(0, 90);
  if (!n) return null;
@@ -431,7 +501,7 @@ function csCastNote(names) {
  let added = 0;
  (names || []).forEach(n => {
   n = String(n || '').trim();
-  if (!n || n.length > 40 || csIsUserName(n) || Object.keys(c).length >= 120) return;
+  if (!n || n.length > 40 || csIsUserName(n) || Object.keys(c).length >= 120 || !csNameLooksValid(n)) return;
   if (Object.keys(c).some(x => x.toLowerCase() === n.toLowerCase())) return; // มีแล้ว หรือผู้ใช้ลบทิ้งไว้ (ignored) ไม่ดึงกลับ
   c[n] = { auto: true };
   added++;
@@ -463,7 +533,7 @@ function csKnownNames(extra) {
  const cast = csCast(false);
  const ign = new Set(Object.keys(cast).filter(n => cast[n].ignored).map(n => n.toLowerCase()));
  // ชื่อเรียกอื่นใส่ก่อน ชื่อที่ผู้ใช้ตั้งเองชนะชื่อที่เดาได้
- Object.keys(cast).forEach(n => { if (cast[n].ignored || n.includes(' · ')) return; add(n, n); String(cast[n].aliases || '').split(/[,，、\n]/).forEach(a => add(a, n)); });
+ Object.keys(cast).forEach(n => { if (cast[n].ignored || n.includes(' · ') || (cast[n].auto && !csCastTouched(cast[n]) && !csNameLooksValid(n))) return; add(n, n); String(cast[n].aliases || '').split(/[,，、\n]/).forEach(a => add(a, n)); });
  csStCharsInScope().forEach(c => add(c.name, c.name));
  add(csCharName(), csCharName());
  const un = csUserName();
@@ -489,6 +559,7 @@ function csIsUserName(n) {
 function csNameEdgeOk(low, i, a) {
  const pre = low[i - 1] || '', nx = low[i + a.length] || '';
  if (/[\u0E00-\u0E7F]/.test(a)) {
+  if (/[เแโใไ]$/.test(a)) return false;
   if (/[เแโใไ]/.test(pre) && !/^[เแโใไ]/.test(a)) return false;
   if (/[\u0E30-\u0E3A\u0E47-\u0E4E]/.test(nx)) return false;
   return true;
@@ -516,6 +587,20 @@ const CS_TH_VERBS = 'พูด|ตอบ|ถาม|ตรัส|รับสั�
 const CS_EN_VERBS = 'said|says|asked|asks|whispered|shouted|replied|murmured|muttered|yelled|called|added|snapped|sighed|answered|cried|exclaimed|began|continued|breathed|growled|hissed';
 const CS_NAME_STOP = /^(เขา|เธอ|หล่อน|ท่าน|มัน|เจ้า|ฉัน|ผม|ข้า|เรา|คุณ|แก|นาย|ตัวเอง|เสียง|he|she|they|i|we|you|it|the|a|an|his|her|their|then|and|but|so|when|as|that|this|there|someone|everyone|nobody|somebody|mr|mrs|ms|miss|sir|lady|voice|everybody|nothing)$/i;
 const CS_NAME_STOP_PRE = /^(เขา|เธอ|หล่อน|ฉัน|ผม|พวก|ทั้ง|ทุก|ใคร|บาง|อีก|เสียง|แล้ว|จึง|ก่อน|พลาง|ทันที|ขณะ|และ|แต่|หรือ|ถ้า|เมื่อ|ค่อย|รีบ|หัน|ยิ้ม|มอง|พยัก|ส่าย|เอ่ย|กล่าว|ถาม|ตอบ|พูด|บอก|ร้อง|ชาย|หญิง|เด็ก|คน|ใคร|อะไร|ไม่|ก็)/;
+// ★ 1.20 คำนามไทยที่ชอบตามหลังเครื่องหมายคำพูดหรือซ้ำบ่อย (ไม่ใช่ชื่อคน)
+const CS_NOT_NAME = /^(ความ|คำ|การ|เสียง|น้ำเสียง|น้ำตา|น้ำ|ปลาย|สายตา|แววตา|ดวงตา|นัยน์ตา|ใบหน้า|หน้า|ท่าที|ท่าทาง|ริมฝีปาก|รอยยิ้ม|หัวใจ|ลมหายใจ|ร่าง|มือ|ฝ่ามือ|แขน|ขา|นิ้ว|ปาก|ตา|หัว|ตัว|ข้อ|สิ่ง|เรื่อง|ห้อง|บ้าน|ประตู|โทรศัพท์|มือถือ|หน้าจอ|จอ|ข้อความ|บรรยากาศ|อากาศ|ลม|ฝน|แสง|เงา|กลิ่น|อ้อม|อก|ไหล่|คอ|เส้นผม|ผม|หลัง|ข้าง|ใต้|บน|ใน|นอก|ระหว่าง|หลังจาก|ขณะ|เวลา|วัน|คืน|เช้า|บ่าย|เย็น|ครั้ง|ประโยค|คำพูด|คำตอบ|คำถาม|อารมณ์|ความรู้สึก|หัวเราะ|รอย|ภาพ|ใจ|โลก|ชีวิต|เพื่อน|ผู้|พี่|น้อง|แม่|พ่อ)$|^(ความ|คำ|การ|น้ำเสียง|สายตา|แววตา|ใบหน้า|ริมฝีปาก|รอยยิ้ม|หัวใจ|ลมหายใจ|ปลายนิ้ว|ปลาย|บรรยากาศ|ข้อความ)/;
+/** ชื่อที่เดาได้ต้องดูเป็นชื่อจริง: ไม่ใช่คำนามทั่วไป ไม่จบกลางพยางค์ (น้ำเ) ไม่ขึ้นต้นด้วยสระลอย */
+function csNameLooksValid(n) {
+ n = String(n || '').trim();
+ if (n.length < 2 || n.length > 30) return false;
+ if (/[\u0E00-\u0E7F]/.test(n)) {
+  if (/^[\u0E30-\u0E3A\u0E47-\u0E4E]/.test(n)) return false;       // ขึ้นต้นด้วยสระ/วรรณยุกต์
+  if (/[เแโใไ]$/.test(n)) return false;                                 // จบด้วยสระหน้า = ตัดกลางคำ (น้ำเ)
+  if (/^[ก-ฮ]$/.test(n.slice(-1)) && n.length === 2 && !/[ะ-ฺ็-๎]/.test(n)) return false; // สองพยัญชนะเปล่า ๆ
+  if (CS_NOT_NAME.test(n) || CS_NAME_STOP.test(n) || CS_NAME_STOP_PRE.test(n)) return false;
+ }
+ return true;
+}
 function csGuessNewNames(text) {
  // " ตรง ๆ เป็นได้ทั้งเปิดและปิด จับคู่ทีละบรรทัดให้เป็น “ ” ก่อน จะได้ไม่เอาคำหลังเครื่องหมายเปิดไปเดาเป็นชื่อ
  const t = String(text || '').split('\n').map(l => { let k = 0, j = 0; return l.replace(/"/g, () => (k++ % 2 ? '”' : '“')).replace(/＂/g, () => (j++ % 2 ? '”' : '“')); }).join('\n');
@@ -524,7 +609,7 @@ function csGuessNewNames(text) {
  const add = n => {
   n = String(n || '').trim();
   for (let r = 0; r < 3; r++) n = n.replace(/^(ทันใดนั้น|ก่อนที่|ขณะที่|หลังจากที่|แล้ว|จึง|ก่อน|พลาง|ส่วน|ฝ่าย|และ|แต่|ที่|เมื่อ|พอ|ซึ่ง)/, '').replace(/(ก็|จึง|เลย|ถึง|รีบ|จะ|ได้|พลัน|ค่อย ?ๆ|เบา ?ๆ)$/, '').trim();
-  if (n.length < 2 || n.length > 20 || CS_NAME_STOP.test(n) || CS_NAME_STOP_PRE.test(n) || !/^[ก-ฮเแโใไA-Z]/.test(n)) return;
+  if (n.length < 2 || n.length > 20 || !csNameLooksValid(n) || !/^[ก-ฮเแโใไA-Z]/.test(n)) return;
   if (/(คน|นั้น|นี้|ทุก|หนุ่ม|สาว|เสียง|ตัว|ของ|ที่|ใน|กับ|ให้|ไป|มา|ขึ้น|ลง|อยู่|ได้|แล้ว)$/.test(n)) return;
   hits.set(n, (hits.get(n) || 0) + 1);
  };
@@ -542,7 +627,8 @@ function csGuessNewNames(text) {
   for (let L = Math.min(18, seg.length); L >= 4; L--) {
    const sub = seg.slice(0, L), nx = seg[L] || '';
    if (/^[ะ-ฺ็-๎]/.test(nx)) continue; // ตัดกลางพยางค์
-   if (t.split(sub).length - 1 >= 2) { add(sub); break; }
+   // ชื่อที่เดาจากการซ้ำ: ต้องขึ้นต้นประโยค/ท่อน (หลังช่องว่าง เครื่องหมาย หรือต้นบรรทัด) อย่างน้อย 2 ครั้ง
+   if (t.split(sub).length - 1 >= 2 && (t.match(new RegExp(`(^|[\\s“”"「」『』])${sub.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'gm')) || []).length >= 1) { add(sub); break; }
   }
  }
  // "…," Arin said / "…" said Arin / Arin said, "…"
@@ -754,7 +840,7 @@ function csPickSpeaker(before, after, known, st, owner, quoteOnly, qtext) {
  return st.seen[0] && !quoteOnly && CS_SAY_VERB.test(cue) ? st.seen[0] : owner;
 }
 
-function csFmt(t) { return csEsc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/_([^_]+)_/g, '<i>$1</i>'); }
+function csFmt(t) { return csEsc(t).replace(/`([^`\n]+)`/g, '<code class="cs-ic">$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/_([^_]+)_/g, '<i>$1</i>'); }
 /** ค่าของตัวละคร (สี เสียง) ในแชทนี้ · ค่าเก่าก่อน 1.8 ที่ตั้งแบบรวมใช้เป็นค่าสำรอง */
 function csCharOpt(who, ck) {
  const n = String(who || '').trim();
@@ -767,6 +853,8 @@ function csItemHTML(it, prev) {
  return it.cm !== undefined && csCfg().cmtOn ? html + csCmtBarHTML(it.cm) : html;
 }
 function csItemHTML0(it, prev) {
+ if (it.k === 'code') return csCodeBlockHTML(it);
+ if (it.k === 'html') return csHtmlBlockHTML(it.text);
  if (it.k === 'scene') return `<div class="cs-scene"><span>${csFmt(it.text)}</span></div>`;
  if (it.k === 'narr') return `<div class="cs-narr">${csFmt(it.text)}</div>`;
  const s = csCfg();
@@ -855,9 +943,9 @@ function csPlaySound(id, kind, who) {
 function csPlay(it) {
  if (!it) return false;
  const s = csCfg();
- if ((it.k === 'narr' || it.k === 'scene') && !s.narrSound) return false;
+ if ((it.k === 'narr' || it.k === 'scene' || it.k === 'code' || it.k === 'html') && !s.narrSound) return false;
  if (s.sound === 'none') return false;
- const kind = it.k === 'narr' ? 'narr' : it.k === 'scene' ? 'scene' : it.k === 'think' ? 'think' : (csItemIsUser(it) ? 'out' : 'in');
+ const kind = it.k === 'narr' || it.k === 'code' || it.k === 'html' ? 'narr' : it.k === 'scene' ? 'scene' : it.k === 'think' ? 'think' : (csItemIsUser(it) ? 'out' : 'in');
  const per = it.who ? csCharOpt(it.who, it.ck).sound : '';
  const ok = csPlaySound(per || s.sound, kind, it.who);
  if (ok && s.vibrate && navigator.vibrate && (kind === 'in' || kind === 'out')) try { navigator.vibrate(8); } catch {}
@@ -1905,7 +1993,10 @@ let csNovel = null; // { el }
 const CS_NOVEL_MAX = 30; // ตอนที่วาดครั้งแรก เก่ากว่านี้กดโหลดเพิ่ม
 function csNovelLines(m) {
  const out = [];
- csCleanText(m.mes).split(/\n+/).map(x => x.trim()).filter(Boolean).forEach(line => {
+ const pb = csBlocks(m.mes);
+ csCleanText(pb.text).split(/\n+/).map(x => x.trim()).filter(Boolean).forEach(line => {
+  const blk = csBlockItem(line, pb.blocks);
+  if (blk) { out.push(blk); return; }
   if (/^[-=*_~]{3,}$/.test(line)) { out.push({ k: 'break' }); return; }
   let r = line.match(/^#{1,4}\s*(.{1,120})$/) || line.match(/^(?:บทที่|ตอนที่|Chapter)\s*\d+\s*[:：.\-–]?\s*(.{1,120})$/i);
   if (r) { out.push({ k: 'title', text: r[1].replace(/[#*]+/g, '').trim() }); return; }
@@ -1923,10 +2014,12 @@ function csNovelLines(m) {
  return out;
 }
 function csNovelFmt(t) {
- return csEsc(t).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\*([^*]+)\*/g, '<i>$1</i>').replace(/_([^_]+)_/g, '<i>$1</i>');
+ return csEsc(t).replace(/`([^`\n]+)`/g, '<code class="cs-ic">$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\*([^*]+)\*/g, '<i>$1</i>').replace(/_([^_]+)_/g, '<i>$1</i>');
 }
 function csNovelLineHTML(l, user, cmt) {
  const tail = cmt ? csCmtButtonHTML(cmt.mes, cmt.i) : '';
+ if (l.k === 'code') return csCodeBlockHTML(l);
+ if (l.k === 'html') return csHtmlBlockHTML(l.text);
  if (l.k === 'break') return `<div class="cs-nbreak">* * *</div>`;
  if (l.k === 'title') return `<p class="cs-nscene"><b>${csNovelFmt(l.text)}</b></p>`;
  if (l.k === 'scene') return `<p class="cs-nscene">${csNovelFmt(l.text)}</p>`;
@@ -3079,6 +3172,16 @@ function csInit() {
  csAddAllButtons();
  csInlineAll();
  csEdgeRender();
+ // ★ 1.20 ปุ่มคัดลอกโค้ด (จับก่อนหน้าอ่าน จะได้ไม่นับเป็นแตะอ่านต่อ) + วาด HTML ในกล่องแยก
+ document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('.cs-copy');
+  if (!b) return;
+  e.stopPropagation(); e.preventDefault();
+  const code = b.closest('.cs-code')?.querySelector('code')?.textContent || '';
+  const done = () => { b.textContent = 'คัดลอกแล้ว'; setTimeout(() => { b.textContent = 'คัดลอก'; }, 1400); };
+  try { navigator.clipboard.writeText(code).then(done, () => csToast('คัดลอกไม่ได้')); } catch { csToast('คัดลอกไม่ได้'); }
+ }, true);
+ try { new MutationObserver(() => csHydrateHTML(document)).observe(document.body, { childList: true, subtree: true }); } catch {}
  const onResize = () => { const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); };
  window.addEventListener('resize', onResize);
  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);

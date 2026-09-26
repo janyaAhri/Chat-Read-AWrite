@@ -515,3 +515,24 @@ body:has(#cs-reader.show) #cs-edge,body:has(#cs-novel.show) #cs-edge,body:has(#c
 /* ★ 1.19 ฟองมนเท่ากันทุกมุม ทรงเดิม มินิมอล (ไม่ใช่ iMessage) */
 .cs-bubble{border-radius:var(--cs-radius,18px);padding:.6em .95em;line-height:1.6;}
 .cs-name{font-size:.74em;font-weight:600;letter-spacing:.2px;}
+
+/* ══ ★ 1.20 โค้ดและ HTML ══ */
+.cs-code{margin:10px 0;border-radius:12px;overflow:hidden;background:color-mix(in srgb,var(--cs-ink) 6%,var(--cs-bg));box-shadow:0 0 0 1px color-mix(in srgb,var(--cs-ink) 10%,transparent);text-align:left;user-select:text;-webkit-user-select:text;cursor:auto;}
+.cs-codeh{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 12px;font:600 11px/1.2 -apple-system,system-ui,sans-serif;color:var(--cs-ink2);letter-spacing:.3px;
+ box-shadow:inset 0 -1px 0 color-mix(in srgb,var(--cs-ink) 8%,transparent);}
+.cs-copy{border:none;background:color-mix(in srgb,var(--cs-ink) 8%,transparent);color:var(--cs-ink);font:inherit;font-weight:500;padding:4px 10px;border-radius:99px;cursor:pointer;}
+.cs-code pre,.cs-code-pre{margin:0;padding:10px 12px;overflow:auto;max-height:60vh;-webkit-overflow-scrolling:touch;}
+.cs-code code,.cs-code-pre code{font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,'Liberation Mono',monospace;white-space:pre;color:var(--cs-ink);tab-size:2;}
+.cs-ic{font:.88em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:.08em .38em;border-radius:6px;background:color-mix(in srgb,var(--cs-ink) 8%,transparent);}
+.cs-row.right .cs-ic{background:rgba(255,255,255,.18);}
+.cs-html{margin:10px 0;max-width:100%;overflow:auto;cursor:auto;user-select:text;-webkit-user-select:text;}
+.cs-html.as-code{border-radius:12px;background:color-mix(in srgb,var(--cs-ink) 6%,var(--cs-bg));}
+#cs-novel .cs-code,#cs-novel .cs-html{font-size:.9em;}
+/* กันสไตล์ code / a ของ SillyTavern รั่วเข้ามา */
+.cs-code pre,.cs-code code,.cs-code-pre,.cs-code-pre code{background:none !important;border:none !important;box-shadow:none !important;border-radius:0 !important;padding-left:0;padding-right:0;color:var(--cs-ink) !important;text-indent:0 !important;}
+.cs-code pre,.cs-code-pre{padding:10px 12px !important;}
+.cs-code code{display:block;padding:0 !important;}
+code.cs-ic{background:color-mix(in srgb,var(--cs-ink) 8%,transparent) !important;color:inherit !important;border:none !important;box-shadow:none !important;padding:.08em .38em !important;border-radius:6px !important;}
+.cs-row.right code.cs-ic{background:rgba(255,255,255,.18) !important;}
+.cs-nacts a,.cs-nacts a:visited{color:var(--cs-ink2) !important;text-decoration-color:color-mix(in srgb,var(--cs-ink2) 50%,transparent);}
+#cs-novel .cs-code,#cs-novel .cs-html{text-indent:0;}
