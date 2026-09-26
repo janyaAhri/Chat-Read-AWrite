@@ -61,7 +61,8 @@ const REPLY = `<think>วางแผน</think>
   const u = E.ev(`csParse('ไปถึงแล้ว *วิ่งเข้าร้าน*', {isUser:true, owner:'มินา'})`);
   ok(u.length === 2 && u[0].k === 'say' && u[0].who === 'มินา' && u[1].k === 'narr', 'user message');
   // ── ค่าเริ่มต้นขาวดำ ──
-  ok(E.ev('csCfg().preset') === 'classic' && E.ev("csVars()['--cs-out']") === '#111111' && E.ev("csVars()['--cs-bg']") === '#ffffff', 'default black & white');
+  ok(E.ev('csCfg().preset') === 'moon' && E.ev("csVars()['--cs-out']") === '#5b4b8a' && E.ev("csVars()['--cs-bg']") === '#faf7f2', 'default theme is our own (moon)');
+  ok(!/ต้นฉบับ/.test(E.ev('JSON.stringify(CS_PRESETS)')) && E.ev("CS_PRESETS.classic.name") === 'ขาวดำเรียบ', 'black & white still available, no "original" label');
   ok(E.prompts.chat_story_format && /Format: chat novel/.test(E.prompts.chat_story_format.v) && /Never write มินา's words/.test(E.prompts.chat_story_format.v) && E.prompts.chat_story_format.v.length < 260, 'format prompt (short)', E.prompts.chat_story_format.v.length);
   ok(!!E.d.querySelector('.chat-story-settings #cs-open-settings') && !!E.d.getElementById('cs-wand-set'), 'drawer + wand');
   // ── หน้าอ่าน + ประวัติก่อนหน้า ──
@@ -70,7 +71,7 @@ const REPLY = `<think>วางแผน</think>
   const R = () => E.d.getElementById('cs-reader');
   const items = () => R().querySelectorAll('.cs-list > .cs-item').length;
   ok(!!R() && R().querySelectorAll('.cs-old').length === 2 && items() === 3, 'reader opens with previous message shown + first bubble', items());
-  ok(!!R().querySelector('.cs-input') && R().style.getPropertyValue('--cs-bg') === '#ffffff', 'input bar + theme vars');
+  ok(!!R().querySelector('.cs-input') && R().style.getPropertyValue('--cs-bg') === '#faf7f2', 'input bar + theme vars');
   const n0 = E.w.__notes;
   R().querySelector('.cs-body').click();
   ok(items() === 4 && E.w.__notes > n0, 'tap = one bubble + sound');
@@ -148,7 +149,7 @@ const REPLY = `<think>วางแผน</think>
   const hist = S().querySelector('[data-k="history"]'); hist.value = '2'; hist.dispatchEvent(new E.w.Event('input', { bubbles: true }));
   ok(E.ev('csCfg().history') === 2, 'history range');
   S().querySelector('[data-act="reset"]').click();
-  ok(E.ev('csCfg().preset') === 'classic' && E.ev('csCfg().sound') === 'pop' && !Object.keys(E.ev('csCfg().chars')).length, 'reset to defaults');
+  ok(E.ev('csCfg().preset') === 'moon' && E.ev('csCfg().sound') === 'pop' && !Object.keys(E.ev('csCfg().chars')).length, 'reset to defaults');
   S().querySelector('[data-act="close"]').click(); await sleep(260);
   ok(!S(), 'settings closes');
   E.ev('csCloseReader(true)');
@@ -874,6 +875,10 @@ const REPLY = `<think>วางแผน</think>
   ok(E.ev('csCfg().cmtAuto') === true && E.ev('csCfg().cmtEvery') === 3 && E.ev('csCfg().cmtRandom') === 30, 'migrates to auto comments with every/random defaults');
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:18, cmtAmount:'many'}");
   ok(E.ev('csCfg().cmtParas') === 6 && E.ev('csCfg().cmtPer') === 4, 'old few/normal/many migrates to numbers');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:19, preset:'classic'}");
+  ok(E.ev('csCfg().preset') === 'moon', 'old default black & white moves to new look once');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:20, preset:'classic'}");
+  ok(E.ev('csCfg().preset') === 'classic', 'choosing black & white again is kept');
   ok(!E.errors.length, 'no uncaught', E.errors.map(String));
   console.log(`\nPASS ${pass}  FAIL ${fail}`);
   process.exit(fail ? 1 : 0);

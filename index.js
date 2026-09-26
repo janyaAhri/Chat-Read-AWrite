@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.16.0';
+const CS_VERSION = '1.17.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -12,7 +12,9 @@ const CS_PROMPT_KEY = 'chat_story_format';
 const CS_COLOR_KEYS = ['bg', 'bar', 'ink', 'ink2', 'inBg', 'inInk', 'outBg', 'outInk', 'narrBg', 'accent', 'name'];
 const CS_COLOR_LABELS = { bg: 'พื้นหลัง', bar: 'แถบบนและช่องพิมพ์', ink: 'ตัวหนังสือ', ink2: 'ตัวหนังสือรอง / บรรยาย', inBg: 'ฟองตัวละคร', inInk: 'ตัวหนังสือในฟองตัวละคร', outBg: 'ฟองของเรา', outInk: 'ตัวหนังสือในฟองของเรา', narrBg: 'พื้นบรรยาย', accent: 'สีเน้น', name: 'ชื่อตัวละคร' };
 const CS_PRESETS = {
- classic: { name: 'ขาวดำต้นฉบับ', c: { bg: '#ffffff', bar: '#ffffff', ink: '#111111', ink2: '#8e8e8e', inBg: '#f0f0f0', inInk: '#111111', outBg: '#111111', outInk: '#ffffff', narrBg: '#f6f6f6', accent: '#111111', name: '#6b6b6b' } },
+ // ★ 1.17 ธีมเริ่มต้นของเราเอง: กระดาษนวลใต้แสงจันทร์ หมึกม่วงเข้ม แต้มส้มอิฐ
+ moon: { name: 'จันทร์นวล', c: { bg: '#faf7f2', bar: '#faf7f2', ink: '#2a2530', ink2: '#8b8394', inBg: '#efe9e1', inInk: '#2a2530', outBg: '#5b4b8a', outInk: '#ffffff', narrBg: '#f2ede5', accent: '#c26d5a', name: '#7a6f86' } },
+ classic: { name: 'ขาวดำเรียบ', c: { bg: '#ffffff', bar: '#ffffff', ink: '#111111', ink2: '#8e8e8e', inBg: '#f0f0f0', inInk: '#111111', outBg: '#111111', outInk: '#ffffff', narrBg: '#f6f6f6', accent: '#111111', name: '#6b6b6b' } },
  ink: { name: 'ดำขาว', c: { bg: '#0e0e0e', bar: '#0e0e0e', ink: '#f1f1f1', ink2: '#8a8a8a', inBg: '#242424', inInk: '#f1f1f1', outBg: '#f1f1f1', outInk: '#0e0e0e', narrBg: '#181818', accent: '#f1f1f1', name: '#a3a3a3' } },
  sepia: { name: 'กระดาษเก่า', c: { bg: '#f4ecdf', bar: '#f4ecdf', ink: '#3b3024', ink2: '#8c7a62', inBg: '#fffaf1', inInk: '#3b3024', outBg: '#5b4632', outInk: '#fff7ea', narrBg: '#ebe0cd', accent: '#7a5c3e', name: '#8c7a62' } },
  soft: { name: 'ชมพูพาสเทล', c: { bg: '#fff5f8', bar: '#ffffff', ink: '#3b2a33', ink2: '#9a7b88', inBg: '#ffffff', inInk: '#3b2a33', outBg: '#ff7aa2', outInk: '#ffffff', narrBg: '#ffe8ef', accent: '#ff5c8d', name: '#c0567c' } },
@@ -61,7 +63,7 @@ const CS_DEFAULTS = {
  mode: 'reader',        // reader | inline
  autoOpen: true,
  forceFormat: true,
- preset: 'classic',
+ preset: 'moon',
  custom: null,          // สีที่ปรับเอง (คัดลอกจากธีมที่เลือกตอนเริ่มแก้)
  font: 'sarabun',
  fontCustom: '',
@@ -128,14 +130,15 @@ function csCfg() {
  for (const k of Object.keys(CS_DEFAULTS)) if (s[k] === undefined) s[k] = (CS_DEFAULTS[k] && typeof CS_DEFAULTS[k] === 'object') ? JSON.parse(JSON.stringify(CS_DEFAULTS[k])) : CS_DEFAULTS[k];
  // ธีมเก่าจาก 1.0.0
  if (s.theme && !s._migrated) { if (CS_PRESETS[s.theme]) s.preset = s.theme; s._migrated = true; }
- if (!CS_PRESETS[s.preset] && s.preset !== 'custom') s.preset = 'classic';
- if (s.preset === 'custom' && !s.custom) s.custom = { ...CS_PRESETS.classic.c };
+ if (!CS_PRESETS[s.preset] && s.preset !== 'custom') s.preset = 'moon';
+ if (s.preset === 'custom' && !s.custom) s.custom = { ...CS_PRESETS.moon.c };
  if (!s.chars || typeof s.chars !== 'object') s.chars = {};
  if ((s._v || 0) < 13) { if (s.paraGap === 0.9) s.paraGap = 1.2; s._v = 13; } // หน้านิยายแบบใหม่ห่างขึ้น
  if (s._v < 15) { if (s.userInNovel === 'mark') s.userInNovel = 'same'; delete s.cmtJanya; s._v = 15; } // ★ 1.5 ค่าเริ่มต้นใหม่
  if (s._v < 16) { if (s.cmtGate === 'ask') s.cmtGate = 'keyword'; s._v = 16; } // ★ 1.6 ถามโมเดลกลายเป็นให้โมเดลเลือกบรรทัด
- if (s._v < 18) { s.cmtAuto = true; s._v = 18; }
- if (s._v < 19) { const m = { few: [2, 2], normal: [4, 3], many: [6, 4] }[s.cmtAmount] || [4, 3]; s.cmtParas = m[0]; s.cmtPer = m[1]; s._v = 19; } // ★ 1.13 ตั้งจำนวนเองเป็นตัวเลข // ★ 1.9 คอมเมนต์มาเองเป็นค่าเริ่มต้น (ครบรอบ/สุ่ม/โมเดลเลือก)
+ if (s._v < 18) { s.cmtAuto = true; s._v = 18; } // ★ 1.9 คอมเมนต์มาเองเป็นค่าเริ่มต้น (ครบรอบ/สุ่ม/โมเดลเลือก)
+ if (s._v < 19) { const m = { few: [2, 2], normal: [4, 3], many: [6, 4] }[s.cmtAmount] || [4, 3]; s.cmtParas = m[0]; s.cmtPer = m[1]; s._v = 19; } // ★ 1.13 ตั้งจำนวนเองเป็นตัวเลข
+ if (s._v < 20) { if (s.preset === 'classic') s.preset = 'moon'; s._v = 20; } // ★ 1.17 หน้าตาใหม่ของเราเอง (ขาวดำยังเลือกได้)
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -170,7 +173,7 @@ function csTextOn(bg) { return csLum(bg) > .45 ? '#111111' : '#ffffff'; }
 // ══ ธีมที่ใช้อยู่ → ตัวแปร CSS ══
 function csColors() {
  const s = csCfg();
- return s.preset === 'custom' ? { ...CS_PRESETS.classic.c, ...(s.custom || {}) } : { ...CS_PRESETS[s.preset].c };
+ return s.preset === 'custom' ? { ...CS_PRESETS.moon.c, ...(s.custom || {}) } : { ...CS_PRESETS[s.preset].c };
 }
 function csFont() { const s = csCfg(); return CS_FONTS.find(f => f.id === s.font) || CS_FONTS[0]; }
 function csFontFamily() {
@@ -1387,7 +1390,7 @@ function csRenderPreview() {
  if (csCfg().style === 'novel') {
   csApplyNovelVars(box);
   const cn = csCharName() || 'ตัวละคร';
-  box.innerHTML = `<div class="cs-page"><section class="cs-chapter"><header class="cs-chead"><span class="cs-cbook">${csEsc(csCharName() || 'ชื่อเรื่อง')}</span><span class="cs-cno">${csChWord()}ที่ 12</span><h2 class="cs-ctitle">คำตอบที่ห้องสมุด</h2><span class="cs-cline"></span></header>
+  box.innerHTML = `<div class="cs-page"><section class="cs-chapter"><header class="cs-chead"><span class="cs-cno"><b>12</b><small>${csChWord()}</small></span><h2 class="cs-ctitle">คำตอบที่ห้องสมุด</h2><span class="cs-cbook">${csEsc(csCharName() || 'ชื่อเรื่อง')}</span></header>
    <div class="cs-nuser${csCfg().userInNovel === 'mark' ? ' mark' : ''}"${csCfg().userInNovel === 'hide' ? ' hidden' : ''}><p class="cs-np">${csEsc(csUserName())} ผลักประตูห้องสมุดเข้าไปเบา ๆ</p></div>
    <p class="cs-np">แสงแดดสุดท้ายลอดผ่านหน้าต่างบานสูง ${csEsc(cn)} เงยหน้าขึ้นจากหนังสือ “ยังไม่กลับบ้านอีกเหรอ ฉันรออยู่ตั้งนานแล้วนะ”</p>
    <p class="cs-np">เสียงนาฬิกาบนผนังเดินช้าลงราวกับจงใจ</p></section></div>`;
@@ -1465,7 +1468,7 @@ function csTabHTML(tab) {
   const card = (id, p) => `<button class="cs-preset${s.preset === id ? ' on' : ''}" data-preset="${id}" style="background:${p.bg}">
    <span class="cs-pv-b in" style="background:${p.inBg}"></span><span class="cs-pv-b out" style="background:${p.outBg}"></span><span class="cs-pv-b in s" style="background:${p.inBg}"></span>
    <i style="color:${p.ink}">${csEsc(id === 'custom' ? 'ปรับเอง' : CS_PRESETS[id].name)}</i></button>`;
-  return `<div class="cs-card"><div class="cs-cardh">ธีมสำเร็จรูป</div><div class="cs-presets">${Object.keys(CS_PRESETS).map(id => card(id, CS_PRESETS[id].c)).join('')}${card('custom', { ...CS_PRESETS.classic.c, ...(s.custom || {}) })}</div></div>
+  return `<div class="cs-card"><div class="cs-cardh">ธีมสำเร็จรูป</div><div class="cs-presets">${Object.keys(CS_PRESETS).map(id => card(id, CS_PRESETS[id].c)).join('')}${card('custom', { ...CS_PRESETS.moon.c, ...(s.custom || {}) })}</div></div>
    <div class="cs-card"><div class="cs-cardh">ปรับสีเอง <small>แก้สีไหนก็ได้ ระบบจะเปลี่ยนเป็นธีม "ปรับเอง" ให้</small></div>
     <div class="cs-colors">${CS_COLOR_KEYS.map(k => `<label class="cs-color"><input type="color" data-color="${k}" value="${c[k]}"><span class="cs-sw" style="background:${c[k]}"></span><span class="cs-cl"><b>${CS_COLOR_LABELS[k]}</b><small>${c[k]}</small></span></label>`).join('')}</div>
    </div>`;
@@ -1949,15 +1952,14 @@ function csNovelChapterHTML(ch, n) {
  const title = lines.find(l => l.k === 'title') || lines.find(l => l.k === 'scene');
  const w = csChWord();
  return `<section class="cs-chapter" data-ch="${n}" data-mes="${ch.botId ?? ''}">
-  <header class="cs-chead">
-   <span class="cs-cbook">${csEsc(csCharName() || '')}</span>
-   <span class="cs-cno">${w}ที่ ${n}</span>
+  <header class="cs-chead" aria-label="${w}ที่ ${n}">
+   <span class="cs-cno"><b>${String(n).padStart(2, '0')}</b><small>${w}</small></span>
    ${title ? `<h2 class="cs-ctitle">${csNovelFmt(title.text)}</h2>` : ''}
-   <span class="cs-cline"></span>
+   <span class="cs-cbook">${csEsc(csCharName() || '')}</span>
   </header>
   ${userPart}
   ${lines.map((l, i) => l === title ? '' : csNovelLineHTML(l, false, s.cmtOn && ch.bot && csCmtShowIcon(ch.botId, i, l) ? { mes: ch.botId, i } : null)).join('')}
-  ${ch.bot ? `<footer class="cs-cfoot">จบ${w}ที่ ${n}</footer>` : ''}
+  ${ch.bot ? `<footer class="cs-cfoot" aria-label="จบ${w}ที่ ${n}"><span>❖</span></footer>` : ''}
   ${ch.bot && ch.botId === csLastCharMesId() && ch.botId === (csCtx().chat || []).length - 1 ? `<div class="cs-nacts"><a data-cs="regen">เจนใหม่</a><span>·</span><a data-cs="dellast">ลบ${w}นี้</a></div>` : ''}
  </section>`;
 }
@@ -1988,7 +1990,7 @@ function csOpenNovel(mesId, all, resume) {
   <div class="cs-nprog"><i></i></div>
   <div class="cs-nbody" data-cs="ntap"><article class="cs-page">${csNovelBodyHTML(all)}</article></div>
   <div class="cs-nbottom">
-   <div class="cs-nnav"><button data-cs="nprev"><i class="fa-solid fa-angle-left"></i> ${csChWord()}ก่อนหน้า</button><span class="cs-npct">0%</span><button data-cs="nnext">${csChWord()}ถัดไป <i class="fa-solid fa-angle-right"></i></button></div>
+   <div class="cs-nnav"><button data-cs="nprev" aria-label="${csChWord()}ก่อนหน้า"><i class="fa-solid fa-arrow-up"></i></button><span class="cs-npct"></span><button data-cs="nnext" aria-label="${csChWord()}ถัดไป"><i class="fa-solid fa-arrow-down"></i></button></div>
    ${s.showInput ? `<div class="cs-inputbar"><textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
   </div>`;
  document.body.appendChild(el);
@@ -2058,11 +2060,12 @@ function csNovelProgress() {
  const max = body.scrollHeight - body.clientHeight;
  const pct = max > 0 ? Math.round(body.scrollTop / max * 100) : 100;
  csNovel.el.querySelector('.cs-nprog i').style.width = pct + '%';
- const p = csNovel.el.querySelector('.cs-npct'); if (p) p.textContent = pct + '%';
+ const p = csNovel.el.querySelector('.cs-npct');
  const chs = [...body.querySelectorAll('.cs-chapter')];
  const cur = chs.filter(c => c.offsetTop - body.scrollTop <= 80).pop() || chs[0];
  const sub = csNovel.el.querySelector('.cs-sub');
  if (sub) sub.textContent = csGenerating ? `กำลังเขียน${csChWord()}ต่อไป…` : csCmtBusy.size ? 'คนอ่านกำลังเม้นท์…' : (cur ? `${csChWord()}ที่ ${cur.dataset.ch}` : '');
+ if (p) { const last = chs.length ? chs[chs.length - 1].dataset.ch : 0; p.textContent = cur ? `${cur.dataset.ch} / ${last}` : ''; }
 }
 function csNovelRefresh(scrollToNew) {
  if (!csNovel) return;
@@ -2378,7 +2381,8 @@ const CS_REACT = {
  angry: { c: '#ef4444', svg: '<circle cx="12" cy="12" r="9"/><path fill="#fff" d="M7 8.5l3.5 1.6-.6 1.2L6.4 9.7zm10 0l.6 1.2-3.5 1.6-.6-1.2zM8.5 16.5c1-1.4 2.2-2 3.5-2s2.5.6 3.5 2l-1.2.8c-.7-1-1.4-1.3-2.3-1.3s-1.6.3-2.3 1.3z"/>' },
 };
 const CS_REACT_LABEL = { heart: 'ชอบ', fire: 'ปัง', laugh: 'ขำ', cry: 'เศร้า', shock: 'ตกใจ', angry: 'โกรธ' };
-const CS_CMT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5.5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9l-4.5 3.5V16.5H4a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="11" r=".9" fill="currentColor" stroke="none"/><circle cx="15.5" cy="11" r=".9" fill="currentColor" stroke="none"/></svg>';
+// ★ 1.17 เครื่องหมายโน้ตข้างหน้า: จุดเล็กชายขอบ (ยังไม่มีคอมเมนต์) · วงตัวเลข (มีแล้ว)
+const CS_CMT_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>';
 const CS_JANYA = 'janyaahri';
 const CS_JANYA_DESC = 'usually cheerful, bright, cute, affectionate, friendly, easygoing; sometimes bored, easily annoyed, moody or distant. Hates being alone and losing people. Many exes, seems flirty. Bisexual. Likes plushies, Kuromi, pink, purple, cute soft things, sky, clouds, cozy places. Fears trypophobia and heights. Knows right from wrong: praises what is right, calls out what is wrong.';
 function csCmtChars() {
@@ -2413,11 +2417,11 @@ function csCmtData(mesId) {
 function csCmtFor(mesId, p) { const d = csCmtData(mesId); return (d && d.list && d.list[p]) || []; }
 function csCmtButtonHTML(mesId, p) {
  const list = csCmtFor(mesId, p);
- if (!list.length) return ` <button class="cs-cmt" data-cs="cmt" data-mes="${mesId}" data-p="${p}" aria-label="ความคิดเห็น">${CS_CMT_ICON}</button>`;
+ if (!list.length) return `<button class="cs-cmt" data-cs="cmt" data-mes="${mesId}" data-p="${p}" aria-label="ความคิดเห็น">${CS_CMT_ICON}</button>`;
  const counts = {};
  list.forEach(c => { counts[c.r] = (counts[c.r] || 0) + 1; });
  const top = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
- return ` <button class="cs-cmt has" data-cs="cmt" data-mes="${mesId}" data-p="${p}" aria-label="ความคิดเห็น ${list.length}">${csReactSVG(top, 15)}<span>${list.length}</span></button>`;
+ return `<button class="cs-cmt has" data-cs="cmt" data-mes="${mesId}" data-p="${p}" data-r="${top}" aria-label="ความคิดเห็น ${list.length}"><span>${list.length}</span></button>`;
 }
 /** แถบคอมเมนต์ท้ายข้อความ (แชทนิยาย · แชทหลัก) แตะแล้วเห็นคอมเมนต์ทั้งบท */
 function csCmtBarHTML(mesId) {
