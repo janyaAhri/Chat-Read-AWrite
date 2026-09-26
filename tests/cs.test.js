@@ -466,13 +466,17 @@ const REPLY = `<think>วางแผน</think>
     ok(K('“ใจเย็น” พี่รีบอก') === 'say:อาเรีย,narr', 'alias maps to main name', K('“ใจเย็น” พี่รีบอก'));
     ok(K('คุณหนู: ว่าไง') === 'say:อาเรีย', 'alias in Name: line');
     ok(K('“โอเค” เคนจิพูด') === 'say:เคนจิ,narr', 'longest name wins');
-    ok(K('“รอด้วย” มินาพูด') === 'say:มินา:U,narr', 'bot writes user line → our side');
+    ok(K('“รอด้วย” มินาพูด') === 'say:มินา,narr', 'bot-written user line stays left by default (right = only what we typed)');
+    ok(/cs-row left/.test(F.ev("csItemHTML(csParse('“รอด้วย” มินาพูด',{owner:'อาเรีย'})[0])")), 'rendered on the left');
+    F.ev("csCfg().userLinesRight = true");
+    ok(K('“รอด้วย” มินาพูด') === 'say:มินา:U,narr', 'option: bot writes user line → our side');
     F.ev("csCastSet('ยัยมิน', {me:true, aliases:'มินนี่'})");
     ok(K('“ฮัลโหล” ยัยมินพูด') === 'say:ยัยมิน:U,narr' && K('“ฮัลโหล” มินนี่พูด') === 'say:ยัยมิน:U,narr', '"this is me" flag and its alias', K('“ฮัลโหล” มินนี่พูด'));
     C.name1 = 'อาเรีย';
     ok(K('อาเรีย: สวัสดี') === 'say:อาเรีย' && K('“ไป” อาเรียพูด') === 'say:อาเรีย,narr', 'user name == char name stays bot side in bot message');
     ok(K('อาเรีย: สวัสดี', 'อาเรีย', true) === 'say:อาเรีย:U', 'same name in our own message stays our side');
     C.name1 = 'มินา';
+    F.ev("csCfg().userLinesRight = false");
     ok(K('## บทที่ 3 คืนฝนตก\nฝนตก') === 'scene,narr', 'novel chapter heading → scene in chat view');
     ok(K('“ไม่” เขาพูด') === 'say:อาเรีย,narr', 'pronoun alone → message owner');
     ok(K('เธอเดินออกไปเงียบ ๆ') === 'narr', 'plain narration stays narration');
@@ -528,7 +532,7 @@ const REPLY = `<think>วางแผน</think>
     ok(F.ev("csCastGet('ซากุระ').aliases") === 'ซา, ซากุ' && K('“ไปไหน” ซากุถาม') === 'say:ซากุระ,narr', 'aliases from tab (too-short dropped)');
     // นี่คือตัวเรา จากแท็บ
     const me = FS().querySelector('[data-f="me"][data-char="ซากุระ"]'); me.checked = true; me.dispatchEvent(new F.w.Event('change', { bubbles: true }));
-    ok(F.ev("csCastGet('ซากุระ').me") === true && K('ซากุระ: ฮัลโหล') === 'say:ซากุระ:U', '"this is me" toggle from tab');
+    ok(F.ev("csCastGet('ซากุระ').me") === true && K('ซากุระ: ฮัลโหล', 'มินา', true) === 'say:ซากุระ:U' && F.ev("csIsUserName('ซากุระ')"), '"this is me" toggle from tab');
     // รูปจากเครื่อง
     F.ev("csShrinkImage = () => Promise.resolve('data:image/jpeg;base64,QUJD')");
     const up = FS().querySelector('[data-upload="castimg"][data-char="เคน"]');
@@ -570,7 +574,110 @@ const REPLY = `<think>วางแผน</think>
     ok(g2n.includes('ภาณุภัทร') && g2n.includes('ท่านชายรัชตะ') && g2n.includes('หม่อมแม่') && !g2n.some(n => /เพคะ|โรงพิมพ์/.test(n)), 'discovers titled Thai names, no words after opening quotes', g2n);
     const rk2 = P(REAL2, 'Narrator').filter(x => x.k === 'say').map(x => x.who).join(',');
     ok(rk2 === 'ภาณุภัทร,ภาณุภัทร,ท่านชายรัชตะ,ภาณุภัทร,ท่านชายรัชตะ,หม่อมแม่', 'real Thai scene: every line attributed', rk2);
+    // ★ 1.10 ฉากจริงจากผู้ใช้: ชื่อสั้นในคำอื่น + เพศ
+    ok(F.ev("csFindNames('ไม่ได้แสดงท่าทีตื่นเต้น', [{alias:'ต้น',name:'ต้น'}]).length") === 0, 'short Thai name not matched inside another word (ต้น in ตื่นเต้น)');
+    ok(F.ev("csFindNames('พลังของพลมีมาก', [{alias:'พล',name:'พล'}]).length") === 1, 'พล not matched inside พลัง');
+    ok(F.ev("csFindNames('Kenji met Ken', [{alias:'ken',name:'Ken'}]).length") === 1, 'English whole word only');
+    F.ev("csCastSet('พล', {}); csCastSet('ต้น', {}); csCastSet('ม่านฝัน', {me:true})");
+    C.name1 = 'ม่านฝัน';
+    C.chat.push({ name: 'ม่านฝัน', is_user: true, mes: 'ค คะ โอเค...' });
+    C.chat.push({ name: 'อาเรีย', is_user: false, mes: 'ต้น: โทษทีว่ะ ขอบใจครับ' });
+    C.chat.push({ name: 'อาเรีย', is_user: false, mes: 'พล: ครับ ผมเอง' });
+    ok(F.ev("csGenderOf('ม่านฝัน')") === 'f' && F.ev("csGenderOf('ต้น')") === 'm' && F.ev("csGenderOf('พล')") === 'm', 'genders learned from our messages and Name: lines');
+    const SCENE = 'พลเงยหน้ามองหญิงสาวที่เดินเข้ามา\n"มันค่อนข้างร้อนน่ะค่ะ เลยเข้ามานั่งดูคนเล่นบาส" เธอยิ้มเล็กน้อยและเสยผม "คุณ เล่นเก่งนะเรามองอยู่เมื่อกี้"\nพลมองการเคลื่อนไหวของม่านฝันเป็นธรรมชาติ แต่เขาไม่ได้แสดงท่าทีตื่นเต้น ชายหนุ่มพยักหน้า\n"ขอบคุณครับ" เขาตอบรับด้วยน้ำเสียงราบเรียบ "พอดีช่วงนี้ใกล้แข่ง เลยต้องซ้อมหนักหน่อย"\nตามด้วยเสียงตะโกนของต้น\n"โทษทีเว้ยประธาน! มือลื่นไปหน่อย" ต้นตะโกน\nเขาหันกลับมาหาม่านฝันอีกครั้ง\n"นั่งตรงนี้ระวังลูกหลงหน่อยแล้วกัน" เขาเอ่ยเตือน';
+    C.characters[0].name = 'พล';
+    const sc = P(SCENE, 'พล').filter(x => x.k === 'say').map(x => x.who + (x.u ? ':U' : '')).join(',');
+    ok(sc === 'ม่านฝัน,ม่านฝัน,พล,พล,ต้น,พล', 'user scene: every speaker right, all on the left in a bot message', sc);
+    C.characters[0].name = 'อาเรีย'; C.name1 = 'มินา';
+    F.ev("csCastSet('พล', {g:'f'})");
+    ok(F.ev("csGenderOf('พล')") === 'f', 'gender set by user wins');
+    F.ev("csCastSet('พล', {g:''})");
     ok(!F.errors.length, 'no uncaught (cast)', F.errors.map(String));
+  }
+
+  // ══ 1.10 คอมเมนต์ในแชทนิยาย + จำตำแหน่งอ่าน ══
+  {
+    const msgs = [{ name: 'มินา', is_user: true, mes: 'สวัสดี' }];
+    for (let i = 0; i < 6; i++) msgs.push({ name: 'อาเรีย', is_user: false, mes: `อาเรีย: ประโยค ${i} ก\nอาเรีย: ประโยค ${i} ข`, extra: {} });
+    const G = env(msgs);
+    await sleep(30);
+    G.ctx.getTokenCountAsync = async t => Math.ceil(String(t).length / 4);
+    G.ctx.saveChat = async () => {};
+    G.w.__raw = 0;
+    G.ctx.generateRaw = async () => { G.w.__raw++; return '[{"p":0,"c":[{"n":"ploy","t":"กรี๊ด","r":"heart"}]},{"p":1,"c":[{"n":"moo","t":"ฮา","r":"laugh"}]}]'; };
+    G.ev("csCfg().style = 'chat'; csCfg().mode = 'reader'; csCfg().cmtOn = true; csCfg().typingMs = 0; csCfg().history = 0");
+    // โหมดแชทนิยายก็เรียกคอมเมนต์เอง
+    G.ev("csCfg().cmtEvery = 1; csCfg().cmtRandom = 0");
+    ok(/\[c\]/.test(G.prompts[Object.keys(G.prompts)[0]] ? G.ev('csPromptText()') : G.ev('csPromptText()')), 'model-pick ask also in chat style');
+    G.chat.push({ name: 'อาเรีย', is_user: false, mes: 'อาเรีย: มาแล้ว\nอาเรีย: รอนานไหม', extra: {} }); G.addMes(G.chat[G.chat.length - 1], G.chat.length - 1);
+    const nid = G.chat.length - 1;
+    G.fire('gs', 'normal', {}, false); G.fire('cmr', nid);
+    await sleep(1100);
+    ok(G.w.__raw === 1 && Object.keys(G.chat[nid].extra.cs_cmt.list).length === 2, 'auto comments fire in chat style', G.w.__raw);
+    // แถบคอมเมนต์ในหน้าแชทนิยาย
+    G.ev(`csOpenMessage(${nid})`);
+    const R = () => G.d.getElementById('cs-reader');
+    G.ev('csReader.player.all()');
+    const bar = R().querySelector(`.cs-cmtbar[data-mes="${nid}"]`);
+    ok(bar && /2 ความคิดเห็น/.test(bar.textContent), 'comment bar under the message in chat reader', bar && bar.textContent);
+    const before = G.ev('csReader.player.i');
+    bar.click(); await sleep(30);
+    ok(R().classList.contains('cmt-open') && /กรี๊ด/.test(R().querySelector('.cs-cmt-sheet').innerHTML) && /ฮา/.test(R().querySelector('.cs-cmt-sheet').innerHTML), 'sheet shows all comments of the message');
+    ok(R().querySelectorAll('.cs-cmt-sheet .cs-cmt-q').length === 2 && /รอนานไหม/.test(R().querySelector('.cs-cmt-sheet').innerHTML), 'grouped by line with quotes');
+    R().querySelector('.cs-cmt-sheet [data-cs="cmtedit"][data-p="1"]').click();
+    const ein = R().querySelector('.cs-cmt-ein'); ein.value = 'ฮามาก';
+    R().querySelector('.cs-cmt-sheet [data-cs="cmtsave"]').click();
+    ok(G.chat[nid].extra.cs_cmt.list[1][0].t === 'ฮามาก', 'edit comment from chat sheet');
+    const inp = R().querySelector('.cs-cmt-in'); inp.value = 'ของฉันเอง';
+    R().querySelector('[data-cs="cmtsend"]').click();
+    ok(/3 ความคิดเห็น/.test(R().querySelector(`.cs-cmtbar[data-mes="${nid}"]`).textContent), 'own comment added, bar refreshed');
+    R().querySelector('.cs-cmt-bd').click();
+    ok(!R().classList.contains('cmt-open') && G.ev('csReader.player.i') === before, 'backdrop closes sheet without advancing');
+    // ข้อความที่ยังไม่มีคอมเมนต์: เรียกจากแผ่นได้
+    G.ev('csCloseReader(true)');
+    G.ev(`csOpenMessage(2)`); G.ev('csReader.player.all()');
+    const b2 = R().querySelector('.cs-cmtbar[data-mes="2"]');
+    ok(b2 && /แสดงความคิดเห็น/.test(b2.textContent), 'empty bar invites comments');
+    b2.click(); R().querySelector('.cs-cmt-sheet [data-cs="cmtgen"]').click(); await sleep(60);
+    ok(G.chat[2].extra.cs_cmt && /2 ความคิดเห็น/.test(R().querySelector('.cs-cmtbar[data-mes="2"]').textContent), 'generate from chat sheet');
+    G.ev('csCmtClose(); csCloseReader(true)');
+    // แชทหลักก็มีแถบ
+    G.ev("csCfg().mode = 'inline'; csInlineAll()");
+    const ib = G.d.querySelector(`#chat .mes[mesid="${nid}"] .cs-cmtbar`);
+    ok(!!ib, 'bar in main chat (inline)');
+    G.ev(`document.querySelector('#chat .mes[mesid="${nid}"] [data-cs-all]') && document.querySelector('#chat .mes[mesid="${nid}"] [data-cs-all]').click()`);
+    G.d.querySelector(`#chat .mes[mesid="${nid}"] .cs-cmtbar`).click(); await sleep(30);
+    ok(G.d.getElementById('cs-cmthost').classList.contains('cmt-open') && /ฮามาก/.test(G.d.querySelector('#cs-cmthost .cs-cmt-sheet').innerHTML), 'main chat opens comment sheet overlay');
+    G.d.querySelector('#cs-cmthost .cs-cmt-bd').click();
+    ok(!G.d.getElementById('cs-cmthost').classList.contains('cmt-open'), 'overlay closes');
+    G.ev("csCfg().mode = 'reader'; csInlineAll()");
+    // จำว่าอ่านถึงไหน (อ่านทั้งแชท)
+    G.ev('csOpenReadAll()');
+    for (let i = 0; i < 5; i++) G.ev('csReader.player.next()');
+    const at = G.ev('csReader.player.i');
+    G.ev('csCloseReader(true)');
+    G.ev('csOpenReadAll()');
+    ok(G.ev('csReader.player.i') === at && G.d.querySelectorAll('#cs-reader .cs-item').length === at, 'read-all resumes where we stopped', [at, G.ev('csReader.player.i')]);
+    G.ev('csReader.player.next()');
+    G.ev('csCloseReader(true)'); G.ev('csOpenReadAll()');
+    ok(G.ev('csReader.player.i') === at + 1, 'position keeps updating');
+    G.ev('csCloseReader(true)');
+    ok(G.ev('Object.keys(csCfg().readPos).length') === 1, 'saved per chat');
+    // นิยาย
+    G.ev("csCfg().style = 'novel'; csPosSave('novel', {mes: 3, ch: 2, off: 5})");
+    G.ev('csOpenNovel()'); await sleep(40);
+    ok(G.ev("csNovelResume({mes: 3, ch: 2, off: 5})") === true && G.ev("csNovelResume({mes: 999, ch: 99, off: 0})") === false, 'novel resumes at saved chapter (unknown = normal open)');
+    G.ev('csCloseNovel(true)');
+    // ตัวเลือกเพศในแท็บตัวละคร
+    G.ev("csOpenSettings('chars')");
+    const gs = G.d.querySelector('#cs-settings [data-f="g"][data-char="อาเรีย"]');
+    ok(!!gs, 'gender picker in chars tab');
+    gs.value = 'f'; gs.dispatchEvent(new G.w.Event('change', { bubbles: true }));
+    ok(G.ev("csGenderOf('อาเรีย')") === 'f', 'gender picker saves');
+    G.d.querySelector('#cs-settings [data-tab="bubble"]').click();
+    ok(!!G.d.querySelector('#cs-settings [data-k="userLinesRight"]'), 'side option in bubble tab');
+    G.ev('csCloseSettings()'); await sleep(250);
+    ok(!G.errors.length, 'no uncaught (1.10)', G.errors.map(String));
   }
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}");
   // ย้ายค่าจาก 1.0

@@ -286,12 +286,12 @@
 .cs-cmt.has{background:color-mix(in srgb,var(--cs-ink) 7%,transparent);color:var(--cs-ink2);}
 .cs-cmt.has svg{width:1.15em;height:1.15em;}
 .cs-cmt:active{transform:scale(.92);}
-#cs-novel .cs-cmt-bd{position:absolute;inset:0;z-index:5;background:rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:opacity .2s;}
-#cs-novel .cs-cmt-sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;max-height:78%;display:flex;flex-direction:column;background:var(--cs-bar);color:var(--cs-ink);
+#cs-novel .cs-cmt-bd,#cs-reader .cs-cmt-bd,#cs-cmthost .cs-cmt-bd{position:absolute;inset:0;z-index:5;background:rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:opacity .2s;}
+#cs-novel .cs-cmt-sheet,#cs-reader .cs-cmt-sheet,#cs-cmthost .cs-cmt-sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;max-height:78%;display:flex;flex-direction:column;background:var(--cs-bar);color:var(--cs-ink);
  border-radius:20px 20px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.2);transform:translateY(105%);transition:transform .26s cubic-bezier(.2,.9,.3,1);
  padding-bottom:env(safe-area-inset-bottom);font-family:system-ui,-apple-system,'Sarabun',sans-serif;font-size:15px;line-height:1.5;max-width:680px;margin:0 auto;}
-#cs-novel.cmt-open .cs-cmt-sheet{transform:none;}
-#cs-novel.cmt-open .cs-cmt-bd{opacity:1;pointer-events:auto;}
+#cs-novel.cmt-open .cs-cmt-sheet,#cs-reader.cmt-open .cs-cmt-sheet,#cs-cmthost.cmt-open .cs-cmt-sheet{transform:none;}
+#cs-novel.cmt-open .cs-cmt-bd,#cs-reader.cmt-open .cs-cmt-bd,#cs-cmthost.cmt-open .cs-cmt-bd{opacity:1;pointer-events:auto;}
 .cs-cmt-grab{width:38px;height:5px;border-radius:99px;background:color-mix(in srgb,var(--cs-ink) 15%,transparent);margin:8px auto 0;}
 .cs-cmt-head{display:flex;align-items:center;justify-content:space-between;padding:4px 8px 0 18px;}
 .cs-cmt-head b{font-size:16px;}
@@ -335,7 +335,7 @@
 .cs-cmt-in{flex:1;min-width:0;border:1px solid color-mix(in srgb,var(--cs-ink) 14%,transparent);border-radius:99px;padding:8px 14px;font:inherit;font-size:14px;background:var(--cs-bg);color:var(--cs-ink);outline:none;}
 .cs-cmt-write button{width:36px;height:36px;border-radius:50%;border:none;background:var(--cs-accent);color:var(--cs-accent-ink,#fff);cursor:pointer;flex-shrink:0;}
 .cs-tokcard b{font-size:13.5px;white-space:nowrap;}
-@media (prefers-reduced-motion: reduce){#cs-novel .cs-cmt-sheet,.cs-cmt-row{transition:none;animation:none;}}
+@media (prefers-reduced-motion: reduce){#cs-novel .cs-cmt-sheet,#cs-reader .cs-cmt-sheet,#cs-cmthost .cs-cmt-sheet,.cs-cmt-row{transition:none;animation:none;}}
 
 .cs-text.cs-kw{width:100%;max-width:none;resize:vertical;line-height:1.5;}
 
@@ -388,3 +388,18 @@
 .cs-cast-foot > span{flex:1;}
 .cs-cast-me{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
 .cs-cast-me input{width:17px;height:17px;accent-color:#34c759;margin:0;}
+
+/* ── ★ 1.10 แถบคอมเมนต์ในแชทนิยายและแชทหลัก ── */
+#cs-cmthost{position:fixed;inset:0;z-index:10055;pointer-events:none;font-family:var(--cs-ff);}
+#cs-cmthost.cmt-open{pointer-events:auto;}
+#cs-cmthost:not(.cmt-open) .cs-cmt-sheet{visibility:hidden;transition:transform .25s ease,visibility 0s .25s;}
+.cs-cmtbar-wrap{display:flex;justify-content:center;margin:6px 0 14px;}
+.cs-cmtbar{display:inline-flex;align-items:center;gap:7px;border:1px solid color-mix(in srgb,var(--cs-ink) 14%,transparent);background:transparent;color:var(--cs-ink2,#888);
+ font:inherit;font-size:13px;padding:6px 14px;border-radius:99px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.cs-cmtbar svg{width:16px;height:16px;flex-shrink:0;}
+.cs-cmtbar.has{color:var(--cs-ink);}
+.cs-cmtbar-r{display:inline-flex;}
+.cs-cmtbar-r svg{margin-left:-4px;}
+.cs-cmtbar-r svg:first-child{margin-left:0;}
+.cs-cmt-q.sm{font-size:.85em;margin:12px 0 4px;opacity:.85;}
+.cs-cast-gl{font-size:13px;color:var(--s-ink2);}
