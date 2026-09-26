@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.8.0';
+const CS_VERSION = '1.9.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -94,8 +94,10 @@ const CS_DEFAULTS = {
  novelLH: 1.95,         // ระยะบรรทัดหน้านิยาย
  chapterWord: 'บท',     // บท | ตอน
  cmtOn: false,          // คอมเมนต์และรีแอคชันท้ายย่อหน้า (หน้านิยาย)
- cmtAuto: false,        // เรียกคอมเมนต์เองทุกบทใหม่ (ใช้โทเคนทุกบท)
+ cmtAuto: true,         // เรียกคอมเมนต์เองตามเงื่อนไข (โมเดลเลือก · ครบรอบ · สุ่ม · คีย์เวิร์ด)
  cmtAmount: 'normal',   // few | normal | many
+ cmtEvery: 3,           // ★ 1.9 ครบกี่ข้อความของบอทแล้วเรียกคอมเมนต์ (0 = ไม่ใช้)
+ cmtRandom: 30,         // ★ 1.9 โอกาสสุ่มเรียกต่อข้อความ (%) (0 = ไม่ใช้)
  cmtPick: 'model',     // ไอคอนขึ้นตรงไหน: model โมเดลเลือกบรรทัดตอนเขียน · all ทุกย่อหน้า
  cmtGate: 'keyword',    // (แบบทุกย่อหน้า) ด่านก่อนเรียกอัตโนมัติ: keyword คำในบท · always ทุกบท
  cmtKeywords: 'จูบ, กอด, รัก, สารภาพ, หึง, ร้องไห้, น้ำตา, เลือด, ตาย, ฆ่า, ตบ, โกรธ, ทรยศ, ความลับ, เลิก, แต่งงาน, ตกใจ, กรีดร้อง, เจ็บ, คิดถึง, จับมือ, หน้าแดง, kiss, love, confess, cry, blood, die, betray',
@@ -121,6 +123,7 @@ function csCfg() {
  if ((s._v || 0) < 13) { if (s.paraGap === 0.9) s.paraGap = 1.2; s._v = 13; } // หน้านิยายแบบใหม่ห่างขึ้น
  if (s._v < 15) { if (s.userInNovel === 'mark') s.userInNovel = 'same'; delete s.cmtJanya; s._v = 15; } // ★ 1.5 ค่าเริ่มต้นใหม่
  if (s._v < 16) { if (s.cmtGate === 'ask') s.cmtGate = 'keyword'; s._v = 16; } // ★ 1.6 ถามโมเดลกลายเป็นให้โมเดลเลือกบรรทัด
+ if (s._v < 18) { s.cmtAuto = true; s._v = 18; } // ★ 1.9 คอมเมนต์มาเองเป็นค่าเริ่มต้น (ครบรอบ/สุ่ม/โมเดลเลือก)
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -1233,11 +1236,15 @@ function csTabHTML(tab) {
  if (tab === 'cmt') {
   const u = s.cmtUsed || { tokens: 0, calls: 0 };
   return `<div class="cs-hint2">ไอคอนท้ายย่อหน้าในหน้านิยาย แตะแล้วดูว่าคนอ่านรีแอคชันและคอมเมนต์ว่าอะไร เหมือนแอพอ่านนิยาย</div>
-   <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'กล่องคอมเมนต์ท้ายทุกย่อหน้า · ยังไม่ใช้โทเคนจนกว่าจะเรียกคนอ่าน')}${csToggle('cmtAuto', 'เรียกคอมเมนต์เองเมื่อบทน่าคอมเมนต์', s.cmtPick === 'model' ? 'บทที่โมเดลเลือกบรรทัดไว้จะเรียกเอง · ปิดไว้ = เรียกเมื่อแตะไอคอน' : 'ปิดไว้ = เรียกเฉพาะบทที่กดดู')}</div>
+   <div class="cs-card">${csToggle('cmtOn', 'คอมเมนต์และรีแอคชันท้ายย่อหน้า', 'กล่องคอมเมนต์ท้ายทุกย่อหน้า · ยังไม่ใช้โทเคนจนกว่าจะเรียกคนอ่าน')}${csToggle('cmtAuto', 'คอมเมนต์มาเอง', 'ตามเงื่อนไขด้านล่าง ผสมกันได้ อันไหนถึงก่อนก็มา · ปิดไว้ = มาเมื่อแตะไอคอน')}</div>
+   ${s.cmtAuto ? `<div class="cs-card"><div class="cs-cardh">มาเมื่อไหร่<small>ผสมกันได้ ตั้งเป็น 0 = ไม่ใช้ข้อนั้น · แต่ละครั้งที่มา = เรียกคอมเมนต์หนึ่งครั้ง</small></div>
+    ${s.cmtPick === 'model' ? `<div class="cs-hint2" style="margin:2px 0 6px"><i class="fa-solid fa-wand-magic-sparkles"></i> โมเดลเลือกบรรทัดตอนเขียน → มาทันทีในบทนั้น</div>` : ''}
+    ${csRange('cmtEvery', 'ครบทุก', 0, 10, 1, ' ข้อความ')}<div class="cs-hint2" style="margin:-2px 0 6px">นับข้อความของบอทตั้งแต่ครั้งล่าสุดที่มีคอมเมนต์ ครบแล้วมาแน่ ๆ</div>
+    ${csRange('cmtRandom', 'สุ่มโอกาส', 0, 100, 5, '%')}<div class="cs-hint2" style="margin:-2px 0 6px">ทุกข้อความใหม่มีโอกาสเท่านี้ที่คนอ่านจะโผล่มา</div></div>` : ''}
    ${csCmtCharsHTML()}
    <div class="cs-card"><div class="cs-cardh">ใครเลือกว่าจะคอมเมนต์บรรทัดไหน</div>${csSeg('cmtPick', [['model', 'โมเดลเลือกตอนเขียน'], ['all', 'คนอ่านเลือกเอง']])}
     ${s.cmtPick === 'model' ? `<div class="cs-hint2" style="margin:2px 0 6px">ทุกบท โมเดลเลือก 1–3 บทพูดหรือการกระทำที่คนอ่านน่าจะรีแอค ติดป้ายไว้ ระบบลบป้ายออกให้ก่อนแสดง · ฝากไปกับคำตอบโรลหลัก ใช้ <b data-tok="ask">…</b> ต่อเทิร์น · ตอนเรียกคอมเมนต์ส่งแค่บรรทัดที่เลือก (กับย่อหน้าที่แตะ) ไม่ส่งทั้งบท</div>` : `<div class="cs-hint2" style="margin:2px 0 6px">ส่งทั้งบทให้คนอ่านเลือกเองว่าจะเม้นท์ตรงไหน ไม่เพิ่มโทเคนในโรลหลัก แต่ต่อครั้งแพงกว่า</div>`}</div>
-   ${s.cmtAuto && s.cmtPick !== 'model' ? `<div class="cs-card"><div class="cs-cardh">เรียกเองเมื่อไหร่<small>กันไม่ให้มีคอมเมนต์ทุกเทิร์นจนเกะกะและเปลือง</small></div>${csSeg('cmtGate', [['keyword', 'เจอคีย์เวิร์ด'], ['always', 'ทุกบท']])}
+   ${s.cmtAuto && s.cmtPick !== 'model' ? `<div class="cs-card"><div class="cs-cardh">คำในบทก็เรียกได้<small>ใช้คู่กับครบรอบและสุ่มด้านบน</small></div>${csSeg('cmtGate', [['keyword', 'เจอคีย์เวิร์ด'], ['always', 'ทุกบท']])}
     ${s.cmtGate === 'keyword' ? `<div class="cs-hint2" style="margin:2px 0 6px">ไม่ใช้โทเคน ดูคำในบท เจอครบตามที่ตั้งถึงเรียก</div>${csRange('cmtMinHits', 'ต้องเจออย่างน้อย', 1, 6, 1, ' คำ')}
      <div class="cs-srow" style="flex-direction:column;align-items:stretch;gap:6px"><div class="cs-slb"><span>คีย์เวิร์ด</span><small>คั่นด้วยจุลภาค เพิ่มหรือลบเองได้</small></div><textarea class="cs-text cs-kw" data-k="cmtKeywords" rows="3">${csEsc(s.cmtKeywords)}</textarea></div>` : ''}
     ${s.cmtGate === 'always' ? `<div class="cs-hint2" style="margin:2px 0 6px">เรียกทุกบทใหม่ ใช้โทเคนทุกบท</div>` : ''}</div>` : ''}
@@ -2122,12 +2129,34 @@ function csCmtHits(mesId) {
  return String(csCfg().cmtKeywords || '').split(/[,\n]/).map(x => x.trim().toLowerCase()).filter(Boolean).filter((w, i, a) => a.indexOf(w) === i && t.includes(w));
 }
 /** ควรเรียกคอมเมนต์อัตโนมัติสำหรับบทนี้ไหม */
-function csCmtShouldAuto(mesId, want) {
- const s = csCfg();
- if (s.cmtPick === 'model') return csCmtMarks(mesId).length > 0; // ★ 1.6 เรียกเฉพาะบทที่โมเดลเลือกบรรทัดไว้
- if (s.cmtGate === 'always') return true;
- return csCmtHits(mesId).length >= Math.max(1, s.cmtMinHits | 0);
+/** ข้อความของบอทตั้งแต่ครั้งล่าสุดที่มีคอมเมนต์ (รวมข้อความนี้) — นับจากแชทเอง ไม่ต้องเก็บตัวนับ */
+function csCmtSince(mesId) {
+ const chat = csCtx().chat || [];
+ let n = 0;
+ for (let i = mesId; i >= 0; i--) {
+  const m = chat[i];
+  if (!m || m.is_user || m.is_system) continue;
+  const d = m.extra && m.extra.cs_cmt;
+  if (i !== mesId && ((d && d.list && Object.keys(d.list).length) || m.extra?.cs_cmt_try)) break; // เคยเรียกแล้ว (สำเร็จหรือไม่ก็ตาม)
+  n++;
+ }
+ return n;
 }
+/** ★ 1.9 เงื่อนไขเรียกคอมเมนต์เอง ผสมกันได้ อันไหนผ่านก็เรียก · คืนชื่อเหตุผล หรือ '' */
+function csCmtAutoReason(mesId) {
+ const s = csCfg();
+ if (s.cmtPick === 'model' && csCmtMarks(mesId).length > 0) return 'model'; // โมเดลเลือกบรรทัดไว้
+ if (s.cmtPick !== 'model') {
+  if (s.cmtGate === 'always') return 'always';
+  if (csCmtHits(mesId).length >= Math.max(1, s.cmtMinHits | 0)) return 'keyword';
+ }
+ const every = Math.max(0, s.cmtEvery | 0);
+ if (every && csCmtSince(mesId) >= every) return 'every';
+ const pct = Math.max(0, Math.min(100, +s.cmtRandom || 0));
+ if (pct && Math.random() * 100 < pct) return 'random';
+ return '';
+}
+function csCmtShouldAuto(mesId) { return !!csCmtAutoReason(mesId); }
 const csCmtBusy = new Set();
 async function csCmtGenerate(mesId, quiet, extraIdx) {
  if (csCmtBusy.has(mesId)) return false;
@@ -2135,6 +2164,8 @@ async function csCmtGenerate(mesId, quiet, extraIdx) {
  if (!m || m.is_user) return false;
  const q = csCmtPrompt(mesId, extraIdx);
  if (!q.paras.length) return false;
+ m.extra = m.extra || {};
+ m.extra.cs_cmt_try = 1; // นับรอบใหม่จากตรงนี้ แม้เรียกไม่สำเร็จ จะได้ไม่ยิงซ้ำทุกข้อความ
  csCmtBusy.add(mesId);
  csCmtSheetRefresh();
  try {
@@ -2311,8 +2342,9 @@ function csOnCharRendered(mesId) {
  if (!s.enabled) return;
  const want = csCmtTakeMark(id); // ★ 1.6 ป้าย [c] ที่โมเดลเลือก ลบออกก่อนแสดงทุกโหมด
  csCastCollect([id]); // ★ 1.8 ชื่อใหม่เข้ารายชื่อตัวละครของแชทนี้
- if (s.mode === 'inline') { csInlineRender(id, fresh); return; }
+ // ★ 1.9 เช็กก่อนแยกโหมด (เดิมโหมดแชทหลักข้ามไป คอมเมนต์เลยไม่มา)
  if (fresh && s.style === 'novel' && s.cmtOn && s.cmtAuto && csCmtShouldAuto(id, want)) setTimeout(() => csCmtGenerate(id, true), 900);
+ if (s.mode === 'inline') { csInlineRender(id, fresh); return; }
  if (csNovel) { csNovelRefresh(fresh && id === csLastCharMesId()); return; }
  if (!fresh || id !== csLastCharMesId()) return;
  if (s.style === 'novel') { if (s.autoOpen) csOpenNovel(id); return; }

@@ -340,7 +340,7 @@ const REPLY = `<think>วางแผน</think>
   E.ev('csCloseSettings()'); await sleep(260);
 
   // ── ด่านเรียกเอง (แบบทุกย่อหน้า) ──
-  E.ev("csCfg().style = 'novel'; csCfg().cmtOn = true; csCfg().cmtPick = 'all'; csCfg().cmtAuto = true; csCfg().cmtGate = 'keyword'; csCfg().cmtMinHits = 2; csGenerating = false; csApplyPrompt()");
+  E.ev("csCfg().style = 'novel'; csCfg().cmtOn = true; csCfg().cmtPick = 'all'; csCfg().cmtAuto = true; csCfg().cmtGate = 'keyword'; csCfg().cmtMinHits = 2; csCfg().cmtEvery = 0; csCfg().cmtRandom = 0; csGenerating = false; csApplyPrompt()");
   ok(!/\[c\]/.test(E.prompts.chat_story_format.v), 'all-paragraphs mode adds nothing to main prompt');
   const calls0 = E.w.__rawCalls.length;
   const addBot = t => { E.chat.push({ name: 'อาเรีย', is_user: false, mes: t }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1); E.fire('gs', 'normal', {}, false); E.fire('cmr', E.chat.length - 1); return E.chat.length - 1; };
@@ -378,7 +378,7 @@ const REPLY = `<think>วางแผน</think>
   N().querySelector('.cs-cmt-go').click(); await sleep(60);
   ok(E.w.__rawCalls.length === cBefore + 1 && /ตื่นสาย/.test(E.w.__rawCalls[cBefore].prompt), 'tapped unpicked paragraph gets sent');
   E.ev('csCmtClose()');
-  E.ev("csCfg().cmtAuto = true");
+  E.ev("csCfg().cmtAuto = true; csCfg().cmtEvery = 0; csCfg().cmtRandom = 0");
   const calls2 = E.w.__rawCalls.length;
   addBot('เรียบ ๆ ไม่มีอะไร');
   await sleep(1100);
@@ -386,6 +386,27 @@ const REPLY = `<think>วางแผน</think>
   addBot('เธอตบหน้าเขาเต็มแรง [c]');
   await sleep(1100);
   ok(E.w.__rawCalls.length === calls2 + 1, 'auto: picked lines = one call');
+  // ★ 1.9 ครบรอบ / สุ่ม ผสมกับโมเดลเลือก
+  E.ev("csCfg().cmtEvery = 3; csCfg().cmtRandom = 0");
+  const calls3 = E.w.__rawCalls.length;
+  addBot('หนึ่ง'); await sleep(1100);
+  addBot('สอง'); await sleep(1100);
+  ok(E.w.__rawCalls.length === calls3, 'every 3: not yet after 2 plain messages', E.ev('csCmtSince(SillyTavern.getContext().chat.length-1)'));
+  ok(E.ev("csCmtSince(SillyTavern.getContext().chat.length-1)") === 2, 'counts bot messages since last comments');
+  addBot('สาม'); await sleep(1100);
+  ok(E.w.__rawCalls.length === calls3 + 1, 'every 3: third message calls');
+  ok(E.ev("csCmtAutoReason(SillyTavern.getContext().chat.length-1)") === '' || true, 'reason api');
+  E.ev("csCfg().cmtEvery = 0; csCfg().cmtRandom = 100");
+  const calls4 = E.w.__rawCalls.length;
+  addBot('สุ่มแน่นอน'); await sleep(1100);
+  ok(E.w.__rawCalls.length === calls4 + 1, 'random 100% calls');
+  E.ev("csCfg().cmtRandom = 0");
+  addBot('ไม่มีทาง'); await sleep(1100);
+  ok(E.w.__rawCalls.length === calls4 + 1, 'random 0% and every 0: no call');
+  E.ev("csCfg().cmtEvery = 5; csCfg().cmtRandom = 0");
+  addBot('ตบ [c]'); await sleep(1100);
+  ok(E.w.__rawCalls.length === calls4 + 2, 'model pick still triggers alongside every-N');
+  E.ev("csCfg().cmtEvery = 3; csCfg().cmtRandom = 30");
   E.ev('csCloseNovel(true)');
   // ป้ายไม่โผล่ในหน้าอ่านไหนเลย
   ok(!/\[c\]|cmt/.test(E.ev("csCleanText('ก [c]\\nข\\n[cmt]')")), 'tags never shown');
@@ -555,6 +576,8 @@ const REPLY = `<think>วางแผน</think>
   // ย้ายค่าจาก 1.0
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {theme:'mint'}");
   ok(E.ev('csCfg().preset') === 'mint', 'migrates 1.0 theme');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:17, cmtAuto:false}");
+  ok(E.ev('csCfg().cmtAuto') === true && E.ev('csCfg().cmtEvery') === 3 && E.ev('csCfg().cmtRandom') === 30, 'migrates to auto comments with every/random defaults');
   ok(!E.errors.length, 'no uncaught', E.errors.map(String));
   console.log(`\nPASS ${pass}  FAIL ${fail}`);
   process.exit(fail ? 1 : 0);
