@@ -142,7 +142,7 @@ const REPLY = `<think>วางแผน</think>
   ok(names.includes('อาเรีย') && names.includes('แบรม') && !names.includes('มินา'), 'speakers listed', names);
   const cc = S().querySelector('[data-char="แบรม"][data-f="color"]'); cc.value = '#2244aa'; cc.dispatchEvent(new E.w.Event('input', { bubbles: true }));
   const cs2 = S().querySelector('[data-char="แบรม"][data-f="sound"]'); cs2.value = 'retro'; cs2.dispatchEvent(new E.w.Event('change', { bubbles: true }));
-  ok(E.ev("csCfg().chars['แบรม'].color") === '#2244aa' && E.ev("csCfg().chars['แบรม'].sound") === 'retro', 'per-character color & sound');
+  ok(E.ev("csCastGet('แบรม').color") === '#2244aa' && E.ev("csCastGet('แบรม').sound") === 'retro' && !E.ev("csCfg().chars['แบรม']"), 'per-character color & sound (scoped to this card)');
   ok(/background:#2244aa;color:#ffffff/.test(E.ev("csItemHTML({k:'say',who:'แบรม',text:'x'})")), 'per-char bubble color with contrast text');
   S().querySelector('[data-tab="read"]').click();
   const hist = S().querySelector('[data-k="history"]'); hist.value = '2'; hist.dispatchEvent(new E.w.Event('input', { bubbles: true }));
@@ -418,6 +418,139 @@ const REPLY = `<think>วางแผน</think>
   const bd = S().querySelector('[data-tok="bd"]').innerHTML;
   ok(/เนื้อบทที่ส่งไป/.test(bd) && /คนอ่านประจำ/.test(bd) && /คำตอบที่ได้กลับ/.test(bd) && /รวม/.test(bd), 'token breakdown lists every part');
   S().querySelector('[data-act="close"]').click(); await sleep(260);
+
+  // ══ 1.8 แยกคนพูดในร้อยแก้ว + ตัวละครรายการ์ด ══
+  {
+    const F = env([{ name: 'อาเรีย', is_user: false, mes: 'สวัสดี' }]);
+    await sleep(30);
+    const C = F.ctx;
+    C.characters = [{ name: 'อาเรีย', avatar: 'aria.png' }, { name: 'แบรม', avatar: 'bram.png' }, { name: 'อาเรีย', avatar: 'aria2.png' }];
+    C.characterId = 0;
+    F.ev("csCastSet('เคน', {}); csCastSet('เคนจิ', {}); csCastSet('อาเรีย', {aliases:'พี่รี, คุณหนู'})");
+    const P = (t, owner, isUser) => F.ev(`csParse(${JSON.stringify(t)}, {owner:${JSON.stringify(owner || 'อาเรีย')}, isUser:${!!isUser}})`);
+    const K = (t, owner, isUser) => P(t, owner, isUser).map(x => x.k + (x.who ? ':' + x.who : '') + (x.u ? ':U' : '')).join(',');
+    ok(K('“มาแล้วเหรอ” เคนถาม') === 'say:เคน,narr', 'name after quote + verb', K('“มาแล้วเหรอ” เคนถาม'));
+    ok(K('อาเรียยิ้มแล้วพูดว่า “นั่งก่อนสิ”') === 'narr,say:อาเรีย', 'name before quote + verb');
+    ok(K('เคนเดินเข้ามาในห้อง\nเขาพูดว่า “หิวแล้ว”') === 'narr,narr,say:เคน', 'pronoun + verb → last mentioned', K('เคนเดินเข้ามาในห้อง\nเขาพูดว่า “หิวแล้ว”'));
+    const alt = K('“เธอมาทำอะไรที่นี่” เคนถาม\n“มาหาเธอไง” อาเรียตอบ\n“จริงเหรอ”\n“จริงสิ”');
+    ok(alt === 'say:เคน,narr,say:อาเรีย,narr,say:เคน,say:อาเรีย', 'quote-only paragraphs alternate', alt);
+    ok(K('เคน\nไปก่อนนะ') === 'say:เคน', 'screenplay name line');
+    ok(K('เคน\n*เดินจากไป*') === 'narr:,narr'.replace(':,', ',') || /^narr,narr$/.test(K('เคน\n*เดินจากไป*')), 'lone name then action is narration', K('เคน\n*เดินจากไป*'));
+    ok(K('— ไม่เป็นไร — เคนว่า') === 'say:เคน,narr', 'em-dash dialogue with tag', K('— ไม่เป็นไร — เคนว่า'));
+    ok(K('เคนตะโกน “อย่าไปนะ') === 'narr,say:เคน', 'unclosed quote', K('เคนตะโกน “อย่าไปนะ'));
+    ['「ไปเถอะ」 เคนพูด', '«ไปเถอะ» เคนพูด', '"ไปเถอะ" เคนพูด', '＂ไปเถอะ＂ เคนพูด', '“ไปเถอะ” เคนพูด'].forEach(t => ok(P(t)[0].k === 'say' && P(t)[0].who === 'เคน' && P(t)[0].text === 'ไปเถอะ', 'quote type ' + t[0], P(t)));
+    ok(K('『เขารู้หรือเปล่านะ』 อาเรียคิด') === 'think:อาเรีย,narr', 'think with 『』 + think verb');
+    ok(K('‘ไม่อยากกลับเลย’') === 'think:อาเรีย', 'single quotes without speech verb = thought');
+    ok(K('อาเรียนึกในใจ “อย่าหันมานะ”') === 'narr,think:อาเรีย', 'think verb before quote');
+    ok(K('“ใจเย็น” พี่รีบอก') === 'say:อาเรีย,narr', 'alias maps to main name', K('“ใจเย็น” พี่รีบอก'));
+    ok(K('คุณหนู: ว่าไง') === 'say:อาเรีย', 'alias in Name: line');
+    ok(K('“โอเค” เคนจิพูด') === 'say:เคนจิ,narr', 'longest name wins');
+    ok(K('“รอด้วย” มินาพูด') === 'say:มินา:U,narr', 'bot writes user line → our side');
+    F.ev("csCastSet('ยัยมิน', {me:true, aliases:'มินนี่'})");
+    ok(K('“ฮัลโหล” ยัยมินพูด') === 'say:ยัยมิน:U,narr' && K('“ฮัลโหล” มินนี่พูด') === 'say:ยัยมิน:U,narr', '"this is me" flag and its alias', K('“ฮัลโหล” มินนี่พูด'));
+    C.name1 = 'อาเรีย';
+    ok(K('อาเรีย: สวัสดี') === 'say:อาเรีย' && K('“ไป” อาเรียพูด') === 'say:อาเรีย,narr', 'user name == char name stays bot side in bot message');
+    ok(K('อาเรีย: สวัสดี', 'อาเรีย', true) === 'say:อาเรีย:U', 'same name in our own message stays our side');
+    C.name1 = 'มินา';
+    ok(K('## บทที่ 3 คืนฝนตก\nฝนตก') === 'scene,narr', 'novel chapter heading → scene in chat view');
+    ok(K('“ไม่” เขาพูด') === 'say:อาเรีย,narr', 'pronoun alone → message owner');
+    ok(K('เธอเดินออกไปเงียบ ๆ') === 'narr', 'plain narration stays narration');
+    ok(K('"Hurry," Arin said.\nArin said, "Go now."\n"No," said Tom.', 'Bot') === 'say:Arin,narr,narr,say:Arin,say:Tom,narr', 'discovers new English names', K('"Hurry," Arin said.\nArin said, "Go now."\n"No," said Tom.', 'Bot'));
+    ok(K('“เร็วเข้า” โทมัสพูดเสียงดัง') === 'say:โทมัส,narr', 'discovers new Thai name after quote');
+    ok(K('โทมัสกระซิบ “ระวังนะ”') === 'narr,say:โทมัส', 'discovers new Thai name before quote');
+    ok(F.ev("csGuessNewNames('“ไป” เขาพูด\\n“ไม่” ชายหนุ่มตอบ\\n“อืม” หญิงสาวพูด')").length === 0, 'no junk names (pronouns / descriptors)');
+    // ชื่อซ้ำคนละการ์ด ไม่ปนกัน
+    F.ev("csCastSet('เคน', {color:'#aa0000'})");
+    ok(F.ev("csCharOpt('เคน').color") === '#aa0000', 'color set in card A');
+    C.characterId = 1;
+    ok(F.ev("csScope()") === 'c:bram.png' && !F.ev("csCastGet('เคน')") && F.ev("csCharOpt('เคน').color") === '', 'same name in another card is separate');
+    ok(F.ev("csAvatarSrc('อาเรีย', '', false)") === '', 'no avatar from a same-name card outside this chat');
+    C.characterId = 2;
+    ok(/aria2\.png/.test(F.ev("csAvatarSrc('อาเรีย', '', false)")), 'card B (same name) uses its own avatar');
+    C.characterId = 0;
+    ok(/aria\.png/.test(F.ev("csAvatarSrc('อาเรีย', '', false)")) && F.ev("csCharOpt('เคน').color") === '#aa0000', 'back in card A: own avatar and colors');
+    // กลุ่มที่มีสองการ์ดชื่อซ้ำ
+    C.groupId = 'g1'; C.groups = [{ id: 'g1', name: 'แก๊ง', members: ['aria.png', 'aria2.png', 'bram.png'] }];
+    ok(F.ev("csScope()") === 'g:g1' && F.ev("csScopeLabel()") === 'กลุ่ม แก๊ง', 'group scope');
+    const g1 = F.ev("csParseMessage({name:'อาเรีย', original_avatar:'aria2.png', mes:'อาเรีย: ฮัลโหล'})")[0];
+    const g2 = F.ev("csParseMessage({name:'อาเรีย', original_avatar:'aria.png', mes:'อาเรีย: หวัดดี'})")[0];
+    ok(/aria2\.png/.test(g1.av) && /aria\.png/.test(g2.av) && g1.ck && g2.ck && g1.ck !== g2.ck, 'group owner avatar from the real sender card', [g1, g2]);
+    F.ev(`csCastSet(${JSON.stringify(g1.ck)}, {color:'#00aa00'})`);
+    const h1 = F.ev(`csItemHTML(${JSON.stringify(g1)})`), h2 = F.ev(`csItemHTML(${JSON.stringify(g2)}, ${JSON.stringify(g1)})`);
+    ok(/#00aa00/.test(h1) && !/#00aa00/.test(h2) && /aria2\.png/.test(h1) && /aria\.png/.test(h2) && !/cont/.test(h2.split('>')[0]), 'same-name group members keep separate color/avatar and bubbles', [h1.slice(0, 200), h2.slice(0, 200)]);
+    ok(F.ev("csParseMessage({name:'แบรม', original_avatar:'bram.png', mes:'แบรม: โย่'})")[0].ck === undefined, 'unique name in group needs no card key');
+    delete C.groupId;
+    // ดึงชื่อใหม่เข้าเอง + ลบแล้วไม่กลับมา
+    C.chat.push({ name: 'อาเรีย', is_user: false, mes: '“ว่าไง” ลูกัสพูด' }); F.addMes(C.chat[C.chat.length - 1], C.chat.length - 1);
+    F.fire('cmr', C.chat.length - 1);
+    ok(F.ev("csCast(false)['ลูกัส'] && csCast(false)['ลูกัส'].auto") === true, 'new speaker auto-collected');
+    F.ev("csOpenSettings('chars')");
+    const FS = () => F.d.getElementById('cs-settings');
+    const rowNames = () => [...FS().querySelectorAll('.cs-cast-meta b')].map(b => b.textContent);
+    ok(rowNames().includes('ลูกัส') && rowNames().includes('อาเรีย') && !rowNames().includes('แบรม') && !rowNames().includes('มินา'), 'chars tab: this card only', rowNames());
+    ok(/อาเรีย/.test(FS().querySelector('.cs-hint2').textContent), 'chars tab names the card');
+    FS().querySelector('[data-act="cast-del"][data-char="ลูกัส"]').click();
+    ok(!rowNames().includes('ลูกัส') && F.ev("csCast(false)['ลูกัส'].ignored") === true, 'delete hides name');
+    F.fire('cmr', C.chat.length - 1);
+    ok(F.ev("csCast(false)['ลูกัส'].ignored") === true && F.ev("csParse('“ว่าไง” ลูกัสพูด', {owner:'อาเรีย'})")[0].who === 'อาเรีย', 'deleted name is not re-added or guessed');
+    FS().querySelector('[data-act="cast-unhide"]').click();
+    ok(!F.ev("(csCast(false)['ลูกัส'] || {}).ignored") && rowNames().includes('ลูกัส'), 'restore hidden names');
+    // เพิ่มเอง
+    const ni = FS().querySelector('[data-castnew]'); ni.value = 'ซากุระ';
+    FS().querySelector('[data-act="cast-add"]').click();
+    ok(rowNames().includes('ซากุระ') && F.ev("csCastGet('ซากุระ')") && !F.ev("csCastGet('ซากุระ').auto"), 'add character manually');
+    const ni2 = FS().querySelector('[data-castnew]'); ni2.value = 'เคน';
+    FS().querySelector('[data-act="cast-add"]').click();
+    ok(rowNames().filter(n => n === 'เคน').length === 1, 'no duplicate on add');
+    // ชื่อเรียกอื่นจากแท็บ
+    const al = FS().querySelector('[data-f="aliases"][data-char="ซากุระ"]'); al.value = 'ซา, ซากุ, x'; al.dispatchEvent(new F.w.Event('change', { bubbles: true }));
+    ok(F.ev("csCastGet('ซากุระ').aliases") === 'ซา, ซากุ' && K('“ไปไหน” ซากุถาม') === 'say:ซากุระ,narr', 'aliases from tab (too-short dropped)');
+    // นี่คือตัวเรา จากแท็บ
+    const me = FS().querySelector('[data-f="me"][data-char="ซากุระ"]'); me.checked = true; me.dispatchEvent(new F.w.Event('change', { bubbles: true }));
+    ok(F.ev("csCastGet('ซากุระ').me") === true && K('ซากุระ: ฮัลโหล') === 'say:ซากุระ:U', '"this is me" toggle from tab');
+    // รูปจากเครื่อง
+    F.ev("csShrinkImage = () => Promise.resolve('data:image/jpeg;base64,QUJD')");
+    const up = FS().querySelector('[data-upload="castimg"][data-char="เคน"]');
+    Object.defineProperty(up, 'files', { value: [{ name: 'a.png' }] });
+    up.dispatchEvent(new F.w.Event('change', { bubbles: true }));
+    await sleep(20);
+    ok(F.ev("csCastGet('เคน').img") === 'data:image/jpeg;base64,QUJD' && /data:image\/jpeg;base64,QUJD/.test(F.ev("csItemHTML({k:'say',who:'เคน',text:'x'})")), 'upload avatar for a character');
+    ok(!!FS().querySelector('[data-act="cast-imgdel"][data-char="เคน"]'), 'can revert avatar');
+    FS().querySelector('[data-act="cast-imgdel"][data-char="เคน"]').click();
+    ok(!F.ev("csCastGet('เคน').img"), 'avatar reverted');
+    // ค่าเก่าแบบรวมย้ายมาเป็นของการ์ดนี้
+    F.ev("csCfg().chars['เคนจิ'] = {color:'#123456'}");
+    ok(F.ev("csCharOpt('เคนจิ').color") === '#123456', 'legacy global color still shows');
+    F.ev("csOpenSettings('chars')");
+    const snd = FS().querySelector('[data-f="sound"][data-char="เคนจิ"]'); snd.value = 'retro'; snd.dispatchEvent(new F.w.Event('change', { bubbles: true }));
+    ok(F.ev("csCastGet('เคนจิ').color") === '#123456' && F.ev("csCastGet('เคนจิ').sound") === 'retro' && !F.ev("csCfg().chars['เคนจิ']"), 'legacy value moves into this card on edit');
+    FS().querySelector('[data-act="close"]').click(); await sleep(260);
+    // สลับนิยาย ↔ แชทนิยาย
+    F.ev("csCfg().style = 'novel'; csCfg().forceFormat = true; csApplyPrompt()");
+    F.ev('csOpenNovel()');
+    ok(!!F.d.querySelector('#cs-novel [data-cs="toChat"]'), 'novel has switch-to-chat button');
+    F.d.querySelector('#cs-novel [data-cs="toChat"]').click();
+    ok(F.ev("csCfg().style") === 'chat' && !F.d.getElementById('cs-novel') && !!F.d.getElementById('cs-reader') && /chat novel/.test(F.prompts[Object.keys(F.prompts)[0]].v), 'switch to chat: reader opens, prompt follows');
+    F.d.querySelector('#cs-reader [data-cs="toNovel"]').click();
+    ok(F.ev("csCfg().style") === 'novel' && !F.d.getElementById('cs-reader') && !!F.d.getElementById('cs-novel') && /novel prose/.test(F.prompts[Object.keys(F.prompts)[0]].v), 'switch back to novel');
+    F.ev('csCloseNovel(true)');
+    // ในแชทหลักก็แยกคนพูด
+    F.ev("csCfg().style = 'chat'; csCfg().mode = 'inline'");
+    C.chat.push({ name: 'อาเรีย', is_user: false, mes: 'ฝนตกหนัก\n“กลับบ้านกัน” เคนพูด\n“รอก่อน” อาเรียตอบ' }); F.addMes(C.chat[C.chat.length - 1], C.chat.length - 1);
+    F.ev(`csInlineRender(${C.chat.length - 1}); document.querySelector('.mes[mesid="${C.chat.length - 1}"] [data-cs-all]').click()`);
+    const inames = [...F.d.querySelectorAll(`.mes[mesid="${C.chat.length - 1}"] .cs-name`)].map(x => x.textContent.trim());
+    ok(inames.join(',') === 'เคน,อาเรีย', 'inline chat mode attributes speakers', inames);
+    // บทนิยายจริง: ชื่อไทยติดหลังเครื่องหมายปิดโดยไม่มีกริยาพูด
+    const REAL = '## ความฝันที่แท้จริง\n"หามิได้เพคะ เพียงแต่..." ภาณุภัทรเรียบเรียงคำพูดมากมายในหัว เขาไม่แน่ใจว่าบิดาจะยินดีหรือไม่\n\nสุรเสียงลังเลนั้นยิ่งกระตุ้นให้บิดายิ่งอยากรู้ ดวงเนตรสีดำสนิททอดพระเนตรแทนคำถาม\n\n"ลูกอยากทำงานที่...โรงพิมพ์เพคะ"\n\nเกิดความเงียบน่าอึดอัดทันใดเมื่อหม่อมเจ้าภาณุภัทรตรัสจบ';
+    const rk = K(REAL, 'Narrator');
+    ok(rk === 'scene,say:ภาณุภัทร,narr,narr,say:ภาณุภัทร,narr', 'real Thai prose: repeated name after quote', rk);
+    const REAL2 = '"หามิได้เพคะ เพียงแต่..." ภาณุภัทรเรียบเรียงคำพูดในหัว\n\n"ลูกอยากทำงานที่...โรงพิมพ์เพคะ"\n\nเกิดความเงียบเมื่อหม่อมเจ้าภาณุภัทรตรัสจบ\n\n"โรงพิมพ์รึ" ท่านชายรัชตะตรัสเสียงเรียบ\n\n"เพคะ"\n\n"เจ้ารู้หรือไม่ว่ากำลังพูดอะไรอยู่"\n\nหญิงวัยกลางคนผู้สง่างามถอนหายใจ ก่อนที่หม่อมแม่จะเอ่ยขึ้น "ใจเย็นก่อนเพคะ"';
+    const g2n = F.ev(`csGuessNewNames(${JSON.stringify(REAL2)})`);
+    ok(g2n.includes('ภาณุภัทร') && g2n.includes('ท่านชายรัชตะ') && g2n.includes('หม่อมแม่') && !g2n.some(n => /เพคะ|โรงพิมพ์/.test(n)), 'discovers titled Thai names, no words after opening quotes', g2n);
+    const rk2 = P(REAL2, 'Narrator').filter(x => x.k === 'say').map(x => x.who).join(',');
+    ok(rk2 === 'ภาณุภัทร,ภาณุภัทร,ท่านชายรัชตะ,ภาณุภัทร,ท่านชายรัชตะ,หม่อมแม่', 'real Thai scene: every line attributed', rk2);
+    ok(!F.errors.length, 'no uncaught (cast)', F.errors.map(String));
+  }
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}");
   // ย้ายค่าจาก 1.0
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {theme:'mint'}");

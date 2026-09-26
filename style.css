@@ -369,3 +369,22 @@
 .cs-bdrow.total{background:transparent;border:1px solid var(--s-line);}
 .cs-bdnote{font-size:11.5px;color:var(--s-ink2);line-height:1.5;margin:6px 2px 4px;}
 .cs-cmt-row img.cs-cmt-av{object-fit:cover;}
+
+/* ── ★ 1.8 ตัวละครรายการ์ด ── */
+.cs-cast-add{display:flex;gap:8px;align-items:center;padding:10px 12px;}
+.cs-cast-add .cs-text{flex:1;min-width:0;}
+.cs-cast-pic{position:relative;flex-shrink:0;cursor:pointer;display:block;width:44px;height:44px;}
+.cs-cast-pic .cs-av{width:44px !important;height:44px !important;font-size:17px;border-radius:50% !important;object-fit:cover;display:flex;align-items:center;justify-content:center;}
+.cs-cast-pic > i{position:absolute;right:-2px;bottom:-2px;width:19px;height:19px;border-radius:50%;background:var(--s-ink);color:var(--s-bg,#fff);font-size:9.5px;display:flex;align-items:center;justify-content:center;border:2px solid var(--s-card,#fff);}
+.cs-cast-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.cs-cast-meta b{font-weight:600;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cs-cast-meta small{display:flex;flex-wrap:wrap;gap:4px;align-items:center;}
+.cs-cast-meta small i{font-style:normal;font-size:11px;padding:1px 7px;border-radius:99px;background:var(--s-fill);color:var(--s-ink2);}
+.cs-cast-meta small em{font-style:normal;font-size:11px;color:var(--s-ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+.cs-cast-x{border:none;background:none;color:var(--s-ink2);font-size:14px;padding:8px;cursor:pointer;border-radius:8px;}
+.cs-cast-x:hover{color:#ff3b30;}
+.cs-cast-alias{width:100% !important;max-width:none !important;box-sizing:border-box;margin-top:8px;}
+.cs-cast-foot{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap;}
+.cs-cast-foot > span{flex:1;}
+.cs-cast-me{display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
+.cs-cast-me input{width:17px;height:17px;accent-color:#34c759;margin:0;}
