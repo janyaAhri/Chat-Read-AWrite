@@ -1191,6 +1191,52 @@ const REPLY = `<think>วางแผน</think>
       ok(G.ev("csFmtDur(3900)") === '1 ชม. 5 นาที' && G.ev("csFmtDur(20)") === 'ไม่ถึงนาที', 'duration format');
       G.ev("csNavClose(); csCloseReader(true); csCfg().stats = {}");
     }
+    // ★ 1.31 เสียงเอฟเฟกต์ · อ่านบทนี้ใหม่ · เต็มจอ
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      ok(G.ev('CS_SFX.length') >= 80, 'lots of sound effects', G.ev('CS_SFX.length'));
+      ok(G.ev("csSfxFind('ฟ้าผ่าเปรี้ยง แมวร้องเหมียว').map(h => h.id).join()") === 'thunder,thunder,cat,cat', 'finds effect words');
+      ok(G.ev("csSfxFind('จดหมายมีความหมาย ควบคุมตัว กินหมี่ ข้าวมันไก่ location training').length") === 1, 'avoids look-alike words', G.ev("csSfxFind('จดหมายมีความหมาย ควบคุมตัว กินหมี่ ข้าวมันไก่ location training').map(h=>h.id).join()"));
+      ok(G.ev("csCfg().sfx") === 'auto', 'effects on (auto) by default');
+      G.ev("(() => { const o = csSfxPlay; window.__sfx = []; csSfxPlay = (id, f) => { window.__sfx.push(id); return o(id, f); }; })()");
+      G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'ฟ้าผ่าเปรี้ยงลงกลางลาน\nอาเรีย: "แมวร้องเหมียวอยู่ใต้โต๊ะ"\nเสียงฝีเท้าย่องเข้ามาใกล้' });
+      const sid = G.chat.length - 1;
+      G.ev("csCfg().typingMs = 0; csCfg().readPos = {}; csCfg().style = 'chat'; csCloseReader(true); csOpenMessage(" + sid + ")"); await sleep(120);
+      ok(R().querySelector('.cs-sfx[data-sfx="thunder"]') && G.w.__sfx.includes('thunder'), 'auto: effect word underlined and played when the bubble appears', G.w.__sfx);
+      G.w.__sfx.length = 0;
+      const i0 = G.ev('csReader.player.i');
+      R().querySelector('.cs-sfx[data-sfx="thunder"]').click();
+      ok(G.w.__sfx[0] === 'thunder' && G.ev('csReader.player.i') === i0, 'tap an underlined word = play it (does not advance)');
+      G.w.__sfx.length = 0;
+      R().querySelector('.cs-body').click(); await sleep(120);
+      ok(G.w.__sfx.includes('cat') && R().querySelector('.cs-bubble .cs-sfx[data-sfx="cat"]'), 'next bubble plays its effect');
+      // แตะเล่นอย่างเดียว
+      R().querySelector('.cs-menu [data-cs="amb"]').click();
+      ok(R().querySelectorAll('.cs-nav .cs-sfxseg button').length === 3 && R().querySelectorAll('.cs-nav .cs-sfxchips button').length === G.ev('CS_SFX.length'), 'sheet: effect mode + try every sound');
+      R().querySelector('.cs-nav [data-cs="sfxset"][data-v="tap"]').click();
+      G.ev('csNavClose()'); G.w.__sfx.length = 0;
+      R().querySelector('.cs-body').click(); await sleep(120);
+      ok(!G.w.__sfx.length && R().querySelector('.cs-sfx[data-sfx="steps"]'), 'tap mode: underlined but silent until tapped');
+      R().querySelector('.cs-nav [data-cs="sfxtry"][data-v="dog"]') || R().querySelector('.cs-menu [data-cs="amb"]').click();
+      R().querySelector('.cs-nav [data-cs="sfxtry"][data-v="dog"]').click();
+      ok(G.w.__sfx.includes('dog'), 'try a sound from the list');
+      R().querySelector('.cs-nav [data-cs="sfxset"][data-v="off"]').click();
+      ok(!R().querySelector('.cs-list .cs-sfx') && /แมวร้องเหมียว/.test(R().querySelector('.cs-list').textContent), 'off: underlines removed, text intact');
+      R().querySelector('.cs-nav [data-cs="sfxset"][data-v="auto"]').click();
+      ok(R().querySelector('.cs-list .cs-sfx'), 'back on: underlined again');
+      G.ev('csNavClose()');
+      // อ่านบทนี้ใหม่
+      const hdIdx = G.ev('csReader.player.items.findIndex(it => it._m === ' + sid + ' && it.hd)');
+      R().querySelector('.cs-menu [data-cs="rechap"]').click();
+      ok(G.ev('csReader.player.i') === hdIdx + 1 && R().querySelectorAll('.cs-list > .cs-item[data-i]').length === G.ev('csReader.player.i') && G.ev('csPos().chat.m') === sid, 'restart this chapter: only this chapter hidden again, position saved', [G.ev('csReader.player.i'), hdIdx]);
+      ok(R().querySelector('.cs-list > .cs-item[data-i="' + (hdIdx - 1) + '"]') || hdIdx === 0, 'earlier chapters stay');
+      // เต็มจอ
+      R().querySelector('.cs-menu [data-cs="full"]').click();
+      ok(G.ev('csFull') && G.d.body.classList.contains('cs-full') && !R().classList.contains('cs-under-bar'), 'fullscreen on');
+      R().querySelector('.cs-menu [data-cs="full"]').click();
+      ok(!G.ev('csFull') && !G.d.body.classList.contains('cs-full'), 'fullscreen off');
+      G.ev('csCloseReader(true)');
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };

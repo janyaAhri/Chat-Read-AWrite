@@ -698,3 +698,19 @@ body.cs-open #extensionsMenu,body.cs-open #options{z-index:10080 !important;}
 .cs-statweek i{flex:1;width:100%;max-width:26px;display:flex;align-items:flex-end;border-radius:6px;background:color-mix(in srgb,var(--cs-ink) 6%,transparent);overflow:hidden;}
 .cs-statweek em{display:block;width:100%;border-radius:6px;background:var(--cs-ink);opacity:.75;}
 .cs-statweek small{font-size:11px;color:var(--cs-ink2);}
+
+/* ★ 1.31 เสียงเอฟเฟกต์ · เต็มจอ */
+.cs-sfx{text-decoration:underline dotted color-mix(in srgb,currentColor 55%,transparent);text-decoration-thickness:1.5px;text-underline-offset:4px;cursor:pointer;border-radius:4px;transition:background .2s;}
+.cs-sfx.cs-sfxon{background:color-mix(in srgb,currentColor 16%,transparent);}
+.cs-ambsec{margin:18px 2px 8px;font:600 14px/1.2 -apple-system,system-ui,sans-serif;color:var(--cs-ink);}
+.cs-ambsec small{font-weight:400;color:var(--cs-ink2);margin-left:6px;}
+.cs-sfxseg{margin:0 0 12px !important;}
+.cs-sfxall{margin-top:10px;}
+.cs-sfxall summary{cursor:pointer;font-size:13px;color:var(--cs-ink2);text-align:center;padding:6px;list-style:none;}
+.cs-sfxall summary::-webkit-details-marker{display:none;}
+.cs-sfxall summary::after{content:' ›';}
+.cs-sfxall[open] summary::after{content:' ⌄';}
+.cs-sfxchips{display:flex;flex-wrap:wrap;gap:6px;padding-top:6px;}
+.cs-sfxchips button{margin:0 !important;padding:7px 11px !important;border:0 !important;border-radius:999px !important;background:color-mix(in srgb,var(--cs-ink) 8%,transparent) !important;color:var(--cs-ink) !important;font:500 12.5px/1 -apple-system,system-ui,sans-serif !important;cursor:pointer;}
+.cs-sfxchips button:active{background:var(--cs-ink) !important;color:var(--cs-bg) !important;}
+.cs-amb{max-height:calc(100dvh - 140px);overflow:auto;}

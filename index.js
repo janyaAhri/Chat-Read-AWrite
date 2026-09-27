@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.30.0';
+const CS_VERSION = '1.31.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -60,6 +60,7 @@ const CS_SOUNDS = [
 const CS_DEFAULTS = {
  enabled: true,
  ttsRate: 1, ttsNarr: true, ttsVoice: '', // ★ 1.27 อ่านออกเสียง
+ sfx: 'auto', sfxVol: .7, // ★ 1.31 เสียงเอฟเฟกต์: off | tap | auto
  ambient: 'off', ambVol: .35, // ★ 1.29 เสียงบรรยากาศ: off | auto | rain | sea | cafe | night | fire
  swipeCh: false, // ★ 1.28 ปัดซ้ายขวาเปลี่ยนบท (ปิดไว้ก่อน บางคนไม่ชอบ)
  mode: 'reader',        // reader | inline
@@ -1129,10 +1130,12 @@ function csReaderHTML(title) {
    <button class="cs-btn" data-cs="more" title="เพิ่มเติม"><i class="fa-solid fa-ellipsis"></i></button>
    <div class="cs-menu">
     <button data-cs="back"><i class="fa-solid fa-rotate-left"></i>ย้อนกลับหนึ่งฟอง</button>
+    <button data-cs="rechap"><i class="fa-solid fa-backward"></i>อ่านบทนี้ใหม่</button>
     <button data-cs="all"><i class="fa-solid fa-forward-fast"></i>แสดงทั้งหมด</button>
     <button data-cs="nav"><i class="fa-solid fa-list"></i>สารบัญ · ค้นหา · ที่คั่น</button>
     <button data-cs="tts"><i class="fa-solid fa-volume-high"></i>อ่านออกเสียง</button>
-    <button data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ</button>
+    <button data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ · เอฟเฟกต์</button>
+    <button data-cs="full"><i class="fa-solid fa-expand"></i>เต็มจอ</button>
     <button data-cs="regen"><i class="fa-solid fa-rotate-right"></i>เจนใหม่</button>
     <button data-cs="dellast"><i class="fa-solid fa-trash-can"></i>ลบข้อความล่าสุด</button>
     <button data-cs="pin"><i class="fa-solid fa-thumbtack"></i>เปิดค้างเป็นหน้าแชท</button>
@@ -1238,6 +1241,7 @@ function csReaderClick(e) {
  if (a === 'toNovel') return csSwitchStyle('novel');
  if (a === 'more') return menu && menu.classList.toggle('open');
  if (a === 'back') { menu && menu.classList.remove('open'); csStopAuto(); return csReader.player.back(); }
+ if (a === 'rechap') { menu && menu.classList.remove('open'); return csChatRestartChapter(); }
  if (a === 'all') { menu && menu.classList.remove('open'); csStopAuto(); return csReader.player.all(); }
  if (a === 'settings') { menu && menu.classList.remove('open'); return csOpenSettings(); }
  if (a === 'regen') { menu && menu.classList.remove('open'); return csRegen(); }
@@ -2331,7 +2335,8 @@ function csAaHTML() {
   <div class="cs-aarow cs-aathemes">${CS_AA_THEMES.map(id => `<button data-cs="aa" data-f="theme" data-v="${id}" class="${s.preset === id ? 'on' : ''}" style="background:${CS_PRESETS[id].c.bg};color:${CS_PRESETS[id].c.ink}" title="${CS_PRESETS[id].name}">ก</button>`).join('')}</div>
   <div class="cs-aafonts">${CS_FONTS.filter(f => CS_AA_FONTS.includes(f.id)).map(f => `<button data-cs="aa" data-f="font" data-v="${f.id}" class="${s.font === f.id ? 'on' : ''}" style="font-family:${f.ff}">${csEsc(f.id === 'system' ? 'ตามเครื่อง' : f.name)}</button>`).join('')}</div>
   <button class="cs-aamore" data-cs="tts"><i class="fa-solid fa-volume-high"></i>อ่านออกเสียง</button>
-  <button class="cs-aamore" data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ${csCfg().ambient !== 'off' ? ` · ${csAmbLabel()}` : ''}</button>
+  <button class="cs-aamore" data-cs="full"><i class="fa-solid fa-expand"></i>${csFull ? 'ออกจากเต็มจอ' : 'เต็มจอ'}</button>
+  <button class="cs-aamore" data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ · เอฟเฟกต์${csCfg().ambient !== 'off' ? ` · ${csAmbLabel()}` : ''}</button>
   <button class="cs-aamore" data-cs="pin"><i class="fa-solid fa-thumbtack"></i>${csIsPinned() ? 'เลิกเปิดค้าง' : 'เปิดค้างเป็นหน้าแชท'}</button>
   <button class="cs-aamore" data-cs="nsettings">ตั้งค่าเพิ่มเติม</button>`;
 }
@@ -2484,7 +2489,7 @@ function csTopBarBottom() {
 }
 function csApplyUnderBar(el) {
  if (!el) return;
- const on = !!csCfg().keepTopBar && csTopBarBottom() > 0;
+ const on = !csFull && !!csCfg().keepTopBar && csTopBarBottom() > 0;
  el.classList.toggle('cs-under-bar', on);
  el.style.setProperty('--cs-topoff', (on ? csTopBarBottom() : 0) + 'px');
 }
@@ -2648,6 +2653,7 @@ function csNavOpen(tab) {
   const bd = document.createElement('div'); bd.className = 'cs-nav-bd'; bd.dataset.cs = 'navclose'; host.appendChild(bd);
   sh.addEventListener('input', e => { if (e.target.classList.contains('cs-navq')) { csNavState.q = e.target.value; clearTimeout(csNavT); csNavT = setTimeout(() => csNavRefresh(true), 220); } });
   sh.addEventListener('change', e => csProfChange(e.target));
+  sh.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.amb === 'sfxvol') { csCfg().sfxVol = +e.target.value; clearTimeout(csAmbSaveT); csAmbSaveT = setTimeout(() => { csSave(); csSfxPlay('drip'); }, 250); } });
   sh.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.amb === 'vol') { csCfg().ambVol = +e.target.value; csAmbVolume(); clearTimeout(csAmbSaveT); csAmbSaveT = setTimeout(csSave, 400); } });
  }
  csNavRefresh();
@@ -2795,9 +2801,11 @@ function csMarksBind(host) {
   csMarkMenu(el);
  });
  let q = 0;
- const mo = new MutationObserver(() => { if (q) return; q = setTimeout(() => { q = 0; csMarksApply(host); }, 30); });
+ const mo = new MutationObserver(() => { if (q) return; q = setTimeout(() => { q = 0; csMarksApply(host); csSfxPass(host); }, 30); });
  mo.observe(host, { childList: true, subtree: true });
  csMarksApply(host);
+ csSfxBind(host);
+ csSfxPass(host, true);
  const s = csCfg();
  if (!s.tipMarks) { s.tipMarks = 1; csSave(); setTimeout(() => csToast('ใหม่: กดค้างที่ข้อความเพื่อไฮไลต์หรือคั่นหน้า'), 1400); }
 }
@@ -2835,6 +2843,7 @@ function csMarkMenuClose() {
 /** เรียกก่อนตัวจัดการคลิกของหน้าอ่าน · true = จัดการแล้ว ไม่ต้องทำต่อ */
 function csMarkClick(e, b) {
  const a = b && b.dataset.cs;
+ if (csExtraClick(e, b, a)) return true;
  if (a && /^mk/.test(a)) { e.stopPropagation(); csMarkAct(a); return true; }
  if (a && /^q(save|share|close)$/.test(a)) { e.stopPropagation(); csQuoteAct(a, b); return true; }
  if (e.target.closest && e.target.closest('.cs-qcard')) { if (!e.target.closest('.cs-qbox')) csQuoteClose(); e.stopPropagation(); return true; }
@@ -3123,7 +3132,7 @@ function csTtsNext() {
   const it = p.items[t.idx];
   const box = csReader.el.querySelector(`.cs-list > .cs-item[data-i="${t.idx}"]`);
   const el = box && (box.querySelector('.cs-bubble, .cs-narr, .cs-scene') || box);
-  if (el) { el.classList.add('cs-speaking'); csTtsScroll(el, csReader.el.querySelector('.cs-body')); }
+  if (el) { el.classList.add('cs-speaking'); csTtsScroll(el, csReader.el.querySelector('.cs-body')); csSfxPlayIn(el, true); }
   const who = it.k === 'say' || it.k === 'think' ? it.who : '';
   csTtsBar(who);
   csSpeak(it.text, who, next);
@@ -3133,7 +3142,7 @@ function csTtsNext() {
   if (t.idx >= els.length) return csTtsStop(true);
   const el = els[t.idx];
   const who = (el.querySelector('.cs-nwho') || {}).textContent || '';
-  el.classList.add('cs-speaking'); csTtsScroll(el, csNovel.el.querySelector('.cs-nbody'));
+  el.classList.add('cs-speaking'); csTtsScroll(el, csNovel.el.querySelector('.cs-nbody')); csSfxPlayIn(el, true);
   csTtsBar(who.trim());
   csSpeak(csMarkText(el), who.trim(), next);
  }
@@ -3377,11 +3386,12 @@ function csAmbHTML() {
  const s = csCfg();
  const cur = csAmb ? csAmb.id : '';
  const btn = (v, icon, name, extra) => `<button class="cs-ambbtn${s.ambient === v ? ' on' : ''}" data-cs="ambset" data-v="${v}"><i class="fa-solid ${icon}"></i><span>${name}</span>${extra || ''}</button>`;
- return `<div class="cs-cmt-grab"></div><div class="cs-navhead cs-profhead"><b class="cs-ambh">เสียงบรรยากาศ</b><button class="cs-navx" data-cs="navclose" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button></div>
+ return `<div class="cs-cmt-grab"></div><div class="cs-navhead cs-profhead"><b class="cs-ambh">เสียงบรรยากาศ · เอฟเฟกต์</b><button class="cs-navx" data-cs="navclose" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button></div>
  <div class="cs-amb">
   <div class="cs-ambgrid">${btn('off', 'fa-volume-xmark', 'ปิด')}${btn('auto', 'fa-wand-magic-sparkles', 'อัตโนมัติ', s.ambient === 'auto' && cur ? `<small>${csEsc((CS_AMB.find(a => a.id === cur) || {}).name || '')}</small>` : '')}${CS_AMB.map(a => btn(a.id, a.icon, a.name)).join('')}</div>
   <div class="cs-ambvol"><i class="fa-solid fa-volume-low"></i><input type="range" class="cs-range" data-amb="vol" min="0" max="1" step=".05" value="${+s.ambVol}"><i class="fa-solid fa-volume-high"></i></div>
   <div class="cs-ambnote">อัตโนมัติ = ฟังจากคำในบทที่อ่านอยู่ เช่น ฝน ทะเล คาเฟ่ กลางคืน กองไฟ · เสียงสร้างสดในเครื่อง ไม่ใช้เน็ตหรือโทเคน</div>
+  ${csSfxSheetHTML()}
  </div>`;
 }
 // ══ ★ 1.30 สถิติการอ่าน ══
@@ -3463,6 +3473,295 @@ function csStatsHTML() {
   <div class="cs-stath">7 วันล่าสุด <small>${streak ? `อ่านติดกัน ${streak} วัน` : ''}${total ? `${streak ? ' · ' : ''}รวมทุกเรื่อง ${csFmtDur(total)}` : ''}</small></div>
   <div class="cs-statweek">${week.map(x => `<div title="${csFmtDur(x.sec)}"><i><em style="height:${x.sec ? Math.max(6, Math.round(x.sec / wmax * 100)) : 0}%"></em></i><small>${x.l}</small></div>`).join('')}</div>
  </div>`;
+}
+// ══ ★ 1.31 เสียงเอฟเฟกต์ — คำที่มีเสียงขีดเส้นประไว้ · แตะเล่น · อัตโนมัติเมื่อฟองเด้ง/เลื่อนถึง/อ่านออกเสียงถึง ══
+let csFull = false;
+function csFullToggle() {
+ csFull = !csFull;
+ const d = document, el = d.documentElement;
+ try {
+  if (csFull && !d.fullscreenElement && el.requestFullscreen) { const r = el.requestFullscreen({ navigationUI: 'hide' }); if (r && r.catch) r.catch(() => {}); }
+  else if (!csFull && d.fullscreenElement && d.exitFullscreen) { const r = d.exitFullscreen(); if (r && r.catch) r.catch(() => {}); }
+ } catch {}
+ d.body.classList.toggle('cs-full', csFull);
+ [csReader && csReader.el, csNovel && csNovel.el].forEach(h => h && csApplyUnderBar(h));
+ csNovel && csNovel.el.querySelector('.cs-aapanel')?.classList.remove('open');
+ csToast(csFull ? 'เต็มจอแล้ว · เมนูเดิมกดอีกครั้งเพื่อออก' : 'ออกจากเต็มจอแล้ว');
+}
+try { document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && csFull) { csFull = false; document.body.classList.remove('cs-full'); [csReader && csReader.el, csNovel && csNovel.el].forEach(h => h && csApplyUnderBar(h)); } }); } catch {}
+/** แชทนิยาย: ซ่อนฟองตั้งแต่ต้นบทที่อ่านอยู่ แล้วแตะอ่านบทนี้ใหม่ (บทก่อนหน้าไม่แตะ) */
+function csChatRestartChapter() {
+ if (!csReader) return;
+ const p = csReader.player;
+ csStopAuto(); csTtsStop();
+ if (p.typing) { clearTimeout(p.typing.timer); p.typing.el.remove(); p.i = p.typing.idx; p.typing = null; }
+ const a = Math.max(0, Math.min(csReaderAnchorIdx(), p.i - 1));
+ let c = -1;
+ for (let i = a; i >= 0; i--) if (p.items[i] && p.items[i].hd) { c = i; break; }
+ if (c < 0) c = 0;
+ if ((p.floor || 0) > c) p.floor = c;
+ csReader.el.querySelectorAll('.cs-list > .cs-item[data-i]').forEach(x => { if (+x.dataset.i >= c) x.remove(); });
+ p.i = c;
+ p.next();
+ csReaderUpdate();
+ csReaderSavePos();
+ csToast(`อ่าน${csChWord()}${p.items[c] && p.items[c].hd ? 'ที่ ' + p.items[c].hd : 'นี้'}ใหม่ · แตะเพื่ออ่านต่อ`);
+}
+// ── คลังเสียง: สังเคราะห์ทั้งหมด (ไม่มีไฟล์) ──
+function csSfxP(ac, out, t0) {
+ const at = t => t0 + t;
+ const env = (g, t, v, a, dur, sus) => {
+  v = Math.max(.0002, v);
+  g.gain.setValueAtTime(.0001, at(t));
+  g.gain.exponentialRampToValueAtTime(v, at(t) + a);
+  if (sus) { g.gain.setValueAtTime(v, at(t) + Math.max(a, dur - .06)); g.gain.exponentialRampToValueAtTime(.0001, at(t) + dur); }
+  else g.gain.exponentialRampToValueAtTime(.0001, at(t) + dur);
+ };
+ const R = Math.random;
+ return {
+  R,
+  n(t, dur, o = {}) {
+   const src = ac.createBufferSource(); src.buffer = csAmbNoise(ac, o.brown ? 'brown' : 'white');
+   const f = ac.createBiquadFilter(); f.type = o.type || 'bandpass'; f.frequency.setValueAtTime(o.f || 1000, at(t));
+   if (o.f2) f.frequency.exponentialRampToValueAtTime(o.f2, at(t) + dur); f.Q.value = o.q || 1;
+   const g = ac.createGain(); env(g, t, o.v ?? .5, o.a ?? .004, dur, o.sus);
+   src.connect(f); f.connect(g); g.connect(out); src.start(at(t), R() * 3); src.stop(at(t) + dur + .05);
+  },
+  s(t, fr, dur, o = {}) {
+   const osc = ac.createOscillator(); osc.type = o.type || 'sine'; osc.frequency.setValueAtTime(fr, at(t));
+   if (o.path) o.path.forEach(([tt, ff]) => osc.frequency.linearRampToValueAtTime(ff, at(t) + tt));
+   else if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, at(t) + (o.gl || dur));
+   if (o.vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = o.vib[0]; lg.gain.value = o.vib[1]; l.connect(lg); lg.connect(osc.frequency); l.start(at(t)); l.stop(at(t) + dur + .05); }
+   let node = osc;
+   if (o.lp || o.bp) { const f = ac.createBiquadFilter(); f.type = o.bp ? 'bandpass' : 'lowpass'; f.frequency.value = o.bp || o.lp; f.Q.value = o.q || 1; osc.connect(f); node = f; }
+   const g = ac.createGain(); env(g, t, o.v ?? .3, o.a ?? .005, dur, o.sus);
+   node.connect(g); g.connect(out); osc.start(at(t)); osc.stop(at(t) + dur + .05);
+  }
+ };
+}
+const csFxGun = (P, t, v = .85) => { P.n(t, .18, { type: 'lowpass', f: 4000, f2: 600, v, a: .001 }); P.s(t, 150, .25, { f2: 40, v: .8 * v, a: .001 }); P.n(t + .05, .6, { brown: 1, type: 'lowpass', f: 500, v: .3 * v }); };
+const csFxThud = (P, t, v = .9) => { P.s(t, 80, .35, { f2: 35, v, a: .002 }); P.n(t, .35, { brown: 1, type: 'lowpass', f: 500, v: v * .9, a: .002 }); };
+const csFxStep = (P, t, v = .6) => { P.n(t, .09, { brown: 1, type: 'lowpass', f: 500, v, a: .004 }); P.n(t, .04, { type: 'bandpass', f: 1800, q: 2, v: v * .14, a: .002 }); };
+const csFxCrackle = (P, t, n, spread) => { for (let i = 0; i < n; i++) P.n(t + P.R() * spread, .01 + P.R() * .02, { type: 'highpass', f: 1800 + P.R() * 2500, v: .15 + P.R() * .4, a: .001 }); };
+const CS_SFX = [
+ // ธรรมชาติ
+ { id: 'thunder', n: 'ฟ้าผ่า', k: 'ฟ้าผ่า|ฟ้าร้อง|ฟ้าคำราม|เปรี้ยง|ครืน|สายฟ้า|thunder|lightning', p: P => { P.n(0, .25, { type: 'highpass', f: 800, v: .9, a: .002 }); P.n(.02, 3, { brown: 1, type: 'lowpass', f: 300, f2: 80, v: 1, a: .05 }); P.n(.3, 2.2, { brown: 1, type: 'lowpass', f: 180, v: .7, a: .2 }); } },
+ { id: 'gust', n: 'ลมกระโชก', k: 'ลมพัด|ลมกระโชก|ลมแรง|ลมหวีดหวิว|พายุ|gust|gale|wind howl', p: P => P.n(0, 2.2, { type: 'bandpass', f: 300, f2: 900, q: 1.2, v: .5, a: .7 }) },
+ { id: 'quake', n: 'แผ่นดินไหว', k: 'แผ่นดินไหว|พื้นสั่น|สั่นสะเทือน|earthquake|tremor', p: P => { P.n(0, 3.5, { brown: 1, type: 'lowpass', f: 120, v: 1, a: .6 }); P.s(0, 35, 3.5, { v: .5, a: .6, vib: [3, 6] }); } },
+ { id: 'splash', n: 'น้ำกระเซ็น', k: 'ตูมลงน้ำ|กระโดดน้ำ|กระโดดลงน้ำ|ตกน้ำ|น้ำกระเซ็น|สาดน้ำ|พลัดตกลงน้ำ|splash', p: P => { P.n(0, .6, { type: 'bandpass', f: 3000, f2: 500, q: .8, v: .6, a: .005 }); P.n(0, .9, { brown: 1, type: 'lowpass', f: 600, v: .5 }); for (let i = 0; i < 6; i++) P.s(.3 + i * .07, 400 + P.R() * 600, .05, { f2: 1200, v: .08 }); } },
+ { id: 'drip', n: 'หยดน้ำ', k: 'หยดน้ำ|หยดติ๋ง|ติ๋ง|น้ำหยด|drip', p: P => { P.s(0, 800, .12, { f2: 2000, gl: .05, v: .3, a: .001 }); P.s(.45, 900, .1, { f2: 2200, gl: .05, v: .2, a: .001 }); } },
+ { id: 'pour', n: 'รินน้ำ', k: 'รินน้ำ|รินชา|รินไวน์|รินเหล้า|เทน้ำ|pour', p: P => { for (let i = 0; i < 14; i++) P.s(i * .07, 300 + P.R() * 500, .06, { f2: 900, v: .16 }); P.n(0, 1, { type: 'bandpass', f: 1200, q: .8, v: .25, a: .1 }); } },
+ { id: 'bubble', n: 'ฟองอากาศ', k: 'ฟองอากาศ|ปุด ?ๆ|เดือดปุด|bubbl', p: P => { for (let i = 0; i < 6; i++) P.s(i * .09 + P.R() * .03, 300 + P.R() * 300, .07, { f2: 900 + P.R() * 600, v: .15 }); } },
+ { id: 'flame', n: 'ไฟลุก', k: 'ไฟลุก|ลุกไหม้|ลุกท่วม|ไฟไหม้|จุดไฟ|เปลวเพลิง|เพลิง|burst into flames|flames?|ignite', p: P => { P.n(0, 1.2, { brown: 1, type: 'lowpass', f: 200, f2: 1500, v: .7, a: .2 }); csFxCrackle(P, .3, 10, 1); } },
+ // อาวุธ ต่อสู้
+ { id: 'gun', n: 'ปืน', k: 'ยิงปืน|เสียงปืน|ลั่นไก|เหนี่ยวไก|ปืนลั่น|ยิงใส่|ยิงสวน|ยิง(?!ธนู)|gunshot|opened fire|fired a shot', p: P => csFxGun(P, 0) },
+ { id: 'mgun', n: 'ปืนกล', k: 'ปืนกล|กระสุนรัว|ยิงรัว|รัวกระสุน|ห่ากระสุน|machine ?gun|gunfire', p: P => { for (let i = 0; i < 9; i++) csFxGun(P, i * .09, .55); } },
+ { id: 'reload', n: 'ขึ้นลำ', k: 'บรรจุกระสุน|ขึ้นลำ|ง้างนก|เปลี่ยนแม็ก|reload|cocked', p: P => { P.n(0, .04, { type: 'bandpass', f: 1500, q: 2, v: .6, a: .001 }); P.n(.18, .05, { type: 'bandpass', f: 2500, q: 2, v: .6, a: .001 }); } },
+ { id: 'cannon', n: 'ปืนใหญ่', k: 'ปืนใหญ่|cannon', p: P => { P.s(0, 70, .8, { f2: 25, v: .75, a: .001 }); P.n(0, 1.8, { brown: 1, type: 'lowpass', f: 700, f2: 90, v: .8, a: .005 }); } },
+ { id: 'boom', n: 'ระเบิด', k: '(?<!อารมณ์)ระเบิด(?!อารมณ์|หัวเราะ|ความ)|ตูม(?!ลงน้ำ)|บึ้ม|explosion|explode|blast', p: P => { P.s(0, 90, 1, { f2: 30, v: .9 }); P.n(0, 2.5, { brown: 1, type: 'lowpass', f: 900, f2: 100, v: 1, a: .01 }); P.n(0, .4, { type: 'lowpass', f: 3000, v: .6 }); csFxCrackle(P, .4, 12, 1.5); } },
+ { id: 'swdraw', n: 'ชักดาบ', k: 'ชักดาบ|ถอดดาบ|ดึงดาบ|ชักกระบี่|ถอดกระบี่|unsheathe|drew (?:his|her|the) sword', p: P => { P.n(0, .5, { type: 'bandpass', f: 2500, f2: 7000, q: 4, v: .9, a: .05 }); P.s(.4, 3200, .6, { v: .1 }); } },
+ { id: 'swclash', n: 'ดาบกระทบ', k: 'ดาบกระทบ|ปะทะดาบ|ฟาดดาบ|ฟันดาบ|คมดาบ|ใบดาบ|เคร้ง|แกร๊ง|ประดาบ|sword clash|clang|clash', p: P => { [1200, 2710, 3960, 5230, 6800].forEach((f, i) => P.s(0, f, 1.2 - i * .15, { v: .12, a: .001 })); P.n(0, .06, { type: 'highpass', f: 2000, v: .6, a: .001 }); } },
+ { id: 'slash', n: 'ฟันฉับ', k: 'ฉึก|ฉับ|แทง|เชือด|ฟัน(?=เข้า|ลง|ใส่|ขาด|ฉับ)|slash|stab', p: P => { P.n(0, .25, { type: 'bandpass', f: 800, f2: 4000, q: 2, v: .4, a: .08 }); P.n(.22, .12, { brown: 1, type: 'lowpass', f: 600, v: .6, a: .002 }); } },
+ { id: 'arrow', n: 'ธนู', k: 'ยิงธนู|ลูกธนู|น้าวคันธนู|ธนู|arrow|longbow', p: P => { P.s(0, 190, .3, { type: 'triangle', f2: 170, v: .4, a: .001 }); P.n(.05, .3, { type: 'bandpass', f: 1500, f2: 4000, q: 2, v: .3, a: .05 }); P.n(.37, .1, { brown: 1, type: 'lowpass', f: 700, v: .7, a: .002 }); } },
+ { id: 'whip', n: 'แส้', k: 'ฟาดแส้|แส้|whip', p: P => { P.n(0, .2, { type: 'bandpass', f: 600, f2: 3000, q: 2, v: .3, a: .1 }); P.n(.2, .03, { type: 'highpass', f: 3000, v: 1, a: .001 }); } },
+ { id: 'whoosh', n: 'วูบ', k: 'ฟึ่บ|ฟุ่บ|วูบ|หวือ|เหวี่ยง|พุ่งผ่าน|พุ่งเข้าใส่|swoosh|whoosh', p: P => P.n(0, .45, { type: 'bandpass', f: 400, f2: 2500, q: 1.5, v: .5, a: .15 }) },
+ { id: 'punch', n: 'ต่อย', k: 'ต่อย|ชก|หมัด|ผลัวะ|พลั่ก|ตุ้บ|เตะ|ถีบ|กระทืบ|punch|kicked|kicks', p: P => { P.s(0, 120, .18, { f2: 50, v: .9, a: .001 }); P.n(0, .08, { type: 'lowpass', f: 2000, v: .6, a: .001 }); } },
+ { id: 'slap', n: 'ตบ', k: 'ตบ(?!มือ|ไหล่|บ่า)|เพียะ|ฉาด|slap', p: P => { P.n(0, .09, { type: 'highpass', f: 1500, v: .8, a: .001 }); P.n(0, .05, { type: 'bandpass', f: 900, v: .4, a: .001 }); } },
+ { id: 'chain', n: 'โซ่', k: 'โซ่|ตรวน|กุญแจมือ|chains?|shackle', p: P => { for (let i = 0; i < 8; i++) P.s(i * .06 + P.R() * .03, 2500 + P.R() * 2500, .12, { v: .08, a: .001 }); P.n(0, .5, { type: 'highpass', f: 3000, v: .1 }); } },
+ // บ้าน ของใช้
+ { id: 'steps', n: 'เสียงเดิน', k: 'ก้าวเดิน|เดินเข้า|เดินออก|เดินไป|เดินมา|เดินตาม|เดินวน|เดินช้า|ย่อง|ฝีเท้า|เสียงเท้า|ก้าวยาว|footsteps?|walked|tiptoe', p: P => { for (let i = 0; i < 4; i++) csFxStep(P, i * .42); } },
+ { id: 'run', n: 'วิ่ง', k: 'วิ่ง|ออกวิ่ง|ran off|running|sprint', p: P => { for (let i = 0; i < 7; i++) csFxStep(P, i * .19, .5); } },
+ { id: 'knock', n: 'เคาะประตู', k: 'เคาะประตู|เคาะ|ก๊อก ?ๆ|ก๊อก|knock', p: P => { for (let i = 0; i < 3; i++) { P.s(i * .18, 190, .1, { v: .6, a: .001, f2: 150 }); P.n(i * .18, .05, { type: 'bandpass', f: 1100, q: 3, v: .4, a: .001 }); } } },
+ { id: 'creak', n: 'ประตูเอี๊ยด', k: 'เปิดประตู|ผลักประตู|แง้มประตู|บานพับ|เอี๊ยด|opened the door|creak', p: P => P.s(0, 260, 1.1, { type: 'sawtooth', path: [[.5, 420], [1.1, 330]], vib: [28, 30], bp: 900, q: 6, v: 1, a: .1 }) },
+ { id: 'slam', n: 'ปิดประตูปัง', k: 'กระแทกประตู|ปิดประตูดัง|ปิดประตูปัง|ปิดประตูใส่|slammed|(?<!ขนม)ปัง(?!ๆ|กอน)', p: P => { P.s(0, 90, .4, { f2: 40, v: .9, a: .001 }); P.n(0, .5, { brown: 1, type: 'lowpass', f: 700, v: .8, a: .001 }); P.n(.03, .25, { type: 'bandpass', f: 1500, v: .2 }); } },
+ { id: 'close', n: 'ปิดประตู', k: 'ปิดประตู|closed the door', p: P => { P.s(0, 110, .25, { f2: 60, v: .5, a: .002 }); P.n(0, .15, { brown: 1, type: 'lowpass', f: 900, v: .4, a: .002 }); } },
+ { id: 'lock', n: 'กุญแจ', k: 'ไขกุญแจ|ลูกกุญแจ|ล็อกประตู|ปลดล็อก|คลิก|unlock|click', p: P => { P.n(0, .03, { type: 'bandpass', f: 3000, q: 3, v: .5, a: .001 }); P.n(.12, .04, { type: 'bandpass', f: 2000, q: 3, v: .6, a: .001 }); } },
+ { id: 'glass', n: 'แก้วแตก', k: 'เพล้ง|แก้วแตก|กระจกแตก|จานแตก|แตกกระจาย|shatter', p: P => { P.n(0, .3, { type: 'highpass', f: 3000, v: .6, a: .001 }); for (let i = 0; i < 14; i++) P.s(P.R() * .5, 2500 + P.R() * 5000, .15 + P.R() * .3, { v: .06, a: .001 }); } },
+ { id: 'clink', n: 'ชนแก้ว', k: 'ชนแก้ว|กริ๊ก|แก้วกระทบ|cheers|clink', p: P => { P.s(0, 3100, .6, { v: .18, a: .001 }); P.s(0, 4700, .4, { v: .1, a: .001 }); } },
+ { id: 'coin', n: 'เหรียญ', k: 'เหรียญ|ถุงเงิน|เหรียญทอง|coins?', p: P => { P.s(0, 2600, .4, { v: .18, a: .001 }); P.s(.08, 3400, .5, { v: .15, a: .001 }); } },
+ { id: 'paper', n: 'กระดาษ', k: 'พลิกหน้า|หน้ากระดาษ|กระดาษ|ฉีก|จดหมาย|page turn|paper|rustl', p: P => { for (let i = 0; i < 5; i++) P.n(i * .05, .08, { type: 'highpass', f: 2500, v: .2, a: .01 }); } },
+ { id: 'typing', n: 'พิมพ์', k: 'พิมพ์ข้อความ|พิมพ์ตอบ|กดพิมพ์|แป้นพิมพ์|คีย์บอร์ด|typing|keyboard', p: P => { for (let i = 0; i < 12; i++) P.n(i * .09 + P.R() * .04, .02, { type: 'bandpass', f: 2000 + P.R() * 1500, q: 3, v: .35, a: .001 }); } },
+ { id: 'camera', n: 'ถ่ายรูป', k: 'ถ่ายรูป|ชัตเตอร์|แชะ|กดถ่าย|camera|shutter', p: P => { P.n(0, .03, { type: 'highpass', f: 3000, v: .6, a: .001 }); P.n(.09, .04, { type: 'bandpass', f: 1800, v: .5, a: .001 }); } },
+ { id: 'phone', n: 'โทรศัพท์', k: 'โทรศัพท์ดัง|มือถือดัง|โทรศัพท์สั่น|มือถือสั่น|สายเรียกเข้า|ริงโทน|phone rang|ringtone', p: P => { for (let i = 0; i < 2; i++) { P.s(i * 1.1, 880, .8, { type: 'square', lp: 2500, v: .1, vib: [18, 90], sus: 1 }); } } },
+ { id: 'notif', n: 'แจ้งเตือน', k: 'แจ้งเตือน|ข้อความเข้า|ติ๊ง|notification|ding', p: P => { P.s(0, 1320, .5, { v: .25 }); P.s(.12, 1760, .7, { v: .25 }); } },
+ { id: 'clock', n: 'นาฬิกา', k: 'นาฬิกา(?!ปลุก)|ติ๊กต็อก|tick-tock|ticking|clock', p: P => { for (let i = 0; i < 6; i++) P.n(i * .5, .02, { type: 'bandpass', f: i % 2 ? 3000 : 2400, q: 5, v: 1, a: .001 }); } },
+ { id: 'alarm', n: 'นาฬิกาปลุก', k: 'นาฬิกาปลุก|สัญญาณเตือน|เสียงเตือนภัย|alarm|beep', p: P => { for (let i = 0; i < 6; i++) P.s(i * .25, 1000, .12, { type: 'square', lp: 3000, v: .1, sus: 1, a: .002 }); } },
+ { id: 'bell', n: 'ระฆัง', k: 'ระฆัง|ฆ้อง|bell tolled|church bell|gong', p: P => [1, 2.76, 5.4, 8.93].forEach((m, i) => P.s(0, 330 * m, 3 / (i + 1), { v: .2 / (i + 1), a: .002 })) },
+ { id: 'chime', n: 'กระดิ่ง', k: 'กระดิ่ง|กริ่ง|กดออด|เสียงออด|doorbell|chime|jingle', p: P => { P.s(0, 1319, .9, { v: .2 }); P.s(.35, 1047, 1.2, { v: .2 }); } },
+ { id: 'crunch', n: 'เคี้ยว', k: 'กรุบ|เคี้ยว|งับ|กัดคำ|crunch|chew', p: P => { for (let i = 0; i < 4; i++) P.n(i * .22, .08, { type: 'bandpass', f: 1500 + P.R() * 1000, q: .8, v: .4, a: .003 }); } },
+ { id: 'gulp', n: 'ดื่ม', k: 'อึก|กลืน|ซดน้ำ|ยกดื่ม|ดื่มรวด|gulp|drank', p: P => { P.s(0, 300, .12, { f2: 120, v: .4 }); P.s(.35, 280, .12, { f2: 110, v: .35 }); } },
+ { id: 'stomach', n: 'ท้องร้อง', k: 'ท้องร้อง|ท้องประท้วง|stomach growl', p: P => P.s(0, 80, 1, { type: 'sawtooth', lp: 300, v: .25, a: .1, path: [[.4, 140], [1, 70]], vib: [12, 20] }) },
+ { id: 'snore', n: 'กรน', k: 'กรน|snor', p: P => { for (let i = 0; i < 2; i++) P.n(i * 1.3, 1, { brown: 1, type: 'bandpass', f: 180, q: 3, v: 1, a: .4 }); } },
+ { id: 'kiss', n: 'จุ๊บ', k: 'จุ๊บ|จูบ|หอมแก้ม|kiss', p: P => { P.n(0, .04, { type: 'bandpass', f: 2500, q: 2, v: .5, a: .001 }); P.s(0, 1200, .05, { f2: 600, v: .15, a: .001 }); } },
+ { id: 'snap', n: 'ดีดนิ้ว', k: 'ดีดนิ้ว|snapped (?:his|her) fingers', p: P => P.n(0, .02, { type: 'highpass', f: 2500, v: .8, a: .001 }) },
+ { id: 'clap', n: 'ปรบมือ', k: 'ปรบมือ|ตบมือ|เสียงเชียร์|โห่ร้อง|applause|clapp|cheered', p: P => { for (let i = 0; i < 60; i++) P.n(P.R() * 2.2, .03, { type: 'bandpass', f: 1200 + P.R() * 1500, q: 1.5, v: .15 + P.R() * .2, a: .001 }); } },
+ { id: 'fall', n: 'ล้ม', k: 'ล้มลง|ล้มตึง|หกล้ม|ทรุดลง|ตกลงมา|ร่วงลง|ล้มทั้งยืน|ตุบ|ตึ้ง|thud|fell', p: P => csFxThud(P, 0) },
+ { id: 'crash', n: 'โครม', k: 'โครม|พังทลาย|ถล่ม|พังลงมา|ชนกัน|พังยับ|crash|collapse', p: P => { P.n(0, 1.6, { brown: 1, type: 'lowpass', f: 1200, f2: 200, v: .9, a: .005 }); P.n(0, .8, { type: 'highpass', f: 2500, v: .3 }); [.15, .4, .7].forEach(t => csFxThud(P, t, .6)); } },
+ { id: 'wood', n: 'ไม้หัก', k: 'ไม้หัก|กิ่งไม้หัก|หักดัง|กร๊อบ|แกร๊ก|crack', p: P => { P.n(0, .12, { type: 'bandpass', f: 1500, q: 1, v: .9, a: .001 }); P.s(0, 300, .1, { f2: 120, v: .3, a: .001 }); } },
+ { id: 'heart', n: 'หัวใจเต้น', k: 'หัวใจเต้น|ใจเต้น|ตึกตัก|ตึก ?ตัก|heartbeat|heart pound', p: P => { for (let i = 0; i < 3; i++) { P.s(i * .8, 60, .12, { f2: 40, v: .9, a: .005 }); P.s(i * .8 + .22, 55, .14, { f2: 38, v: .7, a: .005 }); } } },
+ // รถ เมือง
+ { id: 'horn', n: 'แตรรถ', k: 'บีบแตร|แตรรถ|honk', p: P => { [0, .6].forEach(t => { P.s(t, 400, .45, { type: 'square', lp: 1500, v: .12, sus: 1 }); P.s(t, 500, .45, { type: 'square', lp: 1500, v: .12, sus: 1 }); }); } },
+ { id: 'engine', n: 'เครื่องยนต์', k: 'เครื่องยนต์|สตาร์ทรถ|บิดคันเร่ง|ติดเครื่อง|เร่งเครื่อง|engine|revved', p: P => { P.s(0, 50, 1.8, { type: 'sawtooth', f2: 140, lp: 500, v: .4, a: .1, vib: [25, 5] }); P.n(0, 1.8, { brown: 1, type: 'lowpass', f: 300, v: .4, a: .2 }); } },
+ { id: 'brake', n: 'เบรก', k: 'เบรก|ล้อเสียดสี|brakes?|screech', p: P => { P.s(0, 1800, .9, { type: 'sawtooth', bp: 2500, q: 8, v: .6, vib: [30, 60], a: .02 }); P.n(0, .9, { type: 'bandpass', f: 3000, v: .3, a: .02 }); } },
+ { id: 'siren', n: 'ไซเรน', k: 'ไซเรน|หวอ|รถพยาบาล|รถตำรวจ|รถดับเพลิง|siren|ambulance', p: P => P.s(0, 650, 3, { type: 'square', lp: 2000, v: .1, a: .05, sus: 1, path: [[.75, 950], [1.5, 650], [2.25, 950], [3, 650]] }) },
+ { id: 'train', n: 'รถไฟ', k: 'รถไฟ|หวูด|train(?!ing)', p: P => [466, 554, 698].forEach(f => P.s(0, f, 1.3, { type: 'sawtooth', lp: 1800, v: .07, a: .08, sus: 1 })) },
+ { id: 'plane', n: 'เครื่องบิน', k: 'เครื่องบิน|เฮลิคอปเตอร์|airplane|plane|jet|helicopter', p: P => { P.n(0, 3, { brown: 1, type: 'lowpass', f: 200, f2: 600, v: .7, a: 1 }); P.s(0, 800, 3, { f2: 600, v: .02, a: 1 }); } },
+ { id: 'fireworks', n: 'พลุ', k: 'พลุ|ดอกไม้ไฟ|firework', p: P => { P.s(0, 600, 1, { f2: 2500, v: .06, a: .05 }); P.n(1, .4, { type: 'lowpass', f: 2500, v: .8, a: .002 }); csFxCrackle(P, 1.2, 20, 1); } },
+ // สัตว์
+ { id: 'cat', n: 'แมว', k: 'เหมียว|เมี้ยว|ง้าว|แมว|meow|kitten|cats?', p: P => P.s(0, 480, .7, { type: 'sawtooth', path: [[.15, 820], [.45, 700], [.7, 520]], bp: 1200, q: 3, v: .35, a: .05, vib: [6, 8] }) },
+ { id: 'purr', n: 'แมวคราง', k: 'ครางครืด|คลอเคลีย|purr', p: P => { for (let i = 0; i < 8; i++) P.n(i * .12, .1, { brown: 1, type: 'lowpass', f: 250, v: .5, a: .02 }); } },
+ { id: 'dog', n: 'หมาเห่า', k: 'โฮ่ง|บ๊อก|เห่า|หมา(?!ป่า|ย|ก)|สุนัข|ลูกหมา|woof|bark|dogs?|puppy', p: P => { for (let i = 0; i < 2; i++) { P.s(i * .32, 300, .16, { type: 'sawtooth', f2: 170, bp: 700, q: 2, v: .6, a: .01 }); P.n(i * .32, .12, { type: 'bandpass', f: 900, v: .25, a: .01 }); } } },
+ { id: 'wolf', n: 'หมาป่าหอน', k: 'หมาป่า|หอน(?!าฬิกา)|howl|wol(?:f|ves)', p: P => { P.s(0, 380, 2.5, { path: [[.6, 700], [2, 560], [2.4, 420]], vib: [5, 12], v: .3, a: .3 }); P.s(0, 760, 2.5, { path: [[.6, 1400], [2, 1120], [2.4, 840]], v: .06, a: .3 }); } },
+ { id: 'roar', n: 'คำราม', k: 'คำราม|แยกเขี้ยว|เสือ(?!ก)|สิงโต|หมี(?!่)|มังกร|สัตว์ประหลาด|ปีศาจ|อสูร|roar|growl|dragon|monster|tiger|lion|beast', p: P => { P.s(0, 80, 1.4, { type: 'sawtooth', path: [[.4, 120], [1.4, 70]], lp: 700, v: .6, a: .1, vib: [20, 6] }); P.n(0, 1.4, { brown: 1, type: 'lowpass', f: 800, v: .5, a: .1 }); } },
+ { id: 'horse', n: 'ม้า', k: 'ม้า(?!นั่ง)|ควบม้า|กีบเท้า|horse|gallop', p: P => { for (let i = 0; i < 4; i++) [0, .08, .16].forEach(d => { const t = i * .36 + d; P.s(t, 260, .06, { v: .5, a: .001, f2: 180 }); P.n(t, .04, { type: 'bandpass', f: 1500, q: 3, v: .2, a: .001 }); }); } },
+ { id: 'cow', n: 'วัว', k: 'วัว|มอ ?ๆ|cows?|moo', p: P => P.s(0, 140, 1.4, { type: 'sawtooth', path: [[.3, 160], [1.3, 120]], lp: 800, v: .35, a: .15 }) },
+ { id: 'sheep', n: 'แกะ', k: 'แกะ(?!สลัก|ออก|ห่อ|กล่อง|รอย|มือ)|แพะ(?!รับบาป)|แบ๊ะ|sheep|goat', p: P => P.s(0, 400, .8, { type: 'sawtooth', vib: [9, 30], bp: 1200, q: 2, v: .3, a: .05 }) },
+ { id: 'elephant', n: 'ช้าง', k: 'ช้าง|elephant', p: P => P.s(0, 400, .9, { type: 'sawtooth', path: [[.3, 700], [.9, 600]], lp: 2500, v: .3, vib: [10, 20], a: .05 }) },
+ { id: 'rooster', n: 'ไก่ขัน', k: 'ไก่ขัน|เอ้กอี้|rooster', p: P => P.s(0, 500, 1.3, { type: 'sawtooth', path: [[.2, 700], [.35, 650], [.6, 900], [1.2, 600]], bp: 1400, q: 2, v: .3, vib: [30, 15], a: .03 }) },
+ { id: 'hen', n: 'ไก่', k: '(?<!ข้าวมัน|น่อง|เนื้อ|ปีก)ไก่(?!ทอด|ย่าง|ต้ม|ผัด|ไข่|งวง)|กุ๊ก|chicken|hens?', p: P => { for (let i = 0; i < 4; i++) P.s(i * .15, 500, .07, { type: 'sawtooth', bp: 1000, q: 3, v: .3, a: .005 }); } },
+ { id: 'duck', n: 'เป็ด', k: 'เป็ด|ก๊าบ|ducks?|quack', p: P => { [0, .25].forEach(t => P.s(t, 300, .15, { type: 'square', bp: 1100, q: 4, v: .9, a: .01 })); } },
+ { id: 'bird', n: 'นก', k: 'นกร้อง|เสียงนก|ฝูงนก|นกน้อย|จิ๊บ|ทวีต|chirp|birdsong|birds?', p: P => { for (let i = 0; i < 5; i++) P.s(i * .13, 3200 + P.R() * 1500, .08, { f2: 4800 + P.R() * 1000, v: .12, a: .005 }); } },
+ { id: 'crow', n: 'อีกา', k: 'อีกา|กาดำ|crow(?!d)|raven', p: P => { [0, .4].forEach(t => P.s(t, 700, .25, { type: 'sawtooth', f2: 500, bp: 1300, q: 1.5, v: .35, a: .01, vib: [50, 40] })); } },
+ { id: 'owl', n: 'นกฮูก', k: 'นกฮูก|ฮูก|owl|hoot', p: P => { P.s(0, 420, .35, { f2: 390, v: .25, a: .05 }); P.s(.55, 430, .25, { v: .2 }); P.s(.85, 410, .5, { f2: 370, v: .22, a: .05 }); } },
+ { id: 'wings', n: 'กระพือปีก', k: 'กระพือปีก|ขยับปีก|โผบิน|flap|wings', p: P => { for (let i = 0; i < 6; i++) P.n(i * .12, .08, { brown: 1, type: 'lowpass', f: 700, v: .5, a: .02 }); } },
+ { id: 'frog', n: 'กบ', k: 'กบ(?!ฏ)|อ๊บ|คางคก|frog|croak', p: P => { [0, .35].forEach(t => P.s(t, 180, .18, { type: 'square', bp: 600, q: 4, v: .25, vib: [40, 40], a: .01 })); } },
+ { id: 'snake', n: 'งู', k: 'งู|ฟ่อ|hiss|snake', p: P => P.n(0, 1.2, { type: 'highpass', f: 4000, v: .25, a: .1 }) },
+ { id: 'bee', n: 'ผึ้ง', k: 'ผึ้ง|แมลงวัน|ยุง|หึ่ง|buzz|bees?|mosquito', p: P => P.s(0, 230, 1.5, { type: 'sawtooth', lp: 2000, v: .25, a: .2, vib: [7, 25] }) },
+ // แฟนตาซี บรรยากาศ
+ { id: 'magic', n: 'เวทมนตร์', k: 'เวทมนตร์|เวทย์|คาถา|ร่ายเวท|ร่ายมนตร์|มนตร์|ประกายแสง|วิ้ง|แสงวาบ|magic|spell|sparkl', p: P => { [1047, 1319, 1568, 2093, 2637, 3136].forEach((f, i) => P.s(i * .07, f, .8, { v: .1, a: .005 })); P.n(0, 1, { type: 'highpass', f: 6000, v: .08, a: .2 }); } },
+ { id: 'warp', n: 'วาร์ป', k: 'วาร์ป|เทเลพอร์ต|หายวับ|ปรากฏตัว|teleport|vanish', p: P => { P.s(0, 200, .6, { f2: 2000, v: .15, a: .02 }); P.n(0, .6, { type: 'bandpass', f: 500, f2: 5000, q: 3, v: .2, a: .1 }); } },
+ { id: 'zap', n: 'ไฟช็อต', k: 'ไฟช็อต|ไฟฟ้า|ช็อต|ประกายไฟ|กระแสไฟ|zap|electric|spark', p: P => { P.s(0, 120, .6, { type: 'sawtooth', v: .18, vib: [60, 80], lp: 3000, a: .005 }); P.n(0, .6, { type: 'bandpass', f: 3000, q: .7, v: .2, a: .005 }); csFxCrackle(P, 0, 8, .6); } },
+ { id: 'laser', n: 'เลเซอร์', k: 'เลเซอร์|ลำแสง|laser|beam', p: P => { [0, .18].forEach(t => P.s(t, 1600, .25, { type: 'square', f2: 200, lp: 3000, v: .12, a: .002 })); } },
+ { id: 'ghost', n: 'หลอน', k: 'ผี(?!เสื้อ)|วิญญาณ|หลอน|ขนลุก|สยอง|ghost|haunt|eerie|creepy', p: P => { P.s(0, 220, 3, { v: .12, a: 1, vib: [.5, 8] }); P.s(0, 233, 3, { v: .1, a: 1 }); P.s(0, 330, 3, { v: .06, a: 1.2, vib: [.3, 10] }); } },
+ // ดนตรี
+ { id: 'drum', n: 'กลอง', k: 'ตีกลอง|กลอง|ตึ่ง|drum', p: P => { for (let i = 0; i < 3; i++) P.s(i * .18, 150 - i * 25, .3, { f2: 60, v: .8, a: .002 }); P.n(0, .1, { brown: 1, type: 'lowpass', f: 800, v: .4 }); } },
+ { id: 'piano', n: 'เปียโน', k: 'เปียโน|piano', p: P => [523, 659, 784].forEach((f, i) => { P.s(i * .12, f, 1.4, { type: 'triangle', v: .2, a: .003 }); P.s(i * .12, f * 2, .8, { v: .05, a: .003 }); }) },
+ { id: 'guitar', n: 'กีตาร์', k: 'กีตาร์|ดีดกีตาร์|guitar|strum', p: P => [196, 247, 294, 392, 494].forEach((f, i) => P.s(i * .04, f, 1.5, { type: 'triangle', v: .15, a: .002, lp: 2500 })) },
+ { id: 'violin', n: 'ไวโอลิน', k: 'ไวโอลิน|violin|cello', p: P => P.s(0, 440, 1.4, { type: 'sawtooth', lp: 3000, vib: [5.5, 6], v: .12, a: .25, sus: 1 }) },
+ { id: 'flute', n: 'ขลุ่ย', k: 'ขลุ่ย|ฟลุต|flute', p: P => { P.s(0, 880, .6, { vib: [5, 8], v: .15, a: .08 }); P.s(.55, 988, .8, { vib: [5, 8], v: .15, a: .05 }); } },
+ { id: 'whistle', n: 'ผิวปาก', k: 'ผิวปาก|whistl', p: P => P.s(0, 1500, .8, { path: [[.3, 2200], [.8, 1800]], v: .15, a: .03 }) }
+];
+CS_SFX.forEach(x => { x.re = new RegExp(x.k, 'gi'); });
+/** หาเสียงในข้อความ: ไม่ซ้อนกัน อันที่เริ่มก่อนและยาวกว่าชนะ */
+function csSfxFind(text) {
+ const t = String(text || ''), all = [];
+ CS_SFX.forEach(x => { x.re.lastIndex = 0; let m; while ((m = x.re.exec(t))) {
+  if (!m[0]) { x.re.lastIndex++; continue; }
+  // คำอังกฤษต้องเป็นคำเต็ม (cat ไม่ติดใน location) ยอมให้มีท้ายคำ s/ed/ing
+  if (/^[a-z]/i.test(m[0]) && /[a-z]/i.test(t[m.index - 1] || '')) continue;
+  if (/[a-z]$/i.test(m[0])) { const tail = (t.slice(m.index + m[0].length).match(/^[a-z]*/i) || [''])[0]; if (tail && !/^(e|s|es|ed|d|ing|y|er|ers)$/i.test(tail)) continue; }
+  all.push({ id: x.id, i: m.index, len: m[0].length }); } });
+ all.sort((a, b) => a.i - b.i || b.len - a.len);
+ const out = []; let end = 0;
+ all.forEach(h => { if (h.i >= end) { out.push(h); end = h.i + h.len; } });
+ return out;
+}
+let csSfxOut = null, csSfxLastAt = 0;
+function csSfxPlay(id, force) {
+ const x = CS_SFX.find(e => e.id === id);
+ const s = csCfg();
+ if (!x || (s.sfx === 'off' && !force)) return false;
+ const ac = csAc();
+ if (!ac || typeof ac.createBiquadFilter !== 'function') return false;
+ try {
+  if (!csSfxOut || csSfxOut.context !== ac) { csSfxOut = ac.createGain(); csSfxOut.connect(csMaster(ac)); }
+  csSfxOut.gain.value = Math.max(0, Math.min(1, +s.sfxVol || 0));
+  x.p(csSfxP(ac, csSfxOut, ac.currentTime + .02));
+  return true;
+ } catch { return false; }
+}
+/** เล่นเสียงในบรรทัดนี้ (ไม่เกิน 2 เสียง เว้นจังหวะ) · ไม่เล่นซ้ำบรรทัดเดิมภายใน 3 วิ */
+function csSfxPlayIn(el, reading) {
+ const s = csCfg();
+ if (!el || s.sfx === 'off' || (s.sfx === 'tap' && !reading)) return 0;
+ if (el._sfxAt && Date.now() - el._sfxAt < 3000) return 0;
+ const spans = [...el.querySelectorAll('.cs-sfx')];
+ const ids = [...new Set(spans.map(x => x.dataset.sfx))].slice(0, 2);
+ if (!ids.length) return 0;
+ el._sfxAt = Date.now();
+ ids.forEach((id, k) => setTimeout(() => { csSfxPlay(id); spans.filter(x => x.dataset.sfx === id).forEach(x => { x.classList.add('cs-sfxon'); setTimeout(() => x.classList.remove('cs-sfxon'), 700); }); }, k * 450));
+ return ids.length;
+}
+const CS_SFX_SKIP = '.cs-code, .cs-html, code, pre, .cs-sfx, .cs-cmt, button, .cs-nwho, .cs-name, .cs-turn';
+/** ใส่เส้นประใต้คำที่มีเสียง (ครั้งเดียวต่อบรรทัด) · คืนบรรทัดที่เพิ่งทำ */
+function csSfxDecorate(root) {
+ if (!root || csCfg().sfx === 'off') return [];
+ const fresh = [];
+ root.querySelectorAll(CS_MARK_SEL).forEach(el => {
+  if (el.dataset.sfxd) return;
+  el.dataset.sfxd = '1';
+  const w = document.createTreeWalker(el, 4, { acceptNode: n => (n.parentElement && n.parentElement.closest(CS_SFX_SKIP) ? 2 : 1) });
+  const nodes = [];
+  while (w.nextNode()) nodes.push(w.currentNode);
+  let any = false;
+  nodes.forEach(tn => {
+   const v = tn.nodeValue, hits = csSfxFind(v);
+   if (!hits.length) return;
+   const frag = document.createDocumentFragment();
+   let p = 0;
+   hits.forEach(h => {
+    frag.append(v.slice(p, h.i));
+    const sp = document.createElement('span');
+    sp.className = 'cs-sfx'; sp.dataset.cs = 'sfx'; sp.dataset.sfx = h.id; sp.textContent = v.slice(h.i, h.i + h.len);
+    frag.append(sp); p = h.i + h.len;
+   });
+   frag.append(v.slice(p));
+   tn.replaceWith(frag);
+   any = true;
+  });
+  if (any) fresh.push(el);
+ });
+ return fresh;
+}
+function csSfxUndecorate(root) {
+ if (!root) return;
+ root.querySelectorAll('.cs-sfx').forEach(x => x.replaceWith(document.createTextNode(x.textContent)));
+ root.querySelectorAll('[data-sfxd]').forEach(x => { delete x.dataset.sfxd; x.normalize(); });
+}
+/** หลังฟองเด้ง: ขีดเส้นคำใหม่ แล้วเล่นเสียงของฟองที่เพิ่งเด้ง (แชทนิยาย) หรือส่งให้ตัวเฝ้าเลื่อน (นิยาย) */
+function csSfxPass(host, first) {
+ const fresh = csSfxDecorate(host);
+ if (!fresh.length) return;
+ if (host.id === 'cs-novel') { const io = host._sfxIO; if (io) fresh.forEach(el => io.observe(el)); return; }
+ if (first || csTts) return;
+ fresh.forEach(el => { if (el.closest('.cs-item.cs-pop, .cs-item.cs-swap')) csSfxPlayIn(el); });
+}
+function csSfxBind(host) {
+ if (host.id !== 'cs-novel' || typeof IntersectionObserver !== 'function') return;
+ const at = Date.now();
+ const body = host.querySelector('.cs-nbody');
+ try {
+  host._sfxIO = new IntersectionObserver(es => es.forEach(e => {
+   if (!e.isIntersecting || csTts || Date.now() - at < 1200 || e.target._sfxDone) return;
+   e.target._sfxDone = 1;
+   csSfxPlayIn(e.target);
+  }), { root: body, rootMargin: '-42% 0px -42% 0px', threshold: 0 });
+ } catch {}
+}
+function csSfxSheetHTML() {
+ const s = csCfg();
+ const seg = [['off', 'ปิด'], ['tap', 'แตะคำเพื่อฟัง'], ['auto', 'อัตโนมัติ']].map(([v, l]) => `<button class="${s.sfx === v ? 'on' : ''}" data-cs="sfxset" data-v="${v}">${l}</button>`).join('');
+ return `<div class="cs-ambsec">เสียงเอฟเฟกต์ <small>${CS_SFX.length} เสียง</small></div>
+  <div class="cs-navtabs cs-sfxseg">${seg}</div>
+  <div class="cs-ambvol"><i class="fa-solid fa-volume-low"></i><input type="range" class="cs-range" data-amb="sfxvol" min="0" max="1" step=".05" value="${+s.sfxVol}"><i class="fa-solid fa-volume-high"></i></div>
+  <div class="cs-ambnote">คำที่มีเสียงมีเส้นประใต้คำ แตะเพื่อฟังได้ทุกโหมด · อัตโนมัติ = ดังเองเมื่อฟองเด้ง เลื่อนถึง หรืออ่านออกเสียงถึง</div>
+  <details class="cs-sfxall"><summary>ฟังเสียงทั้งหมด</summary><div class="cs-sfxchips">${CS_SFX.map(x => `<button data-cs="sfxtry" data-v="${x.id}">${csEsc(x.n)}</button>`).join('')}</div></details>`;
+}
+/** ปุ่มเพิ่มเติม (เรียกก่อนตัวจัดการคลิกอื่น) */
+function csExtraClick(e, b, a) {
+ if (!a) return false;
+ if (a === 'sfx') { e.stopPropagation(); csSfxPlay(b.dataset.sfx, true); b.classList.add('cs-sfxon'); setTimeout(() => b.classList.remove('cs-sfxon'), 700); return true; }
+ if (a === 'sfxtry') { e.stopPropagation(); csSfxPlay(b.dataset.v, true); return true; }
+ if (a === 'sfxset') {
+  e.stopPropagation();
+  const was = csCfg().sfx; csCfg().sfx = b.dataset.v; csSave();
+  const hosts = [csReader && csReader.el, csNovel && csNovel.el].filter(Boolean);
+  if (b.dataset.v === 'off') hosts.forEach(csSfxUndecorate); else if (was === 'off') hosts.forEach(h => csSfxDecorate(h));
+  csNavRefresh();
+  return true;
+ }
+ if (a === 'full') { e.stopPropagation(); csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open'); csFullToggle(); return true; }
+ return false;
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {
