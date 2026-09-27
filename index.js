@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.23.0';
+const CS_VERSION = '1.24.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1120,13 +1120,14 @@ function csReaderHTML(title) {
  return `
   <div class="cs-top">
    <button class="cs-btn" data-cs="close" title="กลับ"><i class="fa-solid fa-chevron-left"></i></button>
-   <div class="cs-title"><b>${csEsc(title || csCharName() || 'แชทนิยาย')}</b><small class="cs-sub"></small></div>
+   <div class="cs-title" data-cs="nav" title="สารบัญ / ค้นหา"><b>${csEsc(title || csCharName() || 'แชทนิยาย')}</b><small class="cs-sub"></small></div>
    <button class="cs-btn" data-cs="toNovel" title="สลับเป็นแบบนิยาย"><i class="fa-solid fa-book"></i></button>
    <button class="cs-btn" data-cs="auto" title="เล่นอัตโนมัติ"><i class="fa-solid fa-play"></i></button>
    <button class="cs-btn" data-cs="more" title="เพิ่มเติม"><i class="fa-solid fa-ellipsis"></i></button>
    <div class="cs-menu">
     <button data-cs="back"><i class="fa-solid fa-rotate-left"></i>ย้อนกลับหนึ่งฟอง</button>
     <button data-cs="all"><i class="fa-solid fa-forward-fast"></i>แสดงทั้งหมด</button>
+    <button data-cs="nav"><i class="fa-solid fa-list"></i>สารบัญ / ค้นหา</button>
     <button data-cs="regen"><i class="fa-solid fa-rotate-right"></i>เจนใหม่</button>
     <button data-cs="dellast"><i class="fa-solid fa-trash-can"></i>ลบข้อความล่าสุด</button>
     <button data-cs="pin"><i class="fa-solid fa-thumbtack"></i>เปิดค้างเป็นหน้าแชท</button>
@@ -1212,6 +1213,8 @@ function csAutoStep() {
 }
 function csReaderClick(e) {
  const b = e.target.closest('[data-cs]');
+ if (b && csNavClick(b.dataset.cs, b)) { e.stopPropagation(); csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open'); return; }
+ if (csNavIsOpen()) { if (!e.target.closest('.cs-nav')) csNavClose(); return; }
  if (b && b.dataset.cs !== 'tap' && csCmtClick(b.dataset.cs, b)) { e.stopPropagation(); return; }
  if (csCmtIsOpen()) { if (!e.target.closest('.cs-cmt-sheet')) csCmtClose(); return; }
  const menu = csReader && csReader.el.querySelector('.cs-menu');
@@ -2155,7 +2158,7 @@ function csOpenNovel(mesId, all, resume) {
  el.innerHTML = `
   <div class="cs-ntop">
    <button class="cs-btn" data-cs="nclose" title="กลับ"><i class="fa-solid fa-chevron-left"></i></button>
-   <div class="cs-title"><b>${csEsc(csCharName() || 'นิยาย')}</b><small class="cs-sub"></small></div>
+   <div class="cs-title" data-cs="nav" title="สารบัญ / ค้นหา"><b>${csEsc(csCharName() || 'นิยาย')}</b><small class="cs-sub"></small></div>
    <button class="cs-btn" data-cs="toChat" title="สลับเป็นแชทนิยาย"><i class="fa-solid fa-comments"></i></button>
    <button class="cs-btn" data-cs="naa" title="ปรับหน้าอ่าน"><span class="cs-aa">Aa</span></button>
    <div class="cs-aapanel"></div>
@@ -2262,6 +2265,8 @@ function csNovelRefresh(scrollToNew) {
 }
 function csNovelClick(e) {
  const b = e.target.closest('[data-cs]');
+ if (b && csNavClick(b.dataset.cs, b)) { e.stopPropagation(); return; }
+ if (csNavIsOpen() && !e.target.closest('.cs-nav')) { csNavClose(); return; }
  if (!b || !csNovel) return;
  const a = b.dataset.cs;
  const body = csNovel.el.querySelector('.cs-nbody');
@@ -2537,6 +2542,141 @@ function csStBtnClick(b) {
  host && host.querySelector('.cs-sttray')?.classList.remove('open');
  if (ta && st) { let n = 0; const t = setInterval(() => { n++; if (st.value !== before) { ta.value = st.value; ta.dispatchEvent(new Event('input', { bubbles: true })); clearInterval(t); } if (n > 120) clearInterval(t); }, 500); }
 }
+// ══ ★ 1.24 สารบัญ + ค้นหาในเรื่อง ══
+let csNavState = { tab: 'toc', q: '' };
+function csNavHost() { return csNovel ? csNovel.el : csReader ? csReader.el : null; }
+function csNavIsOpen() { const h = csNavHost(); return !!(h && h.classList.contains('nav-open')); }
+/** รายการบท: ชื่อบท (## / [ฉาก]) หรือประโยคแรก */
+function csNavChapters() {
+ return csNovelChapters().filter(ch => ch.bot).map((ch, i) => {
+  const lines = csNovelLines(ch.bot);
+  const t = lines.find(l => l.k === 'title') || lines.find(l => l.k === 'scene');
+  const first = lines.find(l => l.k === 'p' || l.k === 'say');
+  return { n: i + 1, id: ch.botId, title: t ? t.text : '', preview: first ? (first.k === 'say' ? `${first.who}: ${first.text}` : first.text) : '' };
+ });
+}
+function csNavCurrentId() {
+ if (csNovel) {
+  const body = csNovel.el.querySelector('.cs-nbody');
+  const cur = [...body.querySelectorAll('.cs-chapter')].filter(c => c.offsetTop - body.scrollTop <= 80).pop();
+  return cur && cur.dataset.mes !== '' ? +cur.dataset.mes : -1;
+ }
+ if (csReader) { const p = csReader.player; const it = p.items[Math.min(p.i, p.items.length) - 1]; return it && it._m !== undefined ? it._m : -1; }
+ return -1;
+}
+/** ค้นหาทั้งแชท: คำ หรือชื่อคนพูด */
+function csNavSearch(q) {
+ q = String(q || '').trim().toLowerCase();
+ if (q.length < 1) return [];
+ const chat = csCtx().chat || [];
+ const out = [];
+ let chN = 0;
+ chat.forEach((m, id) => {
+  if (!m || m.is_system) return;
+  if (!m.is_user) chN++;
+  if (out.length >= 80) return;
+  const items = csParseMessage(m);
+  items.forEach(it => {
+   if (out.length >= 80 || !it.text) return;
+   const hay = (it.who ? it.who + ' ' : '') + it.text;
+   const i = hay.toLowerCase().indexOf(q);
+   if (i < 0) return;
+   out.push({ id, ch: m.is_user ? chN + 1 : chN, who: it.who || '', text: it.text, user: !!m.is_user });
+  });
+ });
+ return out;
+}
+function csNavMark(text, q) {
+ const t = String(text), i = t.toLowerCase().indexOf(q.toLowerCase());
+ if (i < 0 || !q) return csEsc(t.slice(0, 120));
+ const a = Math.max(0, i - 36), b = Math.min(t.length, i + q.length + 60);
+ return (a > 0 ? '…' : '') + csEsc(t.slice(a, i)) + '<mark>' + csEsc(t.slice(i, i + q.length)) + '</mark>' + csEsc(t.slice(i + q.length, b)) + (b < t.length ? '…' : '');
+}
+function csNavHTML() {
+ const w = csChWord();
+ const tabs = `<div class="cs-navtabs"><button data-cs="navtab" data-t="toc" class="${csNavState.tab === 'toc' ? 'on' : ''}">สารบัญ</button><button data-cs="navtab" data-t="find" class="${csNavState.tab === 'find' ? 'on' : ''}">ค้นหา</button></div>`;
+ let body;
+ if (csNavState.tab === 'toc') {
+  const chs = csNavChapters(), cur = csNavCurrentId();
+  body = chs.length ? `<div class="cs-navlist">${chs.map(c => `<button class="cs-navrow${c.id === cur ? ' cur' : ''}" data-cs="navgo" data-mes="${c.id}"><span class="cs-navno">${String(c.n).padStart(2, '0')}</span><span class="cs-navtx"><b>${csEsc(c.title || `${w}ที่ ${c.n}`)}</b><small>${csEsc(c.preview.slice(0, 70))}</small></span></button>`).join('')}</div>` : `<div class="cs-navempty">ยังไม่มี${w}</div>`;
+ } else {
+  const res = csNavSearch(csNavState.q);
+  body = `<div class="cs-navfind"><i class="fa-solid fa-magnifying-glass"></i><input class="cs-navq" type="search" placeholder="ค้นหาคำ หรือชื่อตัวละคร" value="${csEsc(csNavState.q)}" enterkeyhint="search"></div>
+   <div class="cs-navlist">${csNavState.q ? (res.length ? `<div class="cs-navcount">เจอ ${res.length}${res.length >= 80 ? '+' : ''} ที่</div>` + res.map(r => `<button class="cs-navrow" data-cs="navgo" data-mes="${r.id}" data-q="${csEsc(csNavState.q)}"><span class="cs-navno">${String(r.ch).padStart(2, '0')}</span><span class="cs-navtx">${r.who ? `<b>${csEsc(r.who)}</b>` : ''}<small>${csNavMark(r.text, csNavState.q)}</small></span></button>`).join('') : `<div class="cs-navempty">ไม่เจอ "${csEsc(csNavState.q)}"</div>`) : ''}</div>`;
+ }
+ return `<div class="cs-cmt-grab"></div><div class="cs-navhead">${tabs}<button class="cs-navx" data-cs="navclose" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button></div>${body}`;
+}
+function csNavOpen(tab) {
+ const host = csNavHost();
+ if (!host) return;
+ if (tab) csNavState.tab = tab;
+ let sh = host.querySelector(':scope > .cs-nav');
+ if (!sh) {
+  sh = document.createElement('div'); sh.className = 'cs-nav'; host.appendChild(sh);
+  const bd = document.createElement('div'); bd.className = 'cs-nav-bd'; bd.dataset.cs = 'navclose'; host.appendChild(bd);
+  sh.addEventListener('input', e => { if (e.target.classList.contains('cs-navq')) { csNavState.q = e.target.value; clearTimeout(csNavT); csNavT = setTimeout(() => csNavRefresh(true), 220); } });
+ }
+ csNavRefresh();
+ void sh.offsetHeight; // ให้ทรานสิชันเลื่อนขึ้นทำงาน
+ host.classList.add('nav-open');
+ if (csNavState.tab === 'toc') setTimeout(() => { const r = sh.querySelector('.cs-navrow.cur'); if (r && typeof r.scrollIntoView === 'function') r.scrollIntoView({ block: 'center' }); }, 60);
+}
+let csNavT = 0;
+function csNavRefresh(keepFocus) {
+ const host = csNavHost(); const sh = host && host.querySelector(':scope > .cs-nav');
+ if (!sh) return;
+ const pos = keepFocus ? sh.querySelector('.cs-navq')?.selectionStart : null;
+ // พิมพ์ค้นหาอยู่: เปลี่ยนแค่รายการผล ไม่แตะช่องพิมพ์ (กันแป้นพิมพ์ไทยสะดุด)
+ if (keepFocus && sh.querySelector('.cs-navq') && csNavState.tab === 'find') {
+  const tmp = document.createElement('div'); tmp.innerHTML = csNavHTML();
+  sh.querySelector('.cs-navlist').replaceWith(tmp.querySelector('.cs-navlist'));
+  return;
+ }
+ sh.innerHTML = csNavHTML();
+ const q = sh.querySelector('.cs-navq');
+ if (q && (keepFocus || csNavState.tab === 'find')) { q.focus(); if (pos !== null && pos !== undefined) q.setSelectionRange(pos, pos); }
+}
+function csNavClose() { const h = csNavHost(); if (h) h.classList.remove('nav-open'); }
+function csNavClick(a, b) {
+ if (a === 'nav') { csNavOpen(); return true; }
+ if (a === 'navclose') { csNavClose(); return true; }
+ if (a === 'navtab') { csNavState.tab = b.dataset.t; csNavRefresh(); return true; }
+ if (a === 'navgo') { csNavClose(); csJumpTo(+b.dataset.mes, b.dataset.q || ''); return true; }
+ return false;
+}
+/** กระโดดไปข้อความ (บท) นี้ในหน้าที่เปิดอยู่ · มีคำค้นก็ไฮไลต์จุดที่เจอ */
+function csJumpTo(mesId, q) {
+ const flash = (root, scroller) => {
+  let el = null;
+  if (q) el = [...root.querySelectorAll('.cs-np, .cs-bubble, .cs-narr, .cs-name, .cs-nwho')].find(x => x.textContent.toLowerCase().includes(q.toLowerCase()));
+  el = el || root;
+  const sc = scroller;
+  if (sc) sc.scrollTop = Math.max(0, el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - 90);
+  el.classList.add('cs-flash'); setTimeout(() => el.classList.remove('cs-flash'), 1600);
+ };
+ if (csNovel) {
+  const body = csNovel.el.querySelector('.cs-nbody');
+  const chapId = (() => { const chat = csCtx().chat || []; for (let i = mesId; i < chat.length; i++) if (chat[i] && !chat[i].is_user && !chat[i].is_system) return i; return mesId; })();
+  const find = () => [...body.querySelectorAll('.cs-chapter')].find(c => c.dataset.mes !== '' && +c.dataset.mes === chapId);
+  let c = find();
+  if (!c && body.querySelector('.cs-nmore')) { body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(true); c = find(); }
+  if (c) flash(c, body);
+  csNovelProgress();
+  return;
+ }
+ if (!csReader || csReader.key !== 'all') { csCloseReader(true); csOpenReadAll(true); }
+ if (!csReader) return;
+ const p = csReader.player;
+ const idx = p.items.findIndex(it => it._m !== undefined && it._m >= mesId);
+ if (idx < 0) return;
+ const lastIdx = (() => { let j = idx; while (j + 1 < p.items.length && p.items[j + 1]._m === p.items[idx]._m) j++; return j; })();
+ if (lastIdx >= p.i) p.skipTo(lastIdx + 1);
+ const el = csReader.el.querySelector(`.cs-list > .cs-item[data-i="${idx}"]`);
+ const items = [...csReader.el.querySelectorAll('.cs-list > .cs-item[data-i]')].filter(x => { const i = +x.dataset.i; return i >= idx && i <= lastIdx; });
+ const hit = q ? items.find(x => x.textContent.toLowerCase().includes(q.toLowerCase())) : null;
+ if (el) flash(hit || el, csReader.el.querySelector('.cs-body'));
+ csReaderSavePos();
+}
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {
  if (!csReader) return -1;
@@ -2562,7 +2702,7 @@ function csReaderSavePos(anchorIdx) {
 let csReaderScrollT = 0;
 function csReaderOnScroll() { clearTimeout(csReaderScrollT); csReaderScrollT = setTimeout(() => csReaderSavePos(), 300); }
 /** อ่านทั้งแชทแบบฟอง ต่อจากฟองล่าสุดที่อ่านค้างไว้ */
-function csOpenReadAll() {
+function csOpenReadAll(quiet) {
  if (csCfg().style === 'novel') return csOpenNovel(undefined, true, true);
  const items = csItemsForChat(0);
  const r = csOpenReader(items, 'ทั้งแชท');
@@ -2581,7 +2721,7 @@ function csOpenReadAll() {
     const body = r.el.querySelector('.cs-body');
     if (el && body && ai < idx) body.scrollTop = Math.max(0, el.offsetTop - 76);
    }
-   csToast('อ่านต่อจากที่ค้างไว้', 'ok');
+   if (!quiet) csToast('อ่านต่อจากที่ค้างไว้', 'ok');
   }
  }
  return r;

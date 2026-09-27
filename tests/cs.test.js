@@ -951,6 +951,38 @@ const REPLY = `<think>วางแผน</think>
       // แผงในหน้า Extensions ปิดเป็นค่าเริ่มต้น
       ok(/inline-drawer-content" style="display:none"/.test(G.ev('csDrawerHTML()')), 'extension settings drawer collapsed by default');
     }
+    // ★ 1.24 สารบัญ + ค้นหา
+    {
+      G.ev("csCfg().style = 'chat'; csCfg().readPos = {}; csCloseReader(true); csCloseNovel(true)");
+      G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: '## คืนฝนตก\nฝนตกหนัก\nอาเรีย: ร่มอยู่ไหนนะ' });
+      const rid = G.chat.length - 1;
+      G.ev('csOpenMessage(1)');
+      const R = () => G.d.getElementById('cs-reader');
+      R().querySelector('.cs-title').click();
+      const nav = () => R().querySelector('.cs-nav');
+      ok(R().classList.contains('nav-open') && nav().querySelectorAll('.cs-navrow').length === G.ev('csNavChapters().length') && G.ev('csNavChapters().length') >= 5, 'tap title: contents with every chapter');
+      ok([...nav().querySelectorAll('.cs-navtx b')].some(b => b.textContent === 'คืนฝนตก'), 'chapter titles from ## headings');
+      nav().querySelector(`[data-cs="navgo"][data-mes="${rid}"]`).click();
+      ok(!R().classList.contains('nav-open') && R() && G.ev('csReader.key') === 'all' && G.ev('csReader.player.items[csReader.player.i-1]._m') === rid, 'jump to a chapter (switches to whole chat, reveals up to it)');
+      R().querySelector('.cs-title').click();
+      nav().querySelector('[data-cs="navtab"][data-t="find"]').click();
+      const q = nav().querySelector('.cs-navq'); q.value = 'ร่ม'; q.dispatchEvent(new G.w.Event('input', { bubbles: true })); await sleep(300);
+      const rows = nav().querySelectorAll('.cs-navrow');
+      ok(rows.length >= 1 && /<mark>ร่ม<\/mark>/.test(rows[0].innerHTML) && /อาเรีย/.test(rows[0].textContent), 'search finds words with the speaker and highlight');
+      q.value = 'ไม่มีคำนี้แน่นอน'; q.dispatchEvent(new G.w.Event('input', { bubbles: true })); await sleep(300);
+      ok(/ไม่เจอ/.test(nav().textContent), 'no results message');
+      q.value = 'ร่ม'; q.dispatchEvent(new G.w.Event('input', { bubbles: true })); await sleep(300);
+      nav().querySelector('.cs-navrow').click(); await sleep(20);
+      ok(R().querySelector('.cs-flash'), 'jump from a search result highlights the spot');
+      G.ev('csCloseReader(true)');
+      G.ev("csCfg().style = 'novel'; csOpenNovel()");
+      G.d.querySelector('#cs-novel .cs-title').click();
+      ok(G.d.getElementById('cs-novel').classList.contains('nav-open') && G.d.querySelectorAll('#cs-novel .cs-navrow').length >= 1, 'novel: same contents sheet');
+      G.d.querySelector('#cs-novel [data-cs="navtab"][data-t="toc"]').click();
+      G.d.querySelector(`#cs-novel [data-cs="navgo"][data-mes="${rid}"]`).click();
+      ok(G.d.querySelector('#cs-novel .cs-chapter.cs-flash, #cs-novel .cs-flash'), 'novel: jumps to the chapter');
+      G.ev('csCloseNovel(true)'); G.ev("csCfg().style = 'chat'");
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };
