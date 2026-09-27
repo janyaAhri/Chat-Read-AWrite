@@ -736,7 +736,7 @@ const REPLY = `<think>วางแผน</think>
     ok(!G.d.getElementById('cs-cmthost').classList.contains('cmt-open'), 'overlay closes');
     G.ev("csCfg().mode = 'reader'; csInlineAll()");
     // จำว่าอ่านถึงไหน (อ่านทั้งแชท)
-    G.ev('csCfg().readPos = {}; csOpenReadAll()');
+    G.ev('csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenReadAll()');
     for (let i = 0; i < 5; i++) G.ev('csReader.player.next()');
     const at = G.ev('csReader.player.i');
     G.ev('csCloseReader(true)');
@@ -748,7 +748,7 @@ const REPLY = `<think>วางแผน</think>
     G.ev('csCloseReader(true)');
     ok(G.ev('Object.keys(csCfg().readPos).length') === 1, 'saved per chat');
     // ★ 1.21 เปิดแบบปกติก็จำ · จำตำแหน่งที่เลื่อนอ่าน ไม่ใช่แค่ท้ายสุด
-    G.ev("csCfg().readPos = {}");
+    G.ev("csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS)");
     G.ev('csOpenLatest()');
     ok(G.ev('csReader.key') !== 'all', 'no saved spot: opens latest as before');
     G.ev('csReader.player.all()'); G.ev('csCloseReader(true)');
@@ -765,7 +765,7 @@ const REPLY = `<think>วางแผน</think>
     G.ev("csOpenMessage(1)");
     G.ev('csCloseReader(true)');
     ok(G.ev('csPos().chat.m') > 1, 'peeking an old message does not move the saved spot back');
-    G.ev("csCfg().readPos = {}");
+    G.ev("csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS)");
     // นิยาย
     G.ev("csCfg().style = 'novel'; csPosSave('novel', {mes: 3, ch: 2, off: 5})");
     G.ev('csOpenNovel()'); await sleep(40);
@@ -902,7 +902,7 @@ const REPLY = `<think>วางแผน</think>
         left: () => { const m = L(); m.swipe_id--; m.mes = m.swipes[m.swipe_id]; G.fire('ms', sid); },
         right: () => { const m = L(); if (m.swipe_id < m.swipes.length - 1) { m.swipe_id++; m.mes = m.swipes[m.swipe_id]; G.fire('ms', sid); } else { G.w.__gen = 1; } },
       };
-      G.ev("csCfg().style = 'chat'; csCfg().mode = 'reader'; csCfg().readPos = {}");
+      G.ev("csCfg().style = 'chat'; csCfg().mode = 'reader'; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS)");
       G.ev(`csOpenMessage(${sid}); csReader.player.all()`);
       const sw = () => G.d.querySelector('#cs-reader .cs-swipe');
       ok(sw() && sw().textContent.trim() === '1/2' && sw().querySelector('[data-cs="swl"]').disabled, 'swipe control on latest reply: 1/2, back disabled');
@@ -980,7 +980,7 @@ const REPLY = `<think>วางแผน</think>
     }
     // ★ 1.24 สารบัญ + ค้นหา
     {
-      G.ev("csCfg().style = 'chat'; csCfg().readPos = {}; csCloseReader(true); csCloseNovel(true)");
+      G.ev("csCfg().style = 'chat'; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csCloseReader(true); csCloseNovel(true)");
       G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: '## คืนฝนตก\nฝนตกหนัก\nอาเรีย: ร่มอยู่ไหนนะ' });
       const rid = G.chat.length - 1;
       G.ev('csOpenMessage(1)');
@@ -1012,7 +1012,7 @@ const REPLY = `<think>วางแผน</think>
     }
     // ★ 1.25 ไฮไลต์ · ที่คั่น · การ์ดคำคม
     {
-      G.ev("csCfg().style = 'chat'; csCfg().marks = {}; csCfg().readPos = {}; csCloseReader(true); csCloseNovel(true)");
+      G.ev("csCfg().style = 'chat'; csCfg().marks = {}; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csCloseReader(true); csCloseNovel(true)");
       const rid = G.chat.length - 1;
       G.ev('csOpenMessage(' + rid + ')'); G.ev('csReader.player.all()');
       const R = () => G.d.getElementById('cs-reader');
@@ -1098,7 +1098,7 @@ const REPLY = `<think>วางแผน</think>
         const spoken = []; let hold = false;
         G.w.SpeechSynthesisUtterance = function (t) { this.text = t; };
         G.w.speechSynthesis = { speak(u) { spoken.push(u); if (!hold) setTimeout(() => u.onend && u.onend(), 5); }, cancel() {}, getVoices() { return [{ name: 'Kanya', lang: 'th-TH' }, { name: 'Niwat', lang: 'th-TH' }, { name: 'Alex', lang: 'en-US' }]; } };
-        G.ev("csCfg().ttsEngine = 'device'; csCfg().ttsNarr = true; csCfg().ttsRate = 1; csCfg().readPos = {}");
+        G.ev("csCfg().ttsEngine = 'device'; csCfg().ttsNarr = true; csCfg().ttsRate = 1; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS)");
         G.ev('csOpenMessage(' + rid + ')');
         ok(R().querySelector('.cs-menu [data-cs="tts"]'), 'read-aloud in the menu');
         const before = G.ev('csReader.player.i');
@@ -1216,7 +1216,7 @@ const REPLY = `<think>วางแผน</think>
       const sw = (el, x0, x1, y = 300) => { const mk = (type, x) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { touches: type === 'touchend' ? [] : [{ clientX: x, clientY: y }], changedTouches: [{ clientX: x, clientY: y }] }); el.dispatchEvent(e); }; mk('touchstart', x0); mk('touchend', x1); };
       G.w.innerWidth = 400;
       ok(G.ev('csCfg().swipeCh') === false, 'chapter swipe is off by default');
-      G.ev("csCfg().style = 'chat'; csCfg().readPos = {}; csCloseReader(true); csOpenReadAll()");
+      G.ev("csCfg().style = 'chat'; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csCloseReader(true); csOpenReadAll()");
       const i0 = G.ev('csReader.player.i');
       sw(R().querySelector('.cs-body'), 300, 120);
       ok(G.ev('csReader.player.i') === i0 && !R().querySelector('.cs-chpill'), 'off: swiping does nothing');
@@ -1307,7 +1307,7 @@ const REPLY = `<think>วางแผน</think>
       G.ev("(() => { const o = csSfxPlay; window.__sfx = []; csSfxRun = id => { window.__sfx.push(id); return o(id); }; })()".replace('const o = csSfxPlay', 'const o = csSfxRun'));
       G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'ฟ้าผ่าเปรี้ยงลงกลางลาน\nอาเรีย: "แมวร้องเหมียวอยู่ใต้โต๊ะ"\nเสียงฝีเท้าย่องเข้ามาใกล้' });
       const sid = G.chat.length - 1;
-      G.ev("csCfg().typingMs = 0; csCfg().readPos = {}; csCfg().style = 'chat'; csCloseReader(true); csOpenMessage(" + sid + ")"); await sleep(120);
+      G.ev("csCfg().typingMs = 0; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csCfg().style = 'chat'; csCloseReader(true); csOpenMessage(" + sid + ")"); await sleep(120);
       ok(R().querySelector('.cs-sfx[data-sfx="thunder"]') && !G.w.__sfx.length && G.ev('csSfxPending') === 'thunder', 'auto: underlined, queued to play just after the bubble appears');
       await sleep(400);
       ok(G.w.__sfx.join() === 'thunder', 'one sound per line (not both words at once)', G.w.__sfx);
@@ -1379,6 +1379,39 @@ const REPLY = `<think>วางแผน</think>
       R().querySelector('.cs-menu [data-cs="full"]').click();
       ok(!G.ev('csFull') && !G.d.body.classList.contains('cs-full'), 'fullscreen off');
       G.ev('csCloseReader(true)');
+    }
+    // ★ 1.39 ข้อความของเราหลังคำตอบล่าสุด · เปิดใหม่ต้องอยู่ที่เดิมเสมอ (ตามคลิปผู้ใช้)
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'ลมพัดเบา ๆ\nอาเรีย: ตรงนั้นลมโกรกกว่านะ' }); G.addMes(G.chat[G.chat.length - 1], G.chat.length - 1);
+      G.chat.push({ name: 'มินา', is_user: true, extra: {}, mes: '"ไม่เป็นไรค่ะ ตรงนี้เย็นดีอยู่แล้ว" เธอมองแผ่นหลังเขา' }); G.addMes(G.chat[G.chat.length - 1], G.chat.length - 1);
+      G.ev("csCfg().style = 'chat'; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csCfg().typingMs = 0; csCloseReader(true); csCloseNovel(true)");
+      G.ev('csOpenLatest()');
+      G.ev('csReader.player.all()');
+      ok(/ไม่เป็นไรค่ะ ตรงนี้เย็นดีอยู่แล้ว/.test(R().querySelector('.cs-list').textContent), 'my message after the latest reply is shown');
+      const n1 = G.ev('csReader.player.i'), t1 = R().querySelector('.cs-sub').textContent;
+      G.ev('csReaderSavePos(); csCloseReader()'); await sleep(260);
+      G.ev('csOpenLatest()');
+      ok(G.ev('csReader.player.i - (csReader.player.floor || 0)') >= 1 && /ไม่เป็นไรค่ะ/.test(R().querySelector('.cs-list').textContent) && G.ev('csReader.player.done'), 'reopen after reading everything: everything still shown, not restarted', [t1, R().querySelector('.cs-sub').textContent]);
+      // เปิดจากปุ่มบนข้อความในแชทหลัก ก็ไม่เริ่มใหม่
+      const botId = G.chat.length - 2;
+      G.ev('csCloseReader(true)'); G.ev('csOpenLatest(' + botId + ')');
+      ok(G.ev('csReader.player.done') && /ไม่เป็นไรค่ะ/.test(R().querySelector('.cs-list').textContent), 'opening from a message button also keeps what was read');
+      // อ่านไปครึ่งเดียว ปิด เปิดใหม่ = ที่เดิม
+      G.ev("csCloseReader(true); csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenLatest(" + botId + ")");
+      const half = G.ev('csReader.player.i');
+      G.ev('csReaderSavePos(); csCloseReader(true); csOpenLatest()');
+      ok(G.ev('csReader.player.items[csReader.player.i - 1]._m') === botId && !G.ev('csReader.player.done'), 'half-read: reopens at the same bubble', [half, G.ev('csReader.player.i')]);
+      // การตั้งค่าของ ST เซฟไม่ทัน / หาย (รีโหลดหน้า) → ยังจำได้จากที่สำรองในเครื่อง
+      G.ev('csReader.player.all(); csReaderSavePos(); csCloseReader(true); csCfg().readPos = {}');
+      G.ev('csOpenLatest()');
+      ok(G.ev('csReader.player.done') && /ไม่เป็นไรค่ะ/.test(R().querySelector('.cs-list').textContent), 'settings lost on reload: position restored from local backup');
+      ok(!!(G.ev('csCfg().readPos[csChatKey()]') || {}).chat, 'backup copied back into settings');
+      G.ev("csCloseReader(true); localStorage.setItem(CS_POS_LS, '{bad json'); csCfg().readPos = {}");
+      ok(G.ev('csPos()') === null, 'broken backup is ignored safely');
+      G.ev('csOpenLatest()');
+      ok(!!R(), 'broken backup: reader still opens');
+      G.ev('csCloseReader(true)'); G.chat.splice(G.chat.length - 2, 2);
     }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');

@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.38.0';
+const CS_VERSION = '1.39.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1309,7 +1309,7 @@ function csOpenMessage(mesId) {
  const hist = Math.max(0, csCfg().history | 0);
  let from = mesId, count = 0;
  while (from > 0 && count < hist) { from--; if (chat[from] && !chat[from].is_system) count++; }
- return csOpenReader(csItemsForMessage(mesId), m && !m.is_user ? m.name : csCharName(), csItemsForChat(from, mesId));
+ return csOpenReader(csItemsForChat(mesId), m && !m.is_user ? m.name : csCharName(), csItemsForChat(from, mesId));
 }
 function csLastCharMesId() {
  const chat = csCtx().chat || [];
@@ -2490,17 +2490,32 @@ function csChatKey() {
  try { const ctx = csCtx(); const id = (typeof ctx.getCurrentChatId === 'function' && ctx.getCurrentChatId()) || ctx.chatId; if (id) return String(id); } catch {}
  return csScope();
 }
+// ★ 1.39 สำรองที่อ่านไว้ในเครื่องด้วย — ถ้าการตั้งค่าของ SillyTavern ยังไม่ได้บันทึก (ปิดแอปเร็ว / เซฟไม่ผ่าน) ก็ยังจำได้
+const CS_POS_LS = 'chatStory.readPos';
+function csPosLocal() { try { const o = JSON.parse(localStorage.getItem(CS_POS_LS) || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch { return {}; } }
+function csPosLocalPut(k, v) {
+ try {
+  const o = csPosLocal();
+  o[k] = v;
+  const keys = Object.keys(o);
+  if (keys.length > 60) keys.sort((a, b) => ((o[a] || {}).t || 0) - ((o[b] || {}).t || 0)).slice(0, keys.length - 60).forEach(x => delete o[x]);
+  localStorage.setItem(CS_POS_LS, JSON.stringify(o));
+ } catch {}
+}
 function csPos() {
  const s = csCfg();
  if (!s.readPos || typeof s.readPos !== 'object') s.readPos = {};
  const k = csChatKey();
- return s.readPos[k] || null;
+ const a = s.readPos[k] || null, b = csPosLocal()[k] || null;
+ if (b && typeof b === 'object' && (!a || (b.t || 0) > (a.t || 0))) { s.readPos[k] = b; return b; }
+ return a;
 }
 function csPosSave(part, val) {
  const s = csCfg();
  if (!s.readPos || typeof s.readPos !== 'object') s.readPos = {};
  const k = csChatKey();
- s.readPos[k] = { ...(s.readPos[k] || {}), [part]: val, t: Date.now() };
+ s.readPos[k] = { ...(csPos() || {}), [part]: val, t: Date.now() };
+ csPosLocalPut(k, s.readPos[k]);
  const keys = Object.keys(s.readPos);
  if (keys.length > 60) keys.sort((a, b) => (s.readPos[a].t || 0) - (s.readPos[b].t || 0)).slice(0, keys.length - 60).forEach(x => delete s.readPos[x]);
  csSave();
@@ -4424,18 +4439,19 @@ function csReaderSavePos(anchorIdx) {
  if (!last || last._m === undefined) return;
  const old = (csPos() || {}).chat || {};
  // เปิดดูข้อความเดียวแล้วยังไม่ได้อ่านเลย ไม่ทับตำแหน่งเดิมที่ไกลกว่า
- if (csReader.key !== 'all' && old.m !== undefined && (last._m < old.m || (last._m === old.m && last._k < (old.k || 0)))) return;
+ if (csReader.key !== 'all' && csReader.key !== 'win' && old.m !== undefined && (last._m < old.m || (last._m === old.m && last._k < (old.k || 0)))) return;
  csPosSave('chat', { m: last._m, k: last._k, am: a && a._m !== undefined ? a._m : last._m, ak: a && a._m !== undefined ? a._k : last._k });
 }
 let csReaderScrollT = 0;
 function csReaderOnScroll() { clearTimeout(csReaderScrollT); csReaderScrollT = setTimeout(() => csReaderSavePos(), 300); }
 /** อ่านทั้งแชทแบบฟอง ต่อจากฟองล่าสุดที่อ่านค้างไว้ */
-function csOpenReadAll(quiet) {
+function csOpenReadAll(quiet, opt) {
  if (csCfg().style === 'novel') return csOpenNovel(undefined, true, true);
- const items = csItemsForChat(0);
- const r = csOpenReader(items, 'ทั้งแชท');
+ opt = opt || {};
+ const items = csItemsForChat(opt.from || 0);
+ const r = csOpenReader(items, opt.title || 'ทั้งแชท');
  if (!r) return r;
- r.key = 'all';
+ r.key = opt.from ? 'win' : 'all';
  const pos = csPos() && csPos().chat;
  if (pos) {
   const find = (m, k) => { let i = items.findIndex(it => it._m === m && it._k === k); if (i < 0) { const j = items.findIndex(it => it._m > m); i = j < 0 ? items.length - 1 : j - 1; } return i; };
@@ -4451,6 +4467,16 @@ function csOpenReadAll(quiet) {
    }
    if (!quiet) csToast('อ่านต่อจากที่ค้างไว้', 'ok');
   }
+ }
+ // ★ 1.39 ข้อความที่เราพิมพ์ต่อจากจุดที่อ่าน = ของเราเอง แสดงเลย ไม่ต้องแตะ
+ const p = r.player;
+ while (p.i > 0 && p.i < p.items.length && csItemIsUser(p.items[p.i])) p.skipTo(p.i + 1);
+ // เปิดจากปุ่มบนข้อความ: เลื่อนไปข้อความนั้น
+ if (opt.focus !== undefined) {
+  const fi = p.items.findIndex(it => it._m === opt.focus);
+  if (fi >= 0 && fi >= p.i) p.skipTo(fi + 1);
+  const el = fi >= 0 && r.el.querySelector(`.cs-list > .cs-item[data-i="${fi}"]`), body = r.el.querySelector('.cs-body');
+  if (el && body) body.scrollTop = Math.max(0, el.offsetTop - 76);
  }
  return r;
 }
@@ -4533,11 +4559,14 @@ function csEdgeBind(el) {
 /** เปิดหน้าอ่านตามแบบที่เลือก */
 function csOpenLatest(mesId) {
  if (csCfg().style === 'novel') return csOpenNovel(mesId);
- // ★ 1.21 แชทนิยายเปิดต่อจากที่ค้างเหมือนหน้านิยาย ถ้ายังอ่านไม่ถึงข้อความล่าสุด
- const pos = mesId === undefined ? (csPos() || {}).chat : null;
- const lastId = (csCtx().chat || []).length - 1;
- // ยังแตะไม่ถึงข้อความล่าสุด หรือเลื่อนย้อนกลับไปอ่านช่วงก่อนหน้า (เกิน 2 ข้อความจากท้าย) → เปิดต่อจากตรงนั้น
- if (pos && pos.m !== undefined && (pos.m < lastId || (pos.am !== undefined && pos.am < lastId - 2))) return csOpenReadAll();
+ // ★ 1.39 มีที่อ่านค้างไว้ = เปิดต่อจากตรงนั้นทุกครั้ง (อ่านจบแล้วก็เห็นทั้งหมดเหมือนตอนปิด ไม่เริ่มใหม่)
+ const chat = csCtx().chat || [];
+ const pos = (csPos() || {}).chat;
+ if (pos && pos.m !== undefined && chat[pos.m] && (mesId === undefined || mesId <= pos.m)) {
+  let from = Math.min(pos.am !== undefined ? pos.am : pos.m, mesId !== undefined ? mesId : pos.m), n = 0;
+  while (from > 0 && n < 30) { from--; if (chat[from] && !chat[from].is_system) n++; }
+  return csOpenReadAll(false, { from, title: csCharName() || 'แชทนิยาย', focus: mesId });
+ }
  const id = mesId !== undefined ? mesId : csLastCharMesId();
  return id >= 0 ? csOpenMessage(id) : csOpenReader([], csCharName());
 }
