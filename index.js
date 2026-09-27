@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.25.0';
+const CS_VERSION = '1.26.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -586,7 +586,7 @@ function csFindNames(text, known) {
  return found.sort((x, y) => x.i - y.i);
 }
 // ── เดาชื่อใหม่ที่ยังไม่เคยเจอ จากตำแหน่งติดคำพูด+กริยาพูด ──
-const CS_TH_VERBS = 'พูด|ตอบ|ถาม|ตรัส|รับสั่ง|กระซิบ|ตะโกน|ตวาด|เอ่ย|บอก|แย้ง|พึมพำ|บ่น|ทัก|กล่าว|อ้อน|เปรย|งึมงำ';
+const CS_TH_VERBS = 'พูด|ตอบ|ถาม|ตรัส|รับสั่ง|กระซิบ|ตะโกน|ตวาด|เอ่ย|บอก|แย้ง|พึมพำ|บ่น|ทัก|กล่าว|อ้อน|เปรย|งึมงำ|หัวเราะ|ยิ้ม|ตะคอก|โวยวาย|ครวญ|ถอนหายใจ|หันมา|หันไป|ร้องไห้|สะอื้น';
 const CS_EN_VERBS = 'said|says|asked|asks|whispered|shouted|replied|murmured|muttered|yelled|called|added|snapped|sighed|answered|cried|exclaimed|began|continued|breathed|growled|hissed';
 const CS_NAME_STOP = /^(เขา|เธอ|หล่อน|ท่าน|มัน|เจ้า|ฉัน|ผม|ข้า|เรา|คุณ|แก|นาย|ตัวเอง|เสียง|he|she|they|i|we|you|it|the|a|an|his|her|their|then|and|but|so|when|as|that|this|there|someone|everyone|nobody|somebody|mr|mrs|ms|miss|sir|lady|voice|everybody|nothing)$/i;
 const CS_NAME_STOP_PRE = /^(เขา|เธอ|หล่อน|ฉัน|ผม|พวก|ทั้ง|ทุก|ใคร|บาง|อีก|เสียง|แล้ว|จึง|ก่อน|พลาง|ทันที|ขณะ|และ|แต่|หรือ|ถ้า|เมื่อ|ค่อย|รีบ|หัน|ยิ้ม|มอง|พยัก|ส่าย|เอ่ย|กล่าว|ถาม|ตอบ|พูด|บอก|ร้อง|ชาย|หญิง|เด็ก|คน|ใคร|อะไร|ไม่|ก็)/;
@@ -872,8 +872,8 @@ function csItemHTML0(it, prev) {
  const nstyle = s.nameColor === 'rainbow' ? ` style="color:hsl(${hue} 55% ${csLum(csColors().bg) < .2 ? 72 : 42}%)"` : (co.color ? ` style="color:${csEsc(co.color)}"` : '');
  const showAv = side === 'left' && s.avatar !== 'none';
  return `<div class="cs-row ${side}${cont ? ' cont' : ''}">
-  ${showAv ? `<div class="cs-avwrap">${cont ? '' : csAvatarHTML(it.who, it.av, user || csIsUserName(it.who), it.ck)}</div>` : ''}
-  <div class="cs-col">${cont || side === 'right' ? '' : `<div class="cs-name"${nstyle}>${csEsc(it.who)}${it.tag && it.k !== 'think' ? ` <i>${csEsc(it.tag)}</i>` : ''}</div>`}
+  ${showAv ? `<div class="cs-avwrap">${cont ? '' : `<span class="cs-proft" data-cs="prof" data-who="${csEsc(it.who)}" data-ck="${csEsc(it.ck || '')}" data-av="${csEsc(it.av || '')}">${csAvatarHTML(it.who, it.av, user || csIsUserName(it.who), it.ck)}</span>`}</div>` : ''}
+  <div class="cs-col">${cont || side === 'right' ? '' : `<div class="cs-name" data-cs="prof" data-who="${csEsc(it.who)}" data-ck="${csEsc(it.ck || '')}" data-av="${csEsc(it.av || '')}"${nstyle}>${csEsc(it.who)}${it.tag && it.k !== 'think' ? ` <i>${csEsc(it.tag)}</i>` : ''}</div>`}
    <div class="cs-bubble${it.k === 'think' ? ' think' : ''}"${bstyle}>${csFmt(it.text)}</div></div>
  </div>`;
 }
@@ -2103,7 +2103,7 @@ function csNovelLineHTML(l, user, cmt) {
  if (l.k === 'break') return `<div class="cs-nbreak">* * *</div>`;
  if (l.k === 'title') return `<p class="cs-nscene"><b>${csNovelFmt(l.text)}</b></p>`;
  if (l.k === 'scene') return `<p class="cs-nscene">${csNovelFmt(l.text)}</p>`;
- if (l.k === 'say') return `<p class="cs-np"><span class="cs-nwho">${csEsc(l.who)}</span> “${csNovelFmt(l.text)}”${tail}</p>`;
+ if (l.k === 'say') return `<p class="cs-np"><span class="cs-nwho" data-cs="prof" data-who="${csEsc(l.who)}">${csEsc(l.who)}</span> “${csNovelFmt(l.text)}”${tail}</p>`;
  if (l.k === 'think') return `<p class="cs-np cs-nthink">${csNovelFmt(l.text)}${tail}</p>`;
  return `<p class="cs-np">${csNovelFmt(l.text)}${tail}</p>`;
 }
@@ -2597,6 +2597,7 @@ function csNavMark(text, q) {
  return (a > 0 ? '…' : '') + csEsc(t.slice(a, i)) + '<mark>' + csEsc(t.slice(i, i + q.length)) + '</mark>' + csEsc(t.slice(i + q.length, b)) + (b < t.length ? '…' : '');
 }
 function csNavHTML() {
+ if (csNavState.tab === 'prof') return csProfHTML();
  const w = csChWord();
  const tabs = `<div class="cs-navtabs"><button data-cs="navtab" data-t="toc" class="${csNavState.tab === 'toc' ? 'on' : ''}">สารบัญ</button><button data-cs="navtab" data-t="find" class="${csNavState.tab === 'find' ? 'on' : ''}">ค้นหา</button><button data-cs="navtab" data-t="marks" class="${csNavState.tab === 'marks' ? 'on' : ''}">ที่คั่น</button></div>`;
  let body;
@@ -2623,6 +2624,7 @@ function csNavOpen(tab) {
   sh = document.createElement('div'); sh.className = 'cs-nav'; host.appendChild(sh);
   const bd = document.createElement('div'); bd.className = 'cs-nav-bd'; bd.dataset.cs = 'navclose'; host.appendChild(bd);
   sh.addEventListener('input', e => { if (e.target.classList.contains('cs-navq')) { csNavState.q = e.target.value; clearTimeout(csNavT); csNavT = setTimeout(() => csNavRefresh(true), 220); } });
+  sh.addEventListener('change', e => csProfChange(e.target));
  }
  csNavRefresh();
  void sh.offsetHeight; // ให้ทรานสิชันเลื่อนขึ้นทำงาน
@@ -2646,7 +2648,10 @@ function csNavRefresh(keepFocus) {
 }
 function csNavClose() { const h = csNavHost(); if (h) h.classList.remove('nav-open'); }
 function csNavClick(a, b) {
- if (a === 'nav') { csNavOpen(); return true; }
+ if (a === 'nav') { csNavOpen(csNavState.tab === 'prof' ? 'toc' : ''); return true; }
+ if (a === 'prof') { Object.assign(csNavState, { who: b.dataset.who || '', ck: b.dataset.ck || '', av: b.dataset.av || '' }); csNavOpen('prof'); return true; }
+ if (a === 'proffind') { csNavState.q = csNavState.who; csNavState.tab = 'find'; csNavRefresh(); return true; }
+ if (a === 'profmore') { csNavClose(); csOpenSettings('chars'); return true; }
  if (a === 'navclose') { csNavClose(); return true; }
  if (a === 'navtab') { csNavState.tab = b.dataset.t; csNavRefresh(); return true; }
  if (a === 'navmkdel') { const l = csMarks(true), i = l.findIndex(x => String(x.at) === b.dataset.at); if (i >= 0) { l.splice(i, 1); csSave(); } csNavRefresh(); csMarksApplyAll(); return true; }
@@ -2917,6 +2922,61 @@ function csQuoteAct(a) {
    }, 'image/png');
   } catch (e) { fail(e); }
  }
+}
+// ══ ★ 1.26 การ์ดตัวละคร: แตะรูปหรือชื่อ ══
+/** นับบทพูดของชื่อนี้ทั้งแชท · บทแรก/ล่าสุดที่โผล่ · ประโยคล่าสุด */
+function csProfStats(name, ck) {
+ const chat = csCtx().chat || [];
+ const low = String(name || '').trim().toLowerCase();
+ const r = { n: 0, first: 0, last: 0, firstId: -1, firstLine: '', lastLine: '' };
+ let ch = 0;
+ chat.forEach((m, id) => {
+  if (!m || m.is_system) return;
+  if (!m.is_user) ch++;
+  csParseMessage(m).forEach(it => {
+   if ((it.k !== 'say' && it.k !== 'think') || String(it.who || '').trim().toLowerCase() !== low) return;
+   if (ck && it.ck && it.ck !== ck) return;
+   const c = m.is_user ? ch + 1 : ch;
+   r.n++;
+   if (r.firstId < 0) { r.first = c; r.firstId = id; r.firstLine = it.text; }
+   r.last = c;
+   if (it.k === 'say') r.lastLine = it.text;
+  });
+ });
+ return r;
+}
+function csProfHTML() {
+ const who = csNavState.who || '', ck = csNavState.ck || '';
+ const key = ck || who;
+ const o = csCast(false)[key] || csCastGet(who) || {};
+ const card = !!csStCharFor(who);
+ const me = csIsUserName(who);
+ const st = csProfStats(who, ck);
+ const g = o.g || '', gg = g || csGenderOf(who);
+ const w = csChWord();
+ const role = card ? 'การ์ดตัวละคร' : me ? 'ตัวเรา' : 'ตัวละครในเรื่อง';
+ const gl = gg ? (gg === 'm' ? 'ชาย' : 'หญิง') + (g ? '' : ' · เดาเอา') : '';
+ return `<div class="cs-cmt-grab"></div><div class="cs-navhead cs-profhead"><span></span><button class="cs-navx" data-cs="navclose" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button></div>
+ <div class="cs-prof">
+  <div class="cs-profid">${csAvatarHTML(who, csNavState.av || '', me, ck)}<div><b>${csEsc(who)}</b><small>${[role, gl].filter(Boolean).join(' · ')}</small></div></div>
+  <div class="cs-profstats"><span><b>${st.n}</b><small>บทพูด</small></span><span><b>${st.first || '–'}</b><small>โผล่ครั้งแรก · ${w}</small></span><span><b>${st.last || '–'}</b><small>ล่าสุด · ${w}</small></span></div>
+  ${st.lastLine ? `<blockquote class="cs-profq">“${csEsc(st.lastLine.slice(0, 160))}”</blockquote>` : ''}
+  <div class="cs-proff">
+   <label class="cs-profrow"><span>เพศ</span><select class="cs-sel" data-pf="g">${[['', 'อัตโนมัติ'], ['m', 'ชาย'], ['f', 'หญิง']].map(([v, l]) => `<option value="${v}"${g === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+   ${card ? '' : `<label class="cs-profrow"><span>ชื่อเรียกอื่น</span><input class="cs-text" data-pf="aliases" value="${csEsc(o.aliases || '')}" placeholder="เช่น พี่มิ, คุณหนู" maxlength="200"></label>
+   <label class="cs-profrow cs-profme"><span>นี่คือตัวเรา</span><input type="checkbox" data-pf="me"${o.me ? ' checked' : ''}></label>`}
+  </div>
+  <div class="cs-profacts">${st.firstId >= 0 ? `<button data-cs="navgo" data-mes="${st.firstId}" data-q="${csEsc(st.firstLine.slice(0, 24))}"><i class="fa-solid fa-flag"></i>ไปฉากแรก</button>` : ''}<button data-cs="proffind"><i class="fa-solid fa-magnifying-glass"></i>บทพูดทั้งหมด</button><button data-cs="profmore"><i class="fa-solid fa-sliders"></i>ตั้งค่าเพิ่ม</button></div>
+ </div>`;
+}
+function csProfChange(el) {
+ const f = el && el.dataset && el.dataset.pf;
+ if (!f || csNavState.tab !== 'prof') return;
+ const who = csNavState.who, key = csNavState.ck || who;
+ const v = f === 'me' ? !!el.checked : String(el.value || '').trim();
+ csCastEdit(key, who, { [f]: v === false ? '' : v });
+ csToast('บันทึกแล้ว · มีผลตอนเปิดอ่านใหม่', 'ok');
+ if (f !== 'aliases') csNavRefresh();
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {

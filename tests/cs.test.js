@@ -1030,6 +1030,25 @@ const REPLY = `<think>วางแผน</think>
       G.d.querySelector('#cs-novel [data-cs="mkcard"]').click(); await sleep(30);
       ok(!G.d.querySelector('#cs-novel .cs-markpop'), 'quote card action runs without errors (no canvas in jsdom)');
       G.ev('csCloseNovel(true)'); G.ev("csCfg().style = 'chat'; csCfg().marks = {}");
+      // ★ 1.26 การ์ดตัวละคร
+      G.ev('csOpenMessage(' + rid + ')'); G.ev('csReader.player.all()');
+      const nm = [...R().querySelectorAll('.cs-name[data-cs="prof"]')].find(x => x.dataset.who === 'อาเรีย');
+      const i1 = G.ev('csReader.player.i');
+      nm.click();
+      const pf = () => R().querySelector('.cs-nav .cs-prof');
+      ok(pf() && R().classList.contains('nav-open') && G.ev('csReader.player.i') === i1, 'tap a name opens the profile card (no advance)');
+      ok(/อาเรีย/.test(pf().querySelector('.cs-profid').textContent) && +pf().querySelector('.cs-profstats b').textContent >= 1, 'profile shows name and line count');
+      const al = pf().querySelector('[data-pf="aliases"]');
+      if (al) { al.value = 'เรีย, คุณหนู'; al.dispatchEvent(new G.w.Event('change', { bubbles: true })); }
+      ok(al ? G.ev("(csCastGet('อาเรีย') || {}).aliases") === 'เรีย, คุณหนู' : G.ev("!!csStCharFor('อาเรีย')"), 'edit aliases inline (card characters keep their card name)');
+      const gs = pf().querySelector('[data-pf="g"]'); gs.value = 'f'; gs.dispatchEvent(new G.w.Event('change', { bubbles: true }));
+      ok(G.ev("csCastGet('อาเรีย').g") === 'f' && /หญิง/.test(pf().querySelector('.cs-profid small').textContent), 'edit gender inline');
+      pf().querySelector('[data-cs="proffind"]').click();
+      ok(R().querySelector('.cs-nav .cs-navq') && R().querySelector('.cs-nav .cs-navq').value === 'อาเรีย' && R().querySelectorAll('.cs-nav .cs-navrow').length >= 1, 'profile → search their lines');
+      G.ev('csNavClose()'); R().querySelector('.cs-title').click();
+      ok(!R().querySelector('.cs-nav .cs-prof') && R().querySelector('.cs-nav .cs-navtabs'), 'title opens contents again, not the profile');
+      G.ev('csNavClose(); csCloseReader(true)');
+      G.ev("(() => { const c = csCast(true); delete c['อาเรีย'].aliases; delete c['อาเรีย'].g; csSave(); })()");
       ok(G.ev("csWrapCanvas({ measureText: t => ({ width: [...t].length * 10 }) }, 'สวัสดีครับวันนี้อากาศดีมาก', 60).every(l => [...l].length <= 6 && !/^[\\u0E31\\u0E34-\\u0E3A\\u0E47-\\u0E4E]/.test(l))"), 'Thai wrap never starts a line with a vowel/tone mark');
     }
     // ★ 1.16 ปุ่มลัดข้างจอ
