@@ -61,7 +61,7 @@ const REPLY = `<think>วางแผน</think>
   const u = E.ev(`csParse('ไปถึงแล้ว *วิ่งเข้าร้าน*', {isUser:true, owner:'มินา'})`);
   ok(u.length === 2 && u[0].k === 'say' && u[0].who === 'มินา' && u[1].k === 'narr', 'user message');
   // ── ค่าเริ่มต้นขาวดำ ──
-  ok(E.ev('csCfg().preset') === 'classic' && E.ev("csVars()['--cs-out']") === '#141414' && E.ev("csVars()['--cs-bg']") === '#ffffff', 'default plain black & white');
+  ok(E.ev('csCfg().preset') === 'ink' && E.ev("csVars()['--cs-bg']") === '#0e0e0e', 'default dark (ดำขาว)');
   ok(!/ต้นฉบับ/.test(E.ev('JSON.stringify(CS_PRESETS)')) && E.ev("CS_PRESETS.classic.name") === 'ขาวดำเรียบ', 'black & white still available, no "original" label');
   ok(E.prompts.chat_story_format && /Format: chat novel/.test(E.prompts.chat_story_format.v) && /Never write มินา's words/.test(E.prompts.chat_story_format.v) && E.prompts.chat_story_format.v.length < 260, 'format prompt (short)', E.prompts.chat_story_format.v.length);
   ok(!!E.d.querySelector('.chat-story-settings #cs-open-settings') && !!E.d.getElementById('cs-wand-set'), 'drawer + wand');
@@ -71,7 +71,7 @@ const REPLY = `<think>วางแผน</think>
   const R = () => E.d.getElementById('cs-reader');
   const items = () => R().querySelectorAll('.cs-list > .cs-item').length;
   ok(!!R() && R().querySelectorAll('.cs-old').length === 2 && items() === 3, 'reader opens with previous message shown + first bubble', items());
-  ok(!!R().querySelector('.cs-input') && R().style.getPropertyValue('--cs-bg') === '#ffffff', 'input bar + theme vars');
+  ok(!!R().querySelector('.cs-input') && R().style.getPropertyValue('--cs-bg') === '#0e0e0e', 'input bar + theme vars');
   const n0 = E.w.__notes;
   R().querySelector('.cs-body').click();
   ok(items() === 4 && E.w.__notes > n0, 'tap = one bubble + sound');
@@ -149,7 +149,7 @@ const REPLY = `<think>วางแผน</think>
   const hist = S().querySelector('[data-k="history"]'); hist.value = '2'; hist.dispatchEvent(new E.w.Event('input', { bubbles: true }));
   ok(E.ev('csCfg().history') === 2, 'history range');
   S().querySelector('[data-act="reset"]').click();
-  ok(E.ev('csCfg().preset') === 'classic' && E.ev('csCfg().sound') === 'pop' && !Object.keys(E.ev('csCfg().chars')).length, 'reset to defaults');
+  ok(E.ev('csCfg().preset') === 'ink' && E.ev('csCfg().sound') === 'pop' && !Object.keys(E.ev('csCfg().chars')).length, 'reset to defaults');
   S().querySelector('[data-act="close"]').click(); await sleep(260);
   ok(!S(), 'settings closes');
   E.ev('csCloseReader(true)');
@@ -709,7 +709,7 @@ const REPLY = `<think>วางแผน</think>
     ok(!G.d.getElementById('cs-cmthost').classList.contains('cmt-open'), 'overlay closes');
     G.ev("csCfg().mode = 'reader'; csInlineAll()");
     // จำว่าอ่านถึงไหน (อ่านทั้งแชท)
-    G.ev('csOpenReadAll()');
+    G.ev('csCfg().readPos = {}; csOpenReadAll()');
     for (let i = 0; i < 5; i++) G.ev('csReader.player.next()');
     const at = G.ev('csReader.player.i');
     G.ev('csCloseReader(true)');
@@ -717,9 +717,28 @@ const REPLY = `<think>วางแผน</think>
     ok(G.ev('csReader.player.i') === at && G.d.querySelectorAll('#cs-reader .cs-item').length === at, 'read-all resumes where we stopped', [at, G.ev('csReader.player.i')]);
     G.ev('csReader.player.next()');
     G.ev('csCloseReader(true)'); G.ev('csOpenReadAll()');
-    ok(G.ev('csReader.player.i') === at + 1, 'position keeps updating');
+    ok(G.ev('csReader.player.i') === at + 1, 'position keeps updating', [at, G.ev('csReader.player.i'), G.ev('JSON.stringify(csPos())'), G.ev('csReader.player.items.length')]);
     G.ev('csCloseReader(true)');
     ok(G.ev('Object.keys(csCfg().readPos).length') === 1, 'saved per chat');
+    // ★ 1.21 เปิดแบบปกติก็จำ · จำตำแหน่งที่เลื่อนอ่าน ไม่ใช่แค่ท้ายสุด
+    G.ev("csCfg().readPos = {}");
+    G.ev('csOpenLatest()');
+    ok(G.ev('csReader.key') !== 'all', 'no saved spot: opens latest as before');
+    G.ev('csReader.player.all()'); G.ev('csCloseReader(true)');
+    const lastM = G.chat.length - 1;
+    ok(G.ev('csPos().chat.m') === lastM, 'normal reader saves position too');
+    G.ev("csPosSave('chat', {m: 3, k: 0, am: 2, ak: 1})");
+    G.ev('csOpenLatest()');
+    ok(G.ev('csReader.key') === 'all' && G.ev('csReader.player.items[csReader.player.i - 1]._m') === 3, 'opening normally continues from saved spot when unread remains');
+    G.ev('csReader.player.all()');
+    const ai = G.ev("csReader.player.items.findIndex(it => it._m === 5)");
+    G.ev(`csReaderSavePos(${ai})`);
+    ok(G.ev('csPos().chat.am') === 5 && G.ev('csPos().chat.m') === G.ev('csReader.player.items[csReader.player.items.length-1]._m'), 'saves where you scrolled (anchor) plus how far revealed');
+    G.ev('csCloseReader(true)');
+    G.ev("csOpenMessage(1)");
+    G.ev('csCloseReader(true)');
+    ok(G.ev('csPos().chat.m') > 1, 'peeking an old message does not move the saved spot back');
+    G.ev("csCfg().readPos = {}");
     // นิยาย
     G.ev("csCfg().style = 'novel'; csPosSave('novel', {mes: 3, ch: 2, off: 5})");
     G.ev('csOpenNovel()'); await sleep(40);
@@ -907,7 +926,11 @@ const REPLY = `<think>วางแผน</think>
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:18, cmtAmount:'many'}");
   ok(E.ev('csCfg().cmtParas') === 6 && E.ev('csCfg().cmtPer') === 4, 'old few/normal/many migrates to numbers');
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:20, preset:'moon'}");
-  ok(E.ev('csCfg().preset') === 'classic', '1.17 moon default goes back to black & white once');
+  ok(E.ev('csCfg().preset') === 'ink', '1.17 moon default goes to the default once');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:22, preset:'classic', volume:0.6}");
+  ok(E.ev('csCfg().preset') === 'ink' && E.ev('csCfg().volume') === 0.8, '1.21 default dark + louder once');
+  E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:23, preset:'classic'}");
+  ok(E.ev('csCfg().preset') === 'classic', 'choosing white later is kept');
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {_v:21, preset:'moon'}");
   ok(E.ev('csCfg().preset') === 'moon', 'choosing moon later is kept');
   E.ev("SillyTavern.getContext().extensionSettings.chatStory = {}");
