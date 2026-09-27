@@ -735,3 +735,11 @@ body.cs-open #extensionsMenu,body.cs-open #options{z-index:10080 !important;}
 .cs-edit .cs-profacts{justify-content:flex-end;}
 .cs-edit .cs-profacts button.pri{background:var(--cs-ink) !important;color:var(--cs-bg) !important;}
 .cs-editta:focus,.cs-editta{outline:none !important;box-shadow:none !important;border:0 !important;}
+
+/* ★ 1.38 ปุ่มอ่านออกเสียงข้างช่องพิมพ์ · คลุมทั้งบรรทัดสีเทาอ่อนตอนอ่าน */
+.cs-ttsbtn{flex-shrink:0;width:36px;height:36px;display:flex !important;align-items:center;justify-content:center;align-self:center;margin:0 2px !important;padding:0 !important;border:0 !important;border-radius:50% !important;background:none !important;color:var(--cs-ink2) !important;font-size:16px;cursor:pointer;box-shadow:none !important;}
+.cs-ttsbtn.on{background:color-mix(in srgb,var(--cs-ink) 12%,transparent) !important;color:var(--cs-ink) !important;}
+.cs-speaking.cs-bubble{box-shadow:none !important;background-image:linear-gradient(color-mix(in srgb,var(--cs-ink) 14%,transparent),color-mix(in srgb,var(--cs-ink) 14%,transparent)) !important;}
+.cs-speaking.cs-narr,.cs-speaking.cs-scene,.cs-speaking.cs-np,.cs-speaking.cs-nscene{background:color-mix(in srgb,var(--cs-ink) 10%,transparent) !important;border-radius:8px;box-shadow:0 0 0 6px color-mix(in srgb,var(--cs-ink) 10%,transparent) !important;transition:background .25s;}
+.cs-grouph{margin:18px 4px 8px !important;}
+#cs-settings.cs-nopreview .cs-preview{display:none !important;}

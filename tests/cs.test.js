@@ -115,7 +115,9 @@ const REPLY = `<think>วางแผน</think>
   E.ev('csCfg().typingMs = 0; csOpenMessage(1)');
   E.d.getElementById('cs-open-settings').click();
   const S = () => E.d.getElementById('cs-settings');
-  ok(!!S() && S().querySelectorAll('.cs-tabs button').length === 8 && S().querySelectorAll('.cs-preview .cs-item').length === 6, 'settings sheet + live preview');
+  ok(!!S() && S().querySelectorAll('.cs-tabs button').length === 9 && S().querySelectorAll('.cs-preview .cs-item').length === 6, 'settings sheet + live preview');
+  ok(S().querySelector('.cs-tabs button.on').dataset.tab === 'read', 'opens on the general tab');
+  S().querySelector('[data-tab="look"]').click();
   S().querySelector('[data-preset="night"]').click();
   ok(E.ev('csCfg().preset') === 'night' && R().style.getPropertyValue('--cs-bg') === '#14131c' && S().classList.contains('cs-sdark'), 'preset applies live to reader & sheet');
   const col = S().querySelector('[data-color="outBg"]'); col.value = '#ff0000'; col.dispatchEvent(new E.w.Event('input', { bubbles: true }));
@@ -150,9 +152,10 @@ const REPLY = `<think>วางแผน</think>
   const cs2 = S().querySelector('[data-char="แบรม"][data-f="sound"]'); cs2.value = 'retro'; cs2.dispatchEvent(new E.w.Event('change', { bubbles: true }));
   ok(E.ev("csCastGet('แบรม').color") === '#2244aa' && E.ev("csCastGet('แบรม').sound") === 'retro' && !E.ev("csCfg().chars['แบรม']"), 'per-character color & sound (scoped to this card)');
   ok(/background:#2244aa;color:#ffffff/.test(E.ev("csItemHTML({k:'say',who:'แบรม',text:'x'})")), 'per-char bubble color with contrast text');
-  S().querySelector('[data-tab="read"]').click();
+  S().querySelector('[data-tab="play"]').click();
   const hist = S().querySelector('[data-k="history"]'); hist.value = '2'; hist.dispatchEvent(new E.w.Event('input', { bubbles: true }));
   ok(E.ev('csCfg().history') === 2, 'history range');
+  S().querySelector('[data-tab="read"]').click();
   S().querySelector('[data-act="reset"]').click();
   ok(E.ev('csCfg().preset') === 'ink' && E.ev('csCfg().sound') === 'pop' && !Object.keys(E.ev('csCfg().chars')).length, 'reset to defaults');
   S().querySelector('[data-act="close"]').click(); await sleep(260);
@@ -1018,7 +1021,7 @@ const REPLY = `<think>วางแผน</think>
       // กดค้าง (มือถือ)
       const pe = (type, el) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: 10, clientY: 10, button: 0 }); el.dispatchEvent(e); };
       pe('pointerdown', bub()); await sleep(560); pe('pointerup', bub());
-      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 5, 'long-press opens the small mark menu');
+      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 6, 'long-press opens the small mark menu');
       bub().click();
       ok(R().querySelector('.cs-markpop') && G.ev('csReader.player.i') === i0, 'the click right after a long-press does not advance or close');
       R().querySelector('[data-cs="mkhl"]').click();
@@ -1144,6 +1147,30 @@ const REPLY = `<think>วางแผน</think>
         ok(G.ev("csVoiceFor('อาเรีย').name") === 'Niwat' && spoken[spoken.length - 1].voice.name === 'Niwat', 'per-character voice saved and previewed');
         G.ev("csNavClose(); csCloseReader(true); delete csCast(true)['อาเรีย'].voice");
         delete G.w.speechSynthesis;
+      }
+      // ★ 1.38 ปุ่ม 🔊 ข้างช่องพิมพ์ · แตะบรรทัดเพื่ออ่านบรรทัดนั้น · อ่านคำตอบใหม่เอง
+      {
+        const spoken = [];
+        G.w.SpeechSynthesisUtterance = function (t) { this.text = t; };
+        G.w.speechSynthesis = { speak(u) { spoken.push(u.text); }, cancel() {}, getVoices() { return []; } };
+        ok(G.ev("csCfg().ttsEngine") === 'device', 'device voice is the default');
+        G.ev("csCfg().ttsAuto = false; csCfg().showInput = true; csCloseReader(true); csOpenMessage(" + rid + "); csReader.player.all()");
+        const btn = () => R().querySelector('.cs-inputbar .cs-ttsbtn');
+        ok(btn(), 'read-aloud button next to the input');
+        btn().click();
+        ok(G.ev('!!csTts') && btn().classList.contains('on') && spoken.length === 1, 'button starts reading');
+        const target = [...R().querySelectorAll('.cs-narr')].find(x => /ฝนตกหนัก/.test(x.textContent));
+        spoken.length = 0;
+        target.click();
+        ok(spoken.length === 1 && /ฝนตกหนัก/.test(spoken[0]) && target.classList.contains('cs-speaking'), 'tap a line while reading = read that line (whole line highlighted)');
+        btn().click();
+        ok(!G.ev('!!csTts') && !btn().classList.contains('on'), 'button again stops');
+        // อ่านคำตอบใหม่เอง
+        G.ev("csCfg().ttsAuto = true"); spoken.length = 0;
+        G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'ฟ้ามืดลงเรื่อย ๆ\nอาเรีย: กลับบ้านกันเถอะ' }); G.addMes(G.chat[G.chat.length - 1], G.chat.length - 1);
+        G.fire('gs', 'normal', {}, false); G.fire('cmr', G.chat.length - 1); await sleep(500);
+        ok(G.ev('!!csTts') && /ฟ้ามืด/.test(spoken[0] || ''), 'new reply is read aloud automatically', spoken);
+        G.ev("csTtsStop(); csCfg().ttsAuto = false; csCloseReader(true)"); G.chat.pop(); delete G.w.speechSynthesis;
       }
       // ★ 1.37 เสียงอ่านจาก Google / Gemini ผ่านเซิร์ฟเวอร์ SillyTavern
       {

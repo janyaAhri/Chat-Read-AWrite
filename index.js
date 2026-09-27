@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.37.0';
+const CS_VERSION = '1.38.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -60,7 +60,7 @@ const CS_SOUNDS = [
 const CS_DEFAULTS = {
  enabled: true,
  ttsRate: 1, ttsNarr: true, ttsVoice: '', // ★ 1.27 อ่านออกเสียง
- ttsEngine: 'google', ttsGVoice: '', // ★ 1.37 google (ฟรี) | gemini (30 เสียง) | device
+ ttsEngine: 'device', ttsGVoice: '', ttsAuto: false, ttsBtn: true, ttsWord: false, // ★ 1.37 google (ฟรี) | gemini (30 เสียง) | device
  cmtWith: 'reply', // ★ 1.36 คอมเมนต์มากับคำตอบหลัก (ขอครั้งเดียว) | separate
  sfx: 'off', sfxVol: .7, // ★ 1.31 เสียงเอฟเฟกต์: off | tap | auto
  ambient: 'off', ambVol: .35, // ★ 1.29 เสียงบรรยากาศ: off | auto | rain | sea | cafe | night | fire
@@ -149,7 +149,8 @@ function csCfg() {
  if (s._v < 21) { if (s.preset === 'moon') s.preset = 'classic'; s._v = 21; }
  if (s._v < 22) { csCastCleanup(s); s._v = 22; }
  if (s._v < 23) { if (s.preset === 'classic') s.preset = 'ink'; if (s.volume === 0.6) s.volume = 0.8; s._v = 23; } // ★ 1.21 ค่าเริ่มต้นดำขาว + เสียงดังขึ้น // ★ 1.20 ล้างชื่อที่เดาผิด (ความ คำ ปลาย น้ำเ …) // ★ 1.18 กลับมาเริ่มที่ขาวดำเรียบ (จันทร์นวลยังเลือกได้)
- if (s._v < 24) { if (s.sfx === 'auto') s.sfx = 'off'; s._v = 24; } // ★ 1.32 เอฟเฟกต์ปิดเป็นค่าเริ่มต้น
+ if (s._v < 24) { if (s.sfx === 'auto') s.sfx = 'off'; s._v = 24; }
+ if (s._v < 25) { if (s.ttsEngine === 'google') s.ttsEngine = 'device'; s._v = 25; } // ★ 1.38 เสียงในเครื่องเป็นค่าเริ่มต้น // ★ 1.32 เอฟเฟกต์ปิดเป็นค่าเริ่มต้น
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -1157,7 +1158,7 @@ function csReaderHTML(title) {
    <div class="cs-hint">แตะเพื่ออ่านต่อ</div>
    <div class="cs-end"><span>อ่านถึงล่าสุดแล้ว</span></div>
   </div>
-  ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div>
+  ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div>${s.ttsBtn !== false ? csTtsBtnHTML() : ''}
    <textarea class="cs-input" rows="1" placeholder="พิมพ์ข้อความ… หรือกดส่งเลย" title="ช่องว่างแล้วกดส่ง = ให้บอทเขียนต่อ"></textarea>
    <button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button>
   </div>` : ''}`;
@@ -1552,8 +1553,8 @@ function csWandMenu() {
 }
 
 // ══ หน้าปรับแต่ง ══
-let csSetTab = 'look';
-const CS_TABS = [['look', 'หน้าตา', 'fa-palette'], ['text', 'ตัวอักษร', 'fa-font'], ['novel', 'หน้านิยาย', 'fa-book-bookmark'], ['cmt', 'คอมเมนต์', 'fa-comment-dots'], ['bubble', 'ฟองแชท', 'fa-comment'], ['sound', 'เสียง', 'fa-volume-high'], ['chars', 'ตัวละคร', 'fa-user-group'], ['read', 'การอ่าน', 'fa-book-open']];
+let csSetTab = 'read';
+const CS_TABS = [['read', 'ทั่วไป', 'fa-sliders'], ['look', 'หน้าตา', 'fa-palette'], ['text', 'ตัวอักษร', 'fa-font'], ['bubble', 'ฟองแชท', 'fa-comment'], ['novel', 'หน้านิยาย', 'fa-book-bookmark'], ['play', 'การอ่าน', 'fa-book-open'], ['sound', 'เสียง', 'fa-volume-high'], ['cmt', 'คอมเมนต์', 'fa-comment-dots'], ['chars', 'ตัวละคร', 'fa-user-group']];
 function csGet(path) { return path.split('.').reduce((o, k) => (o == null ? o : o[k]), csCfg()); }
 function csSet(path, val) {
  const s = csCfg();
@@ -1720,25 +1721,32 @@ function csTabHTML(tab) {
    <div class="cs-card">${csToggle('showNames', 'แสดงชื่อเหนือฟอง')}${csSelect('nameColor', 'สีชื่อ', [['theme', 'ตามธีม'], ['rainbow', 'สีต่างกันรายคน']])}${csSelect('userSide', 'ฝั่งของเรา', [['right', 'ขวา'], ['left', 'ซ้าย']])}${csToggle('userLinesRight', 'บทของตัวเราที่บอทเขียน อยู่ฝั่งเรา', 'ปิดไว้ = ฝั่งเรามีแต่ข้อความที่เราพิมพ์เอง บทที่บอทเขียนแทนอยู่ซ้ายพร้อมชื่อ')}</div>`;
  }
  if (tab === 'sound') {
-  return `<div class="cs-card"><div class="cs-cardh">เสียงฟองเด้ง <small>แตะเพื่อเลือกและฟัง</small></div><div class="cs-sounds">${CS_SOUNDS.map(x => `<button class="cs-sound${s.sound === x.id ? ' on' : ''}" data-sound="${x.id}"><i class="fa-solid ${x.id === 'none' ? 'fa-volume-xmark' : x.id === 'custom' ? 'fa-file-audio' : 'fa-music'}"></i><span>${x.name}</span></button>`).join('')}</div>
+  const eng = s.ttsEngine || 'device';
+  return `<div class="cs-card"><div class="cs-cardh">อ่านออกเสียง<small>ปุ่ม 🔊 ข้างช่องพิมพ์ · แตะบรรทัดไหนระหว่างอ่าน = อ่านบรรทัดนั้น · กดค้าง → อ่านตรงนี้</small></div>
+    ${csToggle('ttsAuto', 'อ่านคำตอบใหม่ให้ฟังเอง', 'บอทตอบเสร็จแล้วเริ่มอ่านทันที')}${csToggle('ttsBtn', 'ปุ่ม 🔊 ข้างช่องพิมพ์')}${csToggle('ttsNarr', 'อ่านบรรยายด้วย', 'ปิด = อ่านเฉพาะบทพูด')}${csRange('ttsRate', 'ความเร็ว', .6, 1.8, .1, 'x')}
+    ${csSelect('ttsEngine', 'เสียงจาก', [['device', 'เสียงในเครื่อง'], ['google', 'Google · ฟรี'], ['gemini', 'Gemini · 30 เสียง']], eng === 'gemini' ? 'ตัวละครได้เสียงของตัวเอง · ใช้คีย์ Google AI Studio ใน SillyTavern · โควตาเต็มสลับเป็น Google เอง' : eng === 'google' ? 'ผ่านเซิร์ฟเวอร์ SillyTavern ไม่ต้องใช้คีย์ · ตัวละครต่างกันที่ระดับเสียง' : 'ตัวละครได้เสียงและระดับเสียงต่างกันตามเพศ')}
+    ${eng === 'gemini' ? csSelect('ttsGVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ (Charon)'], ...CS_GVOICES.map(v => [v.id, `${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}`])]) : eng === 'device' ? csSelect('ttsVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...csVoicesTh().map(v => [v.name, csEsc(v.name)])]) : ''}
+    ${csToggle('ttsWord', 'ไฮไลต์ทีละคำด้วย', 'ปิดไว้ = คลุมทั้งบรรทัดสีเทาอ่อน')}</div>
+   <div class="cs-card"><div class="cs-cardh">เอฟเฟกต์และบรรยากาศ<small>ตั้งละเอียดได้ที่เมนู → เสียงบรรยากาศ · เอฟเฟกต์</small></div>${csSeg('sfx', [['off', 'ปิดเอฟเฟกต์'], ['tap', 'แตะคำเพื่อฟัง'], ['auto', 'อัตโนมัติ']])}${csRange('sfxVol', 'ความดังเอฟเฟกต์', 0, 1, .05, '')}${csSelect('ambient', 'เสียงบรรยากาศ', [['off', 'ปิด'], ['auto', 'อัตโนมัติตามฉาก'], ...CS_AMB.map(a => [a.id, a.name])])}${csRange('ambVol', 'ความดังบรรยากาศ', 0, 1, .05, '')}</div>
+   <div class="cs-cardh cs-grouph">เสียงฟองเด้ง</div><div class="cs-card"><div class="cs-cardh">เสียงฟองเด้ง <small>แตะเพื่อเลือกและฟัง</small></div><div class="cs-sounds">${CS_SOUNDS.map(x => `<button class="cs-sound${s.sound === x.id ? ' on' : ''}" data-sound="${x.id}"><i class="fa-solid ${x.id === 'none' ? 'fa-volume-xmark' : x.id === 'custom' ? 'fa-file-audio' : 'fa-music'}"></i><span>${x.name}</span></button>`).join('')}</div>
    ${s.sound === 'custom' ? `<div class="cs-srow"><div class="cs-slb"><span>ไฟล์เสียงของฉัน</span><small>${s.customSound ? (s.customSound.startsWith('data:') ? 'อัปโหลดไว้แล้ว' : csEsc(s.customSound.slice(0, 60))) : 'ยังไม่มี · ไฟล์สั้น ๆ ไม่เกิน 200 KB'}</small></div><div class="cs-sctl cs-sctl-col"><label class="cs-btn2">เลือกไฟล์<input type="file" accept="audio/*" data-upload="sound" hidden></label><input class="cs-text" data-k="customSound" placeholder="หรือวางลิงก์ mp3/ogg" value="${s.customSound && !s.customSound.startsWith('data:') ? csEsc(s.customSound) : ''}"></div></div>` : ''}</div>
    <div class="cs-card">${csRange('volume', 'ความดัง', 0, 1, .05, '')}${csToggle('pitchVary', 'เสียงสูงต่ำต่างกันรายตัวละคร', 'ฟังแล้วรู้ว่าใครพูด')}${csToggle('narrSound', 'มีเสียงตอนบรรยายและเปลี่ยนฉาก')}${csToggle('vibrate', 'สั่นเบา ๆ บนมือถือ', 'ใช้ได้บนมือถือ Android')}
     <div class="cs-srow"><div class="cs-slb"><span>ลองฟังทั้งชุด</span></div><div class="cs-sctl"><button class="cs-btn2" data-act="test-sound"><i class="fa-solid fa-play"></i> ฟัง</button></div></div></div>`;
  }
+ if (tab === 'play') {
+  return `<div class="cs-card">${csRange('history', 'แสดงข้อความก่อนหน้า', 0, 20, 1, ' ข้อความ')}${csRange('typingMs', 'จุดพิมพ์ก่อนฟองเด้ง', 0, 1200, 50, ' ms')}${csRange('autoSpeed', 'ความเร็วเล่นอัตโนมัติ (▶)', .5, 3, .25, 'x')}</div>
+   <div class="cs-card">${csToggle('swipeCh', 'ปัดซ้ายขวาเพื่อเปลี่ยนบท', 'ปัดซ้าย = บทถัดไป · ปัดขวา = บทก่อนหน้า')}</div>
+   <div class="cs-card">${csSelect('plainUser', 'ข้อความของเราที่ไม่มีเครื่องหมาย', [['auto', 'เดาให้'], ['say', 'เป็นคำพูด'], ['narr', 'เป็นบรรยาย']], 'ในเครื่องหมายคำพูด = คำพูด · *ดอกจัน* = บรรยาย')}</div>
+   <div class="cs-hint2">อ่านออกเสียง เอฟเฟกต์ และบรรยากาศ อยู่ในแท็บเสียง</div>`;
+ }
  if (tab === 'chars') return csCharsTabHTML();
- // read
- return `<div class="cs-card"><div class="cs-cardh">แบบการอ่าน</div>${csSeg('style', [['chat', 'แชทนิยาย'], ['novel', 'นิยาย']])}<div class="cs-cardh">แสดงที่</div>${csSeg('mode', [['reader', 'หน้าอ่านเปิดทับแชท'], ['inline', 'ในแชทหลัก']])}</div>
-  <div class="cs-card">${csSelect('plainUser', 'ข้อความของเราที่ไม่มีเครื่องหมาย', [['auto', 'เดาให้'], ['say', 'เป็นคำพูด'], ['narr', 'เป็นบรรยาย']], 'ในเครื่องหมายคำพูด = คำพูด · *ดอกจัน* = บรรยาย · ไม่มีเลยตามที่ตั้งนี้')}</div>
-  <div class="cs-card cs-tokcard"><div class="cs-srow"><div class="cs-slb"><span>คำสั่งรูปแบบกินโทเคนต่อเทิร์น</span><small>${s.enabled && s.forceFormat ? 'แทรกเข้าโรลหลักทุกครั้งที่บอทตอบ' : 'ปิดอยู่ ไม่ใช้โทเคน'}</small></div><div class="cs-sctl"><b data-tok="format">…</b></div></div></div>
-  <div class="cs-card">${csToggle('enabled', 'เปิดใช้แชทนิยาย')}${csToggle('autoOpen', 'บอทตอบเสร็จแล้วเปิดหน้าอ่านเอง', 'โหมดหน้าอ่าน')}${csToggle('forceFormat', 'สั่งบอทเขียนตามแบบที่เลือก', 'แชทนิยาย: ชื่อ: คำพูด · นิยาย: ย่อหน้าต่อเนื่อง')}</div>
-  <div class="cs-card">${csToggle('keepTopBar', 'เห็นแถบบนของ SillyTavern ตอนอ่าน', 'กดเมนู สลับแชท เปิดรายชื่อตัวละครได้โดยไม่ต้องปิดหน้าอ่าน')}${csToggle('alwaysOn', 'เปิดหน้าอ่านค้างเป็นหน้าแชท', 'ทุกแชท · ไปหน้าเลือกตัวละครหรือข้อมูลตัวละครจะหลบให้ กลับมาแชทก็อยู่เหมือนเดิม · ปุ่มข้างจอ = ซ่อน/แสดง')}</div>
-  <div class="cs-card">${csToggle('swipeCh', 'ปัดซ้ายขวาเพื่อเปลี่ยนบท', 'ปัดซ้าย = บทถัดไป · ปัดขวา = บทก่อนหน้า · ทั้งแชทนิยายและนิยาย')}</div>
-  <div class="cs-card">${csToggle('edgeBtn', 'ปุ่มลัดชิดขอบจอ', 'แตะเปิดหน้าอ่าน · ลากขึ้นลงได้ · ลากไปอีกฝั่งเพื่อย้ายข้าง')}</div>
-  <div class="cs-card">${csToggle('showInput', 'ช่องพิมพ์ในหน้าอ่าน')}${csToggle('enterSend', 'กด Enter เพื่อส่ง', 'Shift+Enter ขึ้นบรรทัดใหม่')}${csRange('history', 'แสดงข้อความก่อนหน้า', 0, 20, 1, ' ข้อความ')}</div>
-  <div class="cs-card">${csRange('typingMs', 'จุดพิมพ์ก่อนฟองเด้ง', 0, 1200, 50, ' ms')}${csRange('autoSpeed', 'ความเร็วเล่นอัตโนมัติ', .5, 3, .25, 'x')}</div>
-  ${csTtsOk() || true ? `<div class="cs-card"><div class="cs-cardh">อ่านออกเสียง<small>เมนูสามจุด (แชทนิยาย) หรือ Aa (นิยาย) → อ่านออกเสียง · ตัวละครได้เสียงต่างกันเองตามเพศ ตั้งรายตัวได้ที่การ์ดตัวละคร</small></div>${csSelect('ttsEngine', 'เสียงจาก', [['google', 'Google · ฟรี เป็นธรรมชาติ'], ['gemini', 'Gemini · 30 เสียง แยกตัวละคร'], ['device', 'เสียงในเครื่อง']], s.ttsEngine === 'gemini' ? 'ใช้คีย์ Google AI Studio ที่ตั้งใน SillyTavern · ฟรีมีโควตาจำกัด เต็มแล้วสลับเป็น Google ให้เอง' : s.ttsEngine === 'google' ? 'ผ่านเซิร์ฟเวอร์ SillyTavern ไม่ต้องใช้คีย์ · ตัวละครต่างกันที่ระดับเสียง' : 'เสียงของมือถือ/คอม')}${s.ttsEngine === 'gemini' ? csSelect('ttsGVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...CS_GVOICES.map(v => [v.id, `${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}`])]) : s.ttsEngine === 'device' ? csSelect('ttsVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...csVoicesTh().map(v => [v.name, csEsc(v.name)])]) : ''}${csRange('ttsRate', 'ความเร็ว', .6, 1.8, .1, 'x')}${csToggle('ttsNarr', 'อ่านบรรยายด้วย', 'ปิด = อ่านเฉพาะบทพูด')}</div>` : ''}
+ // ทั่วไป
+ return `<div class="cs-card">${csToggle('enabled', 'เปิดใช้แชทนิยาย')}<div class="cs-cardh">แบบการอ่าน</div>${csSeg('style', [['chat', 'แชทนิยาย'], ['novel', 'นิยาย']])}<div class="cs-cardh">แสดงที่</div>${csSeg('mode', [['reader', 'หน้าอ่านเปิดทับแชท'], ['inline', 'ในแชทหลัก']])}</div>
+  <div class="cs-card"><div class="cs-cardh">การเปิดหน้าอ่าน</div>${csToggle('alwaysOn', 'เปิดค้างเป็นหน้าแชท', 'ทุกแชท · ไปหน้าเลือกตัวละครจะหลบให้ · ปุ่มข้างจอ = ซ่อน/แสดง')}${csToggle('autoOpen', 'บอทตอบเสร็จแล้วเปิดเอง')}${csToggle('keepTopBar', 'เห็นแถบบนของ SillyTavern', 'กดเมนู สลับแชท ได้โดยไม่ต้องปิดหน้าอ่าน')}${csToggle('edgeBtn', 'ปุ่มลัดชิดขอบจอ', 'ลากขึ้นลงได้ · ลากไปอีกฝั่งเพื่อย้ายข้าง')}</div>
+  <div class="cs-card"><div class="cs-cardh">ช่องพิมพ์</div>${csToggle('showInput', 'ช่องพิมพ์ในหน้าอ่าน')}${csToggle('enterSend', 'กด Enter เพื่อส่ง', 'Shift+Enter ขึ้นบรรทัดใหม่')}</div>
+  <div class="cs-card cs-tokcard"><div class="cs-cardh">สั่งบอท</div>${csToggle('forceFormat', 'สั่งบอทเขียนตามแบบที่เลือก', 'แชทนิยาย: ชื่อ: คำพูด · นิยาย: ย่อหน้าต่อเนื่อง')}<div class="cs-srow"><div class="cs-slb"><span>กินโทเคนต่อเทิร์น</span><small>${s.enabled && s.forceFormat ? 'แทรกเข้าโรลหลักทุกครั้งที่บอทตอบ' : 'ปิดอยู่ ไม่ใช้โทเคน'}</small></div><div class="cs-sctl"><b data-tok="format">…</b></div></div></div>
   <div class="cs-card cs-btnrow"><button class="cs-btn2" data-act="read-last"><i class="fa-solid fa-book-open"></i> เปิดหน้าอ่าน</button><button class="cs-btn2" data-act="read-all"><i class="fa-solid fa-book"></i> อ่านทั้งแชท</button><button class="cs-btn2 danger" data-act="reset"><i class="fa-solid fa-rotate"></i> คืนค่าเริ่มต้น</button></div>
-  <div class="cs-foot">แชทนิยาย ${CS_VERSION} · แตะหรือ Space อ่านต่อ · ลูกศรซ้ายย้อนกลับ · Esc ปิด</div>`;
+  <div class="cs-foot">Paper-Whisper ${CS_VERSION} · แตะหรือ Space อ่านต่อ · ลูกศรซ้ายย้อนกลับ · Esc ปิด</div>`;
 }
 function csOpenSettings(tab) {
  if (tab) csSetTab = tab;
@@ -1765,6 +1773,10 @@ function csRenderSettingsBody() {
  if (!el) return;
  el.classList.toggle('cs-sdark', csLum(csColors().bg) < .2);
  el.querySelectorAll('.cs-tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === csSetTab));
+ // ★ 1.38 ตัวอย่างโชว์เฉพาะแท็บหน้าตา · แถบแท็บเลื่อนให้เห็นแท็บที่เลือก
+ el.classList.toggle('cs-nopreview', !['look', 'text', 'bubble'].includes(csSetTab));
+ const tb = el.querySelector('.cs-tabs'), on = tb && tb.querySelector('button.on');
+ if (tb && on) { const d = on.offsetLeft - tb.scrollLeft; if (d < 0 || d + on.offsetWidth > tb.clientWidth) tb.scrollLeft = on.offsetLeft - 12; }
  const body = el.querySelector('.cs-sbody');
  const top = body.scrollTop;
  body.innerHTML = csTabHTML(csSetTab);
@@ -1997,7 +2009,7 @@ function csSettingsChange(e) {
  const s = csCfg();
  if (el.dataset.k === 'alwaysOn') { csSetPinned(el.checked); if (el.checked) csPinOpen(); return; }
  if (el.dataset.k && el.type === 'checkbox') { csSet(el.dataset.k, el.checked); if (el.dataset.k === 'keepTopBar') { csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); } if (el.dataset.k === 'cmtAuto' && el.checked) csCfg().cmtOn = true; csAfterChange(true); if (el.dataset.k === 'cmtAuto' || el.dataset.k === 'cmtOn') csRenderSettingsBody(); return; }
- if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); if (el.dataset.k === 'ttsEngine') { csTtsFail = ''; csTtsCache.clear(); csRenderSettingsBody(); } csAfterChange(true); return; }
+ if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); if (el.dataset.k === 'ttsEngine') { csTtsFail = ''; csTtsFail2 = false; csTtsCache.clear(); csRenderSettingsBody(); } if (el.dataset.k === 'ambient') { csAmbStop(); csAmbSet(el.value); } csAfterChange(true); return; }
  if (el.dataset.k && el.classList.contains('cs-text')) {
   csSet(el.dataset.k, el.value.trim());
   csAfterChange();
@@ -2201,7 +2213,7 @@ function csOpenNovel(mesId, all, resume) {
   <div class="cs-nbody" data-cs="ntap"><article class="cs-page">${csNovelBodyHTML(all)}</article></div>
   <div class="cs-nbottom">
    <div class="cs-nnav"><button data-cs="nprev" aria-label="${csChWord()}ก่อนหน้า"><i class="fa-solid fa-arrow-up"></i></button><span class="cs-npct"></span><button data-cs="nnext" aria-label="${csChWord()}ถัดไป"><i class="fa-solid fa-arrow-down"></i></button></div>
-   ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div><textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
+   ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div>${s.ttsBtn !== false ? csTtsBtnHTML() : ''}<textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
   </div>`;
  document.body.appendChild(el);
  csNovel = { el };
@@ -2846,6 +2858,7 @@ function csMarkMenu(el) {
   + `<button data-cs="mkbm" class="${bm ? 'on' : ''}"><i class="fa-${bm ? 'solid' : 'regular'} fa-bookmark"></i><span>${bm ? 'เอาออก' : 'คั่นไว้'}</span></button>`
   + `<button data-cs="mkcard"><i class="fa-regular fa-image"></i><span>การ์ด</span></button>`
   + `<button data-cs="mkcopy"><i class="fa-regular fa-copy"></i><span>คัดลอก</span></button>`
+  + `<button data-cs="mkread"><i class="fa-solid fa-volume-high"></i><span>อ่านตรงนี้</span></button>`
   + (csMarkCur.m >= 0 ? `<button data-cs="mkedit"><i class="fa-solid fa-pen"></i><span>แก้ไข</span></button>` : '');
  host.appendChild(pop);
  const r = el.getBoundingClientRect(), hr = host.getBoundingClientRect();
@@ -2886,6 +2899,7 @@ function csMarkAct(a) {
   try { navigator.clipboard.writeText(txt).then(() => csToast('คัดลอกแล้ว', 'ok'), () => csToast('คัดลอกไม่ได้')); } catch { csToast('คัดลอกไม่ได้'); }
  } else if (a === 'mkcard') csQuoteCard(c.t, c.who, c.m);
  else if (a === 'mkedit') csEditOpen(c.m);
+ else if (a === 'mkread') csTtsStart(c.el);
 }
 /** ตัดบรรทัดบนแคนวาส: ภาษาไทยไม่มีเว้นวรรค ตัดตามคำ (Intl.Segmenter) หรือตามตัวอักษรไม่แยกสระ/วรรณยุกต์ */
 function csWrapCanvas(g, text, maxW) {
@@ -3117,10 +3131,12 @@ function csTtsNovelEls() {
  return [...csNovel.el.querySelectorAll('.cs-page .cs-np, .cs-page .cs-nscene')].filter(e => n || e.querySelector('.cs-nwho') || /[“"「『]/.test(e.textContent));
 }
 function csTtsHost() { return (csReader && csReader.el) || (csNovel && csNovel.el) || null; }
-function csTtsStart() {
+function csTtsStart(fromEl) {
  if (!csTtsOk() && csTtsEngine() === 'device') { csToast('เบราว์เซอร์นี้อ่านออกเสียงไม่ได้'); return false; }
  csTtsStop();
  csTtsUnlock();
+ const at = csTtsIdxOf(fromEl);
+ if (at) { csStopAuto(); csTts = { kind: at.kind, idx: at.idx, tok: 0 }; csTtsBar(); csTtsNext(); csTtsBtnSync(); return true; }
  if (csReader) {
   csStopAuto();
   const p = csReader.player;
@@ -3137,6 +3153,7 @@ function csTtsStart() {
  } else return false;
  csTtsBar();
  csTtsNext();
+ csTtsBtnSync();
  return true;
 }
 function csTtsScroll(el, sc) {
@@ -3183,6 +3200,7 @@ function csTtsNext() {
 function csTtsStop(finished) {
  const was = !!csTts;
  csTts = null;
+ csTtsBtnSync();
  csTtsWordClear();
  try { if (was && csTtsOk()) window.speechSynthesis.cancel(); } catch {}
  csTtsAudioStop();
@@ -3228,8 +3246,8 @@ function csTtsClick(e, b) {
  if (a === 'ttsstop') { e.stopPropagation(); csTtsStop(); return true; }
  if (a === 'ttspause') { e.stopPropagation(); csTtsPause(); return true; }
  if (a === 'ttsnext' || a === 'ttsprev') { e.stopPropagation(); csTtsSkip(a === 'ttsnext' ? 1 : -1); return true; }
- // แตะหน้าอ่านระหว่างอ่าน = ข้ามไปบรรทัดถัดไป
- if (a === 'tap' || a === 'ntap') { if (e.target.closest && e.target.closest('a,button')) return false; e.stopPropagation(); csTtsSkip(1); return true; }
+ // แตะบรรทัดไหนระหว่างอ่าน = อ่านบรรทัดนั้น · แตะที่ว่าง = ข้ามไปบรรทัดถัดไป
+ if (a === 'tap' || a === 'ntap') { if (e.target.closest && e.target.closest('a,button')) return false; e.stopPropagation(); const line = e.target.closest && e.target.closest(CS_MARK_SEL); if (line && csTtsIdxOf(line)) csTtsStart(line); else csTtsSkip(1); return true; }
  return false;
 }
 // ══ ★ 1.28 ปัดซ้ายขวาเปลี่ยนบท (เปิดในตั้งค่า) ══
@@ -4023,7 +4041,7 @@ function csTtsMark(map, pos, len) {
  let a = pos, b = pos + (len || 0);
  if (!len) { const wd = csTtsWords(map).find(x => x[0] <= pos && pos < x[1]) || csTtsWords(map).find(x => x[0] >= pos); if (wd) { a = wd[0]; b = wd[1]; } else b = pos + 2; }
  map.pos = a;
- try { if (window.CSS && CSS.highlights && typeof Highlight === 'function') { const r = csTtsRange(map, a, b); if (r) CSS.highlights.set('cs-tts', new Highlight(r)); } } catch {}
+ if (csCfg().ttsWord) try { if (window.CSS && CSS.highlights && typeof Highlight === 'function') { const r = csTtsRange(map, a, b); if (r) CSS.highlights.set('cs-tts', new Highlight(r)); } } catch {}
  map.sfx.forEach(x => {
   if (x.done || x.at > b) return;
   x.done = true;
@@ -4265,7 +4283,8 @@ const CS_GVOICES = [
 ].map(([id, g, d]) => ({ id, g, d }));
 let csTtsEl = null, csTtsLoop = 0, csTtsFail = '';
 const csTtsCache = new Map();
-function csTtsEngine() { const e = csCfg().ttsEngine; return e === 'gemini' || e === 'device' ? (e === 'gemini' && csTtsFail === 'gemini' ? 'google' : e) : (csTtsFail === 'google' ? 'device' : 'google'); }
+function csTtsEngine() { const e = csCfg().ttsEngine; if (e === 'gemini') return csTtsFail === 'gemini' ? (csTtsFail2 ? 'device' : 'google') : 'gemini'; if (e === 'google') return csTtsFail === 'google' ? 'device' : 'google'; return 'device'; }
+let csTtsFail2 = false;
 /** เสียง Gemini ของแต่ละคน: ตั้งเอง > ตามเพศ ไม่ซ้ำกันตามชื่อ · ผู้บรรยายใช้เสียงที่ตั้งไว้ */
 function csGVoiceFor(who) {
  const s = csCfg();
@@ -4317,7 +4336,7 @@ function csSpeakAudio(text, who, map, done) {
  const fallback = e => {
   if (!alive()) return;
   const was = e && e.eng || eng;
-  csTtsFail = was;
+  if (csTtsFail === 'gemini' && was === 'google') csTtsFail2 = true; else csTtsFail = was;
   csToast(was === 'gemini' ? `Gemini ใช้ไม่ได้${e && e.status === 429 ? ' (โควตาเต็ม)' : ''} · ใช้ Google แทน` : 'เสียง Google ใช้ไม่ได้ · ใช้เสียงเครื่องแทน', 'err');
   if (map) csSpeakMap(map, who, done); else csSpeak(text, who, done);
  };
@@ -4356,6 +4375,35 @@ function csTtsPrefetch(t) {
    if (el) csTtsFetch(csTtsTextMap(el).full, ((el.querySelector('.cs-nwho') || {}).textContent || '').trim()).catch(() => {});
   }
  } catch {}
+}
+// ══ ★ 1.38 ปุ่มลัดอ่านออกเสียง · อ่านคำตอบใหม่เอง · เริ่มอ่านจากบรรทัดที่แตะ ══
+function csTtsBtnHTML() { return `<button class="cs-ttsbtn${csTts ? ' on' : ''}" data-cs="tts" title="อ่านออกเสียง" aria-label="อ่านออกเสียง"><i class="fa-solid ${csTts ? 'fa-stop' : 'fa-volume-high'}"></i></button>`; }
+function csTtsBtnSync() { document.querySelectorAll('.cs-ttsbtn').forEach(b => { b.classList.toggle('on', !!csTts); const i = b.querySelector('i'); if (i) i.className = 'fa-solid ' + (csTts ? 'fa-stop' : 'fa-volume-high'); }); }
+/** บรรทัดนี้อยู่ลำดับที่เท่าไรของการอ่าน */
+function csTtsIdxOf(el) {
+ if (!el || !el.closest) return null;
+ if (csReader && csReader.el.contains(el)) { const box = el.closest('.cs-item[data-i]'); return box ? { kind: 'chat', idx: +box.dataset.i } : null; }
+ if (csNovel && csNovel.el.contains(el)) { const line = el.closest('.cs-np, .cs-nscene'); const k = line ? csTtsNovelEls().indexOf(line) : -1; return k >= 0 ? { kind: 'novel', idx: k } : null; }
+ return null;
+}
+/** คำตอบใหม่มาถึง: อ่านให้ฟังเองตั้งแต่บรรทัดแรกของคำตอบนั้น */
+function csTtsAutoRead(id) {
+ if (!csCfg().ttsAuto || csTts) return;
+ setTimeout(() => {
+  if (csTts) return;
+  if (csReader) {
+   const p = csReader.player, idx = p.items.findIndex(it => it._m === id);
+   if (idx < 0) return;
+   csTtsUnlock(); csStopAuto();
+   csTts = { kind: 'chat', idx, tok: 0 };
+  } else if (csNovel) {
+   const els = csTtsNovelEls(), idx = els.findIndex(e => { const c = e.closest('.cs-chapter'); return c && +c.dataset.mes === id; });
+   if (idx < 0) return;
+   csTtsUnlock();
+   csTts = { kind: 'novel', idx, tok: 0 };
+  } else return;
+  csTtsBar(); csTtsNext(); csTtsBtnSync();
+ }, 350);
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {
@@ -5157,10 +5205,10 @@ function csOnCharRendered(mesId) {
  if (fresh && s.cmtOn && s.cmtAuto && !csCmtInlineOn() && csCmtShouldAuto(id, want)) csCmtAutoQueue(id);
  if (inl) { csCmtAskNow = ''; csApplyPrompt(); }
  if (s.mode === 'inline') { csInlineRender(id, fresh); return; }
- if (csNovel) { csNovelRefresh(fresh && id === csLastCharMesId()); return; }
+ if (csNovel) { csNovelRefresh(fresh && id === csLastCharMesId()); if (fresh) csTtsAutoRead(id); return; }
  if (!fresh || id !== csLastCharMesId()) return;
  if (s.style === 'novel') { if (s.autoOpen) csOpenNovel(id); return; }
- if (csReader) { csReaderPrune(id); csReader.player.append(csItemsForMessage(id), true); const t = csReader.el.querySelector('.cs-title b'); const m = csCtx().chat[id]; if (t && m) t.textContent = m.name; return; }
+ if (csReader) { csReaderPrune(id); csReader.player.append(csItemsForMessage(id), true); csTtsAutoRead(id); const t = csReader.el.querySelector('.cs-title b'); const m = csCtx().chat[id]; if (t && m) t.textContent = m.name; return; }
  if (s.autoOpen) csOpenMessage(id);
 }
 function csOnUserRendered(mesId) {
