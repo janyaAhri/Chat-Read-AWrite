@@ -1049,6 +1049,61 @@ const REPLY = `<think>วางแผน</think>
       ok(!R().querySelector('.cs-nav .cs-prof') && R().querySelector('.cs-nav .cs-navtabs'), 'title opens contents again, not the profile');
       G.ev('csNavClose(); csCloseReader(true)');
       G.ev("(() => { const c = csCast(true); delete c['อาเรีย'].aliases; delete c['อาเรีย'].g; csSave(); })()");
+      // ★ 1.27 อ่านออกเสียง (เสียงปลอม)
+      {
+        const spoken = []; let hold = false;
+        G.w.SpeechSynthesisUtterance = function (t) { this.text = t; };
+        G.w.speechSynthesis = { speak(u) { spoken.push(u); if (!hold) setTimeout(() => u.onend && u.onend(), 5); }, cancel() {}, getVoices() { return [{ name: 'Kanya', lang: 'th-TH' }, { name: 'Niwat', lang: 'th-TH' }, { name: 'Alex', lang: 'en-US' }]; } };
+        G.ev("csCfg().ttsNarr = true; csCfg().ttsRate = 1; csCfg().readPos = {}");
+        G.ev('csOpenMessage(' + rid + ')');
+        ok(R().querySelector('.cs-menu [data-cs="tts"]'), 'read-aloud in the menu');
+        const before = G.ev('csReader.player.i');
+        R().querySelector('.cs-menu [data-cs="tts"]').click();
+        ok(R().querySelector('.cs-ttsbar') && spoken.length >= 1, 'start reading: small player bar + speaking');
+        await sleep(400);
+        ok(!G.ev('!!csTts') && G.ev('csReader.player.i') === G.ev('csReader.player.items.length') && spoken.length >= 3, 'reads line by line and reveals bubbles as it goes', [spoken.length, before]);
+        ok(!R().querySelector('.cs-ttsbar'), 'bar disappears when done');
+        const sayU = spoken.find(u => /ร่มอยู่ไหนนะ/.test(u.text)), narrU = spoken.find(u => /ฝนตกหนัก/.test(u.text));
+        ok(sayU && narrU && sayU.voice && narrU.voice && sayU.voice.lang === 'th-TH' && sayU.pitch !== 1 && narrU.pitch === 1, 'character voice/pitch differ from narrator', [sayU && sayU.pitch, narrU && narrU.pitch]);
+        // พัก / ข้าม / หยุด
+        hold = true; spoken.length = 0;
+        G.ev('csReader.player.skipTo(0); csCloseReader(true)'); G.ev('csOpenMessage(' + rid + ')');
+        R().querySelector('.cs-menu [data-cs="tts"]').click();
+        const n0 = spoken.length;
+        R().querySelector('[data-cs="ttsnext"]').click();
+        ok(spoken.length === n0 + 1 && spoken[spoken.length - 1].text !== spoken[n0 - 1].text, 'skip to next line');
+        R().querySelector('[data-cs="ttspause"]').click();
+        ok(G.ev('csTts.paused') && /พักไว้/.test(R().querySelector('.cs-ttsbar').textContent), 'pause');
+        R().querySelector('[data-cs="ttspause"]').click();
+        ok(!G.ev('csTts.paused') && spoken.length === n0 + 2, 'resume re-reads the current line');
+        R().querySelector('.cs-body').click();
+        ok(spoken.length === n0 + 3, 'tapping while reading skips ahead');
+        R().querySelector('[data-cs="ttsstop"]').click();
+        ok(!G.ev('!!csTts') && !R().querySelector('.cs-ttsbar') && !R().querySelector('.cs-speaking'), 'stop');
+        G.ev("csCfg().ttsNarr = false"); spoken.length = 0; hold = false;
+        G.ev('csCloseReader(true)'); G.ev('csOpenMessage(' + rid + ')');
+        R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(300);
+        ok(spoken.length >= 1 && !spoken.some(u => /ฝนตกหนัก/.test(u.text)), 'narration off = dialogue only');
+        G.ev("csCfg().ttsNarr = true; csCloseReader(true)");
+        // นิยาย
+        spoken.length = 0; hold = true;
+        G.ev("csCfg().style = 'novel'; csOpenNovel(undefined, true)"); await sleep(40);
+        G.d.querySelector('#cs-novel [data-cs="naa"]').click();
+        G.d.querySelector('#cs-novel [data-cs="tts"]').click();
+        ok(G.d.querySelector('#cs-novel .cs-ttsbar') && G.d.querySelector('#cs-novel .cs-speaking') && spoken.length === 1, 'novel: reads paragraphs with the same bar');
+        G.ev('csCloseNovel(true)');
+        ok(!G.ev('!!csTts'), 'closing the reader stops reading');
+        G.ev("csCfg().style = 'chat'");
+        // การ์ดตัวละคร: เลือกเสียง
+        G.ev('csOpenMessage(' + rid + ')'); G.ev('csReader.player.all()');
+        [...R().querySelectorAll('.cs-name[data-cs="prof"]')].find(x => x.dataset.who === 'อาเรีย').click();
+        const vs = R().querySelector('.cs-prof [data-pf="voice"]');
+        ok(vs && vs.querySelectorAll('option').length === 3, 'profile: voice picker lists Thai voices');
+        vs.value = 'Niwat'; vs.dispatchEvent(new G.w.Event('change', { bubbles: true }));
+        ok(G.ev("csVoiceFor('อาเรีย').name") === 'Niwat' && spoken[spoken.length - 1].voice.name === 'Niwat', 'per-character voice saved and previewed');
+        G.ev("csNavClose(); csCloseReader(true); delete csCast(true)['อาเรีย'].voice");
+        delete G.w.speechSynthesis;
+      }
       ok(G.ev("csWrapCanvas({ measureText: t => ({ width: [...t].length * 10 }) }, 'สวัสดีครับวันนี้อากาศดีมาก', 60).every(l => [...l].length <= 6 && !/^[\\u0E31\\u0E34-\\u0E3A\\u0E47-\\u0E4E]/.test(l))"), 'Thai wrap never starts a line with a vowel/tone mark');
     }
     // ★ 1.16 ปุ่มลัดข้างจอ
