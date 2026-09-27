@@ -1168,6 +1168,29 @@ const REPLY = `<think>วางแผน</think>
       G.ev("csNavClose(); csAmbSet('off'); csCloseReader(true)");
       ok(!G.ev('csAmb') && G.ev('csCfg().ambient') === 'off', 'turn off');
     }
+    // ★ 1.30 สถิติการอ่าน
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      G.ev("csCfg().stats = {}; csCfg().style = 'chat'; csCloseReader(true); csOpenMessage(G_RID)".replace('G_RID', G.chat.length - 1));
+      ok(G.ev('csStatTick(15)') === true && G.ev('csStats().chats[csChatKey()].sec') === 15, 'reading time counts while the reader is open');
+      G.ev('csStatLast = Date.now() - 120000');
+      ok(G.ev('csStatTick(15)') === false, 'idle for 90s+ = not counted');
+      R().querySelector('.cs-body').dispatchEvent(new G.w.Event('pointerdown', { bubbles: true }));
+      ok(G.ev('csStatTick(15)') === true && G.ev('csStats().chats[csChatKey()].sec') === 30, 'activity resumes counting');
+      R().querySelector('.cs-title').click();
+      R().querySelector('[data-cs="navtab"][data-t="stats"]').click();
+      const st = () => R().querySelector('.cs-nav .cs-stats');
+      const bots = G.chat.filter(m => m && !m.is_user && !m.is_system).length;
+      ok(st() && st().querySelector('.cs-profstats b').textContent === String(bots), 'stats tab: chapter count', [st() && st().querySelector('.cs-profstats b').textContent, bots]);
+      ok(/อาเรีย/.test(st().querySelector('.cs-statbars').textContent), 'stats: who talks most');
+      ok(st().querySelectorAll('.cs-statweek > div').length === 7 && /วันนี้/.test(st().querySelector('.cs-statweek').textContent), 'stats: last 7 days');
+      ok(/ไม่ถึงนาที|1 นาที/.test(st().textContent), 'stats: time read on this story');
+      const dk = G.ev('csDayKey()'), y = new Date(); y.setDate(y.getDate() - 1);
+      G.ev(`csStats().days = { ${JSON.stringify(dk)}: 300, ${JSON.stringify(G.ev('csDayKey(new Date(Date.now() - 86400000))'))}: 120 }`);
+      ok(G.ev('csStatStreak(csStats().days)') === 2, 'streak counts consecutive days');
+      ok(G.ev("csFmtDur(3900)") === '1 ชม. 5 นาที' && G.ev("csFmtDur(20)") === 'ไม่ถึงนาที', 'duration format');
+      G.ev("csNavClose(); csCloseReader(true); csCfg().stats = {}");
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };

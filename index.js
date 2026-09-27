@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.29.0';
+const CS_VERSION = '1.30.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1123,7 +1123,7 @@ function csReaderHTML(title) {
  return `
   <div class="cs-top">
    <button class="cs-btn" data-cs="close" title="กลับ"><i class="fa-solid fa-chevron-left"></i></button>
-   <div class="cs-title" data-cs="nav" title="สารบัญ · ค้นหา · ที่คั่น"><b>${csEsc(title || csCharName() || 'แชทนิยาย')}</b><small class="cs-sub"></small></div>
+   <div class="cs-title" data-cs="nav" title="สารบัญ · ค้นหา · ที่คั่น · สถิติ"><b>${csEsc(title || csCharName() || 'แชทนิยาย')}</b><small class="cs-sub"></small></div>
    <button class="cs-btn" data-cs="toNovel" title="สลับเป็นแบบนิยาย"><i class="fa-solid fa-book"></i></button>
    <button class="cs-btn" data-cs="auto" title="เล่นอัตโนมัติ"><i class="fa-solid fa-play"></i></button>
    <button class="cs-btn" data-cs="more" title="เพิ่มเติม"><i class="fa-solid fa-ellipsis"></i></button>
@@ -1166,6 +1166,7 @@ function csOpenReader(items, title, pre) {
  csMarksBind(el);
  csSwipeChBind(el);
  csAmbKick();
+ csStatBind(el);
  el.querySelector('.cs-body').addEventListener('scroll', csReaderOnScroll, { passive: true });
  el.addEventListener('pointerdown', () => { if (csCfg().sound !== 'none') csAc(); }, { passive: true, once: true });
  csBindInput(el);
@@ -1256,6 +1257,7 @@ function csReaderClick(e) {
 function csCloseReader(instant) {
  if (!csReader) return;
  csTtsStop();
+ csStatFlush();
  csAmbStopSoon();
  if (!instant && csIsPinned()) csAlwaysPaused = true;
  setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
@@ -2192,6 +2194,7 @@ function csOpenNovel(mesId, all, resume) {
  csMarksBind(el);
  csSwipeChBind(el);
  csAmbKick();
+ csStatBind(el);
  const body = el.querySelector('.cs-nbody');
  body.addEventListener('scroll', csNovelProgress, { passive: true });
  body.addEventListener('scroll', csNovelPosSave, { passive: true });
@@ -2348,6 +2351,7 @@ function csAaAct(b) {
 function csCloseNovel(instant) {
  if (!csNovel) return;
  csTtsStop();
+ csStatFlush();
  csAmbStopSoon();
  if (!instant && csIsPinned()) csAlwaysPaused = true;
  setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
@@ -2616,11 +2620,13 @@ function csNavHTML() {
  if (csNavState.tab === 'prof') return csProfHTML();
  if (csNavState.tab === 'amb') return csAmbHTML();
  const w = csChWord();
- const tabs = `<div class="cs-navtabs"><button data-cs="navtab" data-t="toc" class="${csNavState.tab === 'toc' ? 'on' : ''}">สารบัญ</button><button data-cs="navtab" data-t="find" class="${csNavState.tab === 'find' ? 'on' : ''}">ค้นหา</button><button data-cs="navtab" data-t="marks" class="${csNavState.tab === 'marks' ? 'on' : ''}">ที่คั่น</button></div>`;
+ const tabs = `<div class="cs-navtabs"><button data-cs="navtab" data-t="toc" class="${csNavState.tab === 'toc' ? 'on' : ''}">สารบัญ</button><button data-cs="navtab" data-t="find" class="${csNavState.tab === 'find' ? 'on' : ''}">ค้นหา</button><button data-cs="navtab" data-t="marks" class="${csNavState.tab === 'marks' ? 'on' : ''}">ที่คั่น</button><button data-cs="navtab" data-t="stats" class="${csNavState.tab === 'stats' ? 'on' : ''}">สถิติ</button></div>`;
  let body;
  if (csNavState.tab === 'toc') {
   const chs = csNavChapters(), cur = csNavCurrentId();
   body = chs.length ? `<div class="cs-navlist">${chs.map(c => `<button class="cs-navrow${c.id === cur ? ' cur' : ''}" data-cs="navgo" data-mes="${c.id}"><span class="cs-navno">${String(c.n).padStart(2, '0')}</span><span class="cs-navtx"><b>${csEsc(c.title || `${w}ที่ ${c.n}`)}</b><small>${csEsc(c.preview.slice(0, 70))}</small></span></button>`).join('')}</div>` : `<div class="cs-navempty">ยังไม่มี${w}</div>`;
+ } else if (csNavState.tab === 'stats') {
+  body = csStatsHTML();
  } else if (csNavState.tab === 'marks') {
   const list = csMarks(false).slice().sort((x, y) => (x.m - y.m) || (x.at - y.at));
   body = list.length ? `<div class="cs-navlist">${list.map(x => `<div class="cs-navrow cs-mkrow" role="button" data-cs="navgo" data-mes="${Math.max(0, x.m)}" data-q="${csEsc(x.t.slice(0, 24))}"><span class="cs-navno"><i class="fa-solid ${x.k === 'bm' ? 'fa-bookmark' : 'fa-highlighter'}"></i></span><span class="cs-navtx">${x.who ? `<b>${csEsc(x.who)}</b>` : ''}<small>${csEsc(x.t.slice(0, 160))}</small></span><button class="cs-mkdel" data-cs="navmkdel" data-at="${x.at}" aria-label="ลบ"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}</div>`
@@ -3376,6 +3382,86 @@ function csAmbHTML() {
   <div class="cs-ambgrid">${btn('off', 'fa-volume-xmark', 'ปิด')}${btn('auto', 'fa-wand-magic-sparkles', 'อัตโนมัติ', s.ambient === 'auto' && cur ? `<small>${csEsc((CS_AMB.find(a => a.id === cur) || {}).name || '')}</small>` : '')}${CS_AMB.map(a => btn(a.id, a.icon, a.name)).join('')}</div>
   <div class="cs-ambvol"><i class="fa-solid fa-volume-low"></i><input type="range" class="cs-range" data-amb="vol" min="0" max="1" step=".05" value="${+s.ambVol}"><i class="fa-solid fa-volume-high"></i></div>
   <div class="cs-ambnote">อัตโนมัติ = ฟังจากคำในบทที่อ่านอยู่ เช่น ฝน ทะเล คาเฟ่ กลางคืน กองไฟ · เสียงสร้างสดในเครื่อง ไม่ใช้เน็ตหรือโทเคน</div>
+ </div>`;
+}
+// ══ ★ 1.30 สถิติการอ่าน ══
+let csStatLast = 0, csStatDirty = 0, csStatIv = 0, csStatCache = null;
+function csStats() {
+ const s = csCfg();
+ if (!s.stats || typeof s.stats !== 'object') s.stats = {};
+ if (!s.stats.days || typeof s.stats.days !== 'object') s.stats.days = {};
+ if (!s.stats.chats || typeof s.stats.chats !== 'object') s.stats.chats = {};
+ return s.stats;
+}
+function csDayKey(d) { d = d || new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+/** นับเวลาอ่านเฉพาะตอนหน้าอ่านเปิด มองเห็น และมีการแตะ/เลื่อน/ฟังเสียงอ่านใน 90 วินาทีที่ผ่านมา */
+function csStatTick(sec) {
+ if (!csReader && !csNovel) return false;
+ try { if (document.visibilityState === 'hidden') return false; } catch {}
+ if (!csTts && Date.now() - csStatLast > 90000) return false;
+ const S = csStats(), day = csDayKey(), k = csChatKey();
+ S.days[day] = (S.days[day] || 0) + sec;
+ const c = S.chats[k] || (S.chats[k] = { sec: 0, first: day });
+ c.sec += sec; c.last = day;
+ const keys = Object.keys(S.days).sort();
+ while (keys.length > 120) delete S.days[keys.shift()];
+ if (++csStatDirty >= 4) csStatFlush();
+ return true;
+}
+function csStatFlush() { if (csStatDirty) { csStatDirty = 0; csSave(); } }
+function csStatBind(host) {
+ csStatLast = Date.now();
+ const ping = () => { csStatLast = Date.now(); };
+ ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(n => host.addEventListener(n, ping, { passive: true }));
+ host.querySelectorAll('.cs-body, .cs-nbody').forEach(b => b.addEventListener('scroll', ping, { passive: true }));
+ if (!csStatIv) csStatIv = setInterval(() => csStatTick(15), 15000);
+}
+function csFmtDur(sec) {
+ const m = Math.round((sec || 0) / 60);
+ if (m < 1) return (sec || 0) > 0 ? 'ไม่ถึงนาที' : '0 นาที';
+ return m < 60 ? `${m} นาที` : `${Math.floor(m / 60)} ชม.${m % 60 ? ` ${m % 60} นาที` : ''}`;
+}
+/** ตัวเลขของเรื่องนี้ (เก็บไว้จนกว่าแชทจะยาวขึ้น) */
+function csStatStory() {
+ const chat = csCtx().chat || [], key = csChatKey() + ':' + chat.length + ':' + (chat.length ? String(chat[chat.length - 1].mes || '').length : 0);
+ if (csStatCache && csStatCache.key === key) return csStatCache;
+ let chapters = 0, chars = 0, userMsgs = 0;
+ const who = new Map();
+ chat.forEach(m => {
+  if (!m || m.is_system) return;
+  if (m.is_user) userMsgs++; else chapters++;
+  chars += csCleanText(csBlocks(m.mes || '').text).replace(/\s+/g, '').length;
+  csParseMessage(m).forEach(it => { if ((it.k === 'say' || it.k === 'think') && it.who) who.set(it.who, (who.get(it.who) || 0) + 1); });
+ });
+ const speakers = [...who].sort((a, b) => b[1] - a[1]).slice(0, 6);
+ return (csStatCache = { key, chapters, chars, userMsgs, speakers });
+}
+function csStatStreak(days) {
+ let n = 0;
+ const d = new Date();
+ if (!((days[csDayKey(d)] || 0) >= 60)) d.setDate(d.getDate() - 1); // วันนี้ยังไม่ได้อ่าน ไม่ตัดสตรีค
+ while ((days[csDayKey(d)] || 0) >= 60) { n++; d.setDate(d.getDate() - 1); }
+ return n;
+}
+function csStatsHTML() {
+ const S = csStats(), st = csStatStory(), mine = S.chats[csChatKey()] || { sec: 0 };
+ const w = csChWord(), num = n => Number(n || 0).toLocaleString('th-TH');
+ const marks = csMarks(false), hl = marks.filter(x => x.k !== 'bm').length, bm = marks.length - hl;
+ const est = Math.max(1, Math.ceil(st.chars / 900)) * 60; // ภาษาไทยอ่านราว 900 ตัวอักษรต่อนาที
+ const week = [];
+ const dn = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'];
+ for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); week.push({ l: i ? dn[d.getDay()] : 'วันนี้', sec: S.days[csDayKey(d)] || 0 }); }
+ const wmax = Math.max(60, ...week.map(x => x.sec));
+ const smax = st.speakers.length ? st.speakers[0][1] : 1;
+ const streak = csStatStreak(S.days);
+ const total = Object.values(S.days).reduce((a, b) => a + b, 0);
+ return `<div class="cs-stats">
+  <div class="cs-profstats"><span><b>${num(st.chapters)}</b><small>${w}</small></span><span><b>${num(st.chars)}</b><small>ตัวอักษร</small></span><span><b>${csFmtDur(est).replace(' นาที', '<i>น.</i>').replace('ชม.', '<i>ชม.</i>')}</b><small>ถ้าอ่านรวดเดียว</small></span></div>
+  <div class="cs-statrow"><span>เวลาที่อ่านเรื่องนี้</span><b>${csFmtDur(mine.sec)}</b></div>
+  ${hl || bm ? `<div class="cs-statrow"><span>ไฮไลต์ · ที่คั่น</span><b>${num(hl)} · ${num(bm)}</b></div>` : ''}
+  ${st.speakers.length ? `<div class="cs-stath">ใครพูดเยอะสุด</div><div class="cs-statbars">${st.speakers.map(([n, c]) => `<div class="cs-statbar"><span>${csEsc(n)}</span><i><em style="width:${Math.max(4, Math.round(c / smax * 100))}%"></em></i><b>${num(c)}</b></div>`).join('')}</div>` : ''}
+  <div class="cs-stath">7 วันล่าสุด <small>${streak ? `อ่านติดกัน ${streak} วัน` : ''}${total ? `${streak ? ' · ' : ''}รวมทุกเรื่อง ${csFmtDur(total)}` : ''}</small></div>
+  <div class="cs-statweek">${week.map(x => `<div title="${csFmtDur(x.sec)}"><i><em style="height:${x.sec ? Math.max(6, Math.round(x.sec / wmax * 100)) : 0}%"></em></i><small>${x.l}</small></div>`).join('')}</div>
  </div>`;
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
