@@ -1106,6 +1106,40 @@ const REPLY = `<think>วางแผน</think>
       }
       ok(G.ev("csWrapCanvas({ measureText: t => ({ width: [...t].length * 10 }) }, 'สวัสดีครับวันนี้อากาศดีมาก', 60).every(l => [...l].length <= 6 && !/^[\\u0E31\\u0E34-\\u0E3A\\u0E47-\\u0E4E]/.test(l))"), 'Thai wrap never starts a line with a vowel/tone mark');
     }
+    // ★ 1.28 ปัดเปลี่ยนบท
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      const sw = (el, x0, x1, y = 300) => { const mk = (type, x) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { touches: type === 'touchend' ? [] : [{ clientX: x, clientY: y }], changedTouches: [{ clientX: x, clientY: y }] }); el.dispatchEvent(e); }; mk('touchstart', x0); mk('touchend', x1); };
+      G.w.innerWidth = 400;
+      ok(G.ev('csCfg().swipeCh') === false, 'chapter swipe is off by default');
+      G.ev("csCfg().style = 'chat'; csCfg().readPos = {}; csCloseReader(true); csOpenReadAll()");
+      const i0 = G.ev('csReader.player.i');
+      sw(R().querySelector('.cs-body'), 300, 120);
+      ok(G.ev('csReader.player.i') === i0 && !R().querySelector('.cs-chpill'), 'off: swiping does nothing');
+      G.ev('csCfg().swipeCh = true');
+      sw(R().querySelector('.cs-body'), 300, 120);
+      const i1 = G.ev('csReader.player.i');
+      const h1 = G.ev('csReader.player.items[csReader.player.i - 1].hd');
+      ok(i1 > i0 && h1 >= 1 && R().querySelector('.cs-chpill').textContent.includes('ที่ ' + h1), 'swipe left: next chapter revealed + small label', [i0, i1]);
+      sw(R().querySelector('.cs-body'), 300, 120);
+      ok(G.ev('csReader.player.i') > i1 && R().querySelector('.cs-chpill').textContent.includes('ที่ ' + (h1 + 1)), 'swipe left again: the chapter after');
+      sw(R().querySelector('.cs-body'), 120, 300);
+      ok(R().querySelector('.cs-chpill') && G.ev('csReader.player.i') > i1, 'swipe right: goes back without hiding anything');
+      const i2 = G.ev('csReader.player.i');
+      R().querySelector('.cs-chpill')?.remove();
+      sw(R().querySelector('.cs-body'), 300, 270);
+      ok(G.ev('csReader.player.i') === i2 && !R().querySelector('.cs-chpill'), 'short swipe ignored');
+      const e = new G.w.Event('touchstart', { bubbles: true }); Object.assign(e, { touches: [{ clientX: 300, clientY: 300 }], changedTouches: [{ clientX: 300, clientY: 300 }] }); R().querySelector('.cs-body').dispatchEvent(e);
+      const e2 = new G.w.Event('touchend', { bubbles: true }); Object.assign(e2, { touches: [], changedTouches: [{ clientX: 150, clientY: 420 }] }); R().querySelector('.cs-body').dispatchEvent(e2);
+      ok(G.ev('csReader.player.i') === i2 && !R().querySelector('.cs-chpill'), 'diagonal swipe ignored');
+      sw(R().querySelector('.cs-body'), 10, 300);
+      ok(!R().querySelector('.cs-chpill'), 'edge swipe ignored (browser back gesture)');
+      G.ev('csCloseReader(true)');
+      G.ev("csCfg().style = 'novel'; csOpenNovel(undefined, true)");
+      sw(G.d.querySelector('#cs-novel .cs-nbody'), 300, 120);
+      ok(G.d.querySelector('#cs-novel .cs-chpill') && /บทที่|ตอนที่/.test(G.d.querySelector('#cs-novel .cs-chpill').textContent), 'novel: swipe changes chapter too');
+      G.ev("csCloseNovel(true); csCfg().style = 'chat'; csCfg().swipeCh = false");
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };

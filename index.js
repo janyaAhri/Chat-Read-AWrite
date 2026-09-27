@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.27.0';
+const CS_VERSION = '1.28.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -60,6 +60,7 @@ const CS_SOUNDS = [
 const CS_DEFAULTS = {
  enabled: true,
  ttsRate: 1, ttsNarr: true, ttsVoice: '', // ★ 1.27 อ่านออกเสียง
+ swipeCh: false, // ★ 1.28 ปัดซ้ายขวาเปลี่ยนบท (ปิดไว้ก่อน บางคนไม่ชอบ)
  mode: 'reader',        // reader | inline
  autoOpen: true,
  forceFormat: true,
@@ -1161,6 +1162,7 @@ function csOpenReader(items, title, pre) {
  if (pre && pre.length) player.preload(pre);
  el.addEventListener('click', csReaderClick);
  csMarksBind(el);
+ csSwipeChBind(el);
  el.querySelector('.cs-body').addEventListener('scroll', csReaderOnScroll, { passive: true });
  el.addEventListener('pointerdown', () => { if (csCfg().sound !== 'none') csAc(); }, { passive: true, once: true });
  csBindInput(el);
@@ -1707,6 +1709,7 @@ function csTabHTML(tab) {
   <div class="cs-card cs-tokcard"><div class="cs-srow"><div class="cs-slb"><span>คำสั่งรูปแบบกินโทเคนต่อเทิร์น</span><small>${s.enabled && s.forceFormat ? 'แทรกเข้าโรลหลักทุกครั้งที่บอทตอบ' : 'ปิดอยู่ ไม่ใช้โทเคน'}</small></div><div class="cs-sctl"><b data-tok="format">…</b></div></div></div>
   <div class="cs-card">${csToggle('enabled', 'เปิดใช้แชทนิยาย')}${csToggle('autoOpen', 'บอทตอบเสร็จแล้วเปิดหน้าอ่านเอง', 'โหมดหน้าอ่าน')}${csToggle('forceFormat', 'สั่งบอทเขียนตามแบบที่เลือก', 'แชทนิยาย: ชื่อ: คำพูด · นิยาย: ย่อหน้าต่อเนื่อง')}</div>
   <div class="cs-card">${csToggle('keepTopBar', 'เห็นแถบบนของ SillyTavern ตอนอ่าน', 'กดเมนู สลับแชท เปิดรายชื่อตัวละครได้โดยไม่ต้องปิดหน้าอ่าน')}${csToggle('alwaysOn', 'เปิดหน้าอ่านค้างเป็นหน้าแชท', 'ทุกแชท · ไปหน้าเลือกตัวละครหรือข้อมูลตัวละครจะหลบให้ กลับมาแชทก็อยู่เหมือนเดิม · ปุ่มข้างจอ = ซ่อน/แสดง')}</div>
+  <div class="cs-card">${csToggle('swipeCh', 'ปัดซ้ายขวาเพื่อเปลี่ยนบท', 'ปัดซ้าย = บทถัดไป · ปัดขวา = บทก่อนหน้า · ทั้งแชทนิยายและนิยาย')}</div>
   <div class="cs-card">${csToggle('edgeBtn', 'ปุ่มลัดชิดขอบจอ', 'แตะเปิดหน้าอ่าน · ลากขึ้นลงได้ · ลากไปอีกฝั่งเพื่อย้ายข้าง')}</div>
   <div class="cs-card">${csToggle('showInput', 'ช่องพิมพ์ในหน้าอ่าน')}${csToggle('enterSend', 'กด Enter เพื่อส่ง', 'Shift+Enter ขึ้นบรรทัดใหม่')}${csRange('history', 'แสดงข้อความก่อนหน้า', 0, 20, 1, ' ข้อความ')}</div>
   <div class="cs-card">${csRange('typingMs', 'จุดพิมพ์ก่อนฟองเด้ง', 0, 1200, 50, ' ms')}${csRange('autoSpeed', 'ความเร็วเล่นอัตโนมัติ', .5, 3, .25, 'x')}</div>
@@ -1846,6 +1849,7 @@ function csCloseSettings() {
 let csRefreshTimer = null;
 function csAfterChange(full) {
  csSave();
+ [csReader && csReader.el, csNovel && csNovel.el].forEach(h => h && h.classList.toggle('cs-swipech', !!csCfg().swipeCh));
  if (csReader) { csApplyVars(csReader.el); if (full) csRerenderReader(); }
  if (csNovel) { csApplyVars(csNovel.el); csApplyNovelVars(csNovel.el); if (full) csNovelRefresh(false); }
  csRenderPreview();
@@ -2181,6 +2185,7 @@ function csOpenNovel(mesId, all, resume) {
  csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  el.addEventListener('click', csNovelClick);
  csMarksBind(el);
+ csSwipeChBind(el);
  const body = el.querySelector('.cs-nbody');
  body.addEventListener('scroll', csNovelProgress, { passive: true });
  body.addEventListener('scroll', csNovelPosSave, { passive: true });
@@ -2296,13 +2301,7 @@ function csNovelClick(e) {
  if (a === 'aa') return csAaAct(b);
  if (a === 'send') return csGenerating ? csStopGeneration() : csSend();
  if (a === 'nmore') { const h = body.scrollHeight; body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(true); body.scrollTop += body.scrollHeight - h; return; }
- if (a === 'nprev' || a === 'nnext') {
-  const chs = [...body.querySelectorAll('.cs-chapter')];
-  const idx = chs.filter(c => c.offsetTop - body.scrollTop <= 20).length - 1;
-  const t = chs[Math.max(0, Math.min(chs.length - 1, idx + (a === 'nnext' ? 1 : (body.scrollTop - (chs[idx]?.offsetTop || 0) > 40 ? 0 : -1))))];
-  if (t) body.scrollTo ? body.scrollTo({ top: t.offsetTop - 12, behavior: 'smooth' }) : (body.scrollTop = t.offsetTop - 12);
-  return;
- }
+ if (a === 'nprev' || a === 'nnext') { csNovelStep(a === 'nnext' ? 1 : -1); return; }
  if (a === 'ntap') {
   if (window.getSelection && String(window.getSelection()).length) return;
   if (e.target.closest('a,button')) return;
@@ -3168,6 +3167,80 @@ function csTtsClick(e, b) {
  // แตะหน้าอ่านระหว่างอ่าน = ข้ามไปบรรทัดถัดไป
  if (a === 'tap' || a === 'ntap') { if (e.target.closest && e.target.closest('a,button')) return false; e.stopPropagation(); csTtsSkip(1); return true; }
  return false;
+}
+// ══ ★ 1.28 ปัดซ้ายขวาเปลี่ยนบท (เปิดในตั้งค่า) ══
+/** นิยาย: ไปบทถัดไป/ก่อนหน้า (อยู่กลางบทแล้วถอย = กลับต้นบทนี้ก่อน) · คืนเลขบทที่ไป */
+function csNovelStep(dir) {
+ if (!csNovel) return 0;
+ const body = csNovel.el.querySelector('.cs-nbody');
+ const chs = [...body.querySelectorAll('.cs-chapter')];
+ if (!chs.length) return 0;
+ const idx = Math.max(0, chs.filter(c => c.offsetTop - body.scrollTop <= 20).length - 1);
+ const t = chs[Math.max(0, Math.min(chs.length - 1, idx + (dir > 0 ? 1 : (body.scrollTop - (chs[idx]?.offsetTop || 0) > 40 ? 0 : -1))))];
+ if (!t) return 0;
+ body.scrollTo ? body.scrollTo({ top: t.offsetTop - 12, behavior: 'smooth' }) : (body.scrollTop = t.offsetTop - 12);
+ return +t.dataset.ch || 0;
+}
+/** แชทนิยาย: ถัดไป = เปิดถึงต้นบทถัดไปแล้วเลื่อนไปที่เส้นคั่นบท · ก่อนหน้า = กลับต้นบทนี้/บทก่อน */
+function csChatStep(dir) {
+ if (!csReader) return 0;
+ const p = csReader.player, body = csReader.el.querySelector('.cs-body');
+ csStopAuto();
+ const a = Math.max(0, csReaderAnchorIdx()); // ข้อความก่อนหน้าที่โหลดไว้ (ใต้ floor) ก็อยู่บนจอ ถอยไปได้
+ let j = -1;
+ if (dir > 0) {
+  for (let i = a + 1; i < p.items.length; i++) if (p.items[i].hd) { j = i; break; }
+  if (j < 0) { p.all(); csToast('อ่านถึงล่าสุดแล้ว'); return 0; }
+  if (j >= p.i) p.skipTo(j + 1);
+ } else {
+  let c = -1;
+  for (let i = Math.min(a, p.i - 1); i >= 0; i--) if (p.items[i] && p.items[i].hd) { c = i; break; }
+  const el = c >= 0 ? csReader.el.querySelector(`.cs-list > .cs-item[data-i="${c}"]`) : null;
+  const mid = el && body && body.getBoundingClientRect().top + 60 - el.getBoundingClientRect().top > 40;
+  if (c >= 0 && mid) j = c;
+  else for (let i = (c >= 0 ? c : a) - 1; i >= 0; i--) if (p.items[i] && p.items[i].hd) { j = i; break; }
+  if (j < 0) { if (body) body.scrollTop = 0; return 0; }
+ }
+ const el = csReader.el.querySelector(`.cs-list > .cs-item[data-i="${j}"]`);
+ if (el && body) body.scrollTop += el.getBoundingClientRect().top - body.getBoundingClientRect().top - 56;
+ csReaderSavePos(j);
+ return p.items[j].hd;
+}
+function csChPill(n) {
+ const host = csTtsHost();
+ if (!host || !n) return;
+ host.querySelector(':scope > .cs-chpill')?.remove();
+ const d = document.createElement('div');
+ d.className = 'cs-chpill';
+ d.textContent = `${csChWord()}ที่ ${n}`;
+ host.appendChild(d);
+ setTimeout(() => d.remove(), 1100);
+}
+function csSwipeChBind(host) {
+ let st = null;
+ host.classList.toggle('cs-swipech', !!csCfg().swipeCh); // ปัดแนวนอนเป็นของหน้าอ่าน ไม่ให้เบราว์เซอร์ถอยหน้า
+ const pt = e => (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
+ host.addEventListener('touchstart', e => {
+  st = null;
+  if (!csCfg().swipeCh || (e.touches && e.touches.length > 1)) return;
+  const t = pt(e);
+  const w = window.innerWidth || 400;
+  if (t.clientX < 22 || t.clientX > w - 22) return; // ขอบจอเป็นท่าย้อนกลับของเบราว์เซอร์
+  if (e.target.closest && e.target.closest('.cs-code, .cs-html, pre, input, textarea, select, .cs-nav, .cs-cmt-sheet, .cs-markpop, .cs-qcard, .cs-ttsbar, .cs-inputbar, .cs-sttray, .cs-aapanel, .cs-menu, .cs-top, .cs-ntop, .cs-swipe')) return;
+  st = { x: t.clientX, y: t.clientY, t: Date.now() };
+ }, { passive: true });
+ host.addEventListener('touchend', e => {
+  const s0 = st; st = null;
+  if (!s0 || !csCfg().swipeCh) return;
+  const t = pt(e), dx = t.clientX - s0.x, dy = t.clientY - s0.y;
+  if (Math.abs(dx) < 70 || Math.abs(dy) > 50 || Math.abs(dx) < Math.abs(dy) * 2 || Date.now() - s0.t > 700) return;
+  if (host.classList.contains('nav-open') || host.classList.contains('cmt-open') || host.querySelector('.cs-markpop, .cs-qcard, .cs-menu.open, .cs-aapanel.open')) return;
+  try { if (window.getSelection && String(window.getSelection()).length) return; } catch {}
+  const dir = dx < 0 ? 1 : -1;
+  const n = host.id === 'cs-novel' ? csNovelStep(dir) : csChatStep(dir);
+  csChPill(n);
+ }, { passive: true });
+ host.addEventListener('touchcancel', () => { st = null; }, { passive: true });
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {

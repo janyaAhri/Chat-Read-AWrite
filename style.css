@@ -661,3 +661,9 @@ body.cs-open #extensionsMenu,body.cs-open #options{z-index:10080 !important;}
 .cs-ttsbar button:active{background:color-mix(in srgb,var(--cs-ink) 10%,transparent) !important;}
 .cs-ttswho{min-width:56px;max-width:140px;padding:0 6px;font:500 13px/1 -apple-system,system-ui,sans-serif;color:var(--cs-ink2);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .cs-proftry{flex-shrink:0;width:30px;height:30px;display:flex !important;align-items:center;justify-content:center;margin:0 !important;padding:0 !important;border:0 !important;border-radius:50% !important;background:color-mix(in srgb,var(--cs-ink) 10%,transparent) !important;color:var(--cs-ink) !important;font-size:11px;cursor:pointer;}
+
+/* ★ 1.28 ป้ายบทตอนปัดเปลี่ยนบท */
+@keyframes csChPill{0%{opacity:0;transform:translate(-50%,-50%) scale(.92);}15%{opacity:1;transform:translate(-50%,-50%) scale(1);}75%{opacity:1;}100%{opacity:0;}}
+.cs-chpill{position:absolute;left:50%;top:50%;z-index:46;padding:10px 18px;border-radius:999px;background:var(--cs-bar);color:var(--cs-ink);font:600 15px/1 -apple-system,system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28),0 0 0 .5px color-mix(in srgb,var(--cs-ink) 18%,transparent);pointer-events:none;animation:csChPill 1.1s ease forwards;}
+#cs-reader.cs-swipech .cs-body,#cs-novel.cs-swipech .cs-nbody{touch-action:pan-y pinch-zoom;overscroll-behavior-x:none;}
+#cs-reader,#cs-novel{overscroll-behavior-x:none;}
