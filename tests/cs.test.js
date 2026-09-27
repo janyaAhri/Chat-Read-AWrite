@@ -58,6 +58,11 @@ const REPLY = `<think>วางแผน</think>
   ok(kinds === 'scene,narr,say:อาเรีย,say:อาเรีย,narr,say:อาเรีย,think:อาเรีย,say:แบรม,narr,say:มินา', 'parse kinds', kinds);
   ok(it[2].text === 'มาช้านะ' && it[4].text === 'ยื่นผ้าให้' && !/วางแผน|POCKET/.test(JSON.stringify(it)), 'quotes, action, think & sync stripped');
   ok(E.ev("csParse('Well, he said: nothing much')[0].k") === 'narr', 'sentence with colon stays narration');
+  {
+    const txt = 'ผู้จัดการทีมหญิงหันไปดูเพื่อน ก่อนจะหันมาทางพล\n"ส่วนแก วันนี้พอแค่นี้แหละพล กลับไปอาบน้ำพักผ่อนได้แล้ว"\nพลพยักหน้ารับคำของเอิร์ท';
+    const w = E.ev(`csParse(${JSON.stringify(txt)}, { owner: 'พล', known: csKnownNames(['พล', 'ผู้จัดการทีมหญิง']) }).filter(x => x.k === 'say').map(x => x.who).join()`);
+    ok(w === 'ผู้จัดการทีมหญิง', '"หันมาทางพล" = พล is not the speaker; name called in the quote is not the speaker', w);
+  }
   const u = E.ev(`csParse('ไปถึงแล้ว *วิ่งเข้าร้าน*', {isUser:true, owner:'มินา'})`);
   ok(u.length === 2 && u[0].k === 'say' && u[0].who === 'มินา' && u[1].k === 'narr', 'user message');
   // ── ค่าเริ่มต้นขาวดำ ──
@@ -320,7 +325,7 @@ const REPLY = `<think>วางแผน</think>
   ok(/MUST each comment 1-2 times[^]*- janyaahri:/.test(E.ev('csCmtReadersLine()')), 'janyaahri set to always → must comment');
   E.ev("delete csCmtChars()[0].when");
   ok(!E.d.body.innerHTML.includes('data-k="cmtJanya"'), 'no separate janyaahri switch');
-  E.ev("csCfg().cmtAuto = true; csCfg().cmtGate = 'always'; csGenerating = false");
+  E.ev("csCfg().cmtAuto = true; csCfg().cmtWith = 'separate'; csCfg().cmtGate = 'always'; csGenerating = false");
   E.chat.push({ name: 'อาเรีย', is_user: false, mes: 'ย่อหน้าใหม่ของบทต่อไป' }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1);
   E.fire('gs', 'normal', {}, false); E.fire('cmr', E.chat.length - 1);
   await sleep(1100);
@@ -344,7 +349,7 @@ const REPLY = `<think>วางแผน</think>
   E.ev('csCloseSettings()'); await sleep(260);
 
   // ── ด่านเรียกเอง (แบบทุกย่อหน้า) ──
-  E.ev("csCfg().style = 'novel'; csCfg().cmtOn = true; csCfg().cmtPick = 'all'; csCfg().cmtAuto = true; csCfg().cmtGate = 'keyword'; csCfg().cmtMinHits = 2; csCfg().cmtEvery = 0; csCfg().cmtRandom = 0; csGenerating = false; csApplyPrompt()");
+  E.ev("csCfg().style = 'novel'; csCfg().cmtOn = true; csCfg().cmtPick = 'all'; csCfg().cmtAuto = true; csCfg().cmtWith = 'separate'; csCfg().cmtGate = 'keyword'; csCfg().cmtMinHits = 2; csCfg().cmtEvery = 0; csCfg().cmtRandom = 0; csGenerating = false; csApplyPrompt()");
   ok(!/\[c\]/.test(E.prompts.chat_story_format.v), 'all-paragraphs mode adds nothing to main prompt');
   const calls0 = E.w.__rawCalls.length;
   const addBot = t => { E.chat.push({ name: 'อาเรีย', is_user: false, mes: t }); E.addMes(E.chat[E.chat.length - 1], E.chat.length - 1); E.fire('gs', 'normal', {}, false); E.fire('cmr', E.chat.length - 1); return E.chat.length - 1; };
@@ -382,7 +387,7 @@ const REPLY = `<think>วางแผน</think>
   N().querySelector('.cs-cmt-go').click(); await sleep(60);
   ok(E.w.__rawCalls.length === cBefore + 1 && /ตื่นสาย/.test(E.w.__rawCalls[cBefore].prompt), 'tapped unpicked paragraph gets sent');
   E.ev('csCmtClose()');
-  E.ev("csCfg().cmtAuto = true; csCfg().cmtEvery = 0; csCfg().cmtRandom = 0");
+  E.ev("csCfg().cmtAuto = true; csCfg().cmtWith = 'separate'; csCfg().cmtEvery = 0; csCfg().cmtRandom = 0");
   const calls2 = E.w.__rawCalls.length;
   addBot('เรียบ ๆ ไม่มีอะไร');
   await sleep(1100);
@@ -662,7 +667,7 @@ const REPLY = `<think>วางแผน</think>
     G.ctx.saveChat = async () => {};
     G.w.__raw = 0;
     G.ctx.generateRaw = async () => { G.w.__raw++; return '[{"p":0,"c":[{"n":"ploy","t":"กรี๊ด","r":"heart"}]},{"p":1,"c":[{"n":"moo","t":"ฮา","r":"laugh"}]}]'; };
-    G.ev("csCfg().style = 'chat'; csCfg().mode = 'reader'; csCfg().cmtOn = true; csCfg().typingMs = 0; csCfg().history = 0");
+    G.ev("csCfg().style = 'chat'; csCfg().mode = 'reader'; csCfg().cmtOn = true; csCfg().cmtWith = 'separate'; csCfg().typingMs = 0; csCfg().history = 0");
     // โหมดแชทนิยายก็เรียกคอมเมนต์เอง
     G.ev("csCfg().cmtEvery = 1; csCfg().cmtRandom = 0");
     ok(/\[c\]/.test(G.prompts[Object.keys(G.prompts)[0]] ? G.ev('csPromptText()') : G.ev('csPromptText()')), 'model-pick ask also in chat style');
@@ -671,6 +676,25 @@ const REPLY = `<think>วางแผน</think>
     G.fire('gs', 'normal', {}, false); G.fire('cmr', nid);
     await sleep(1100);
     ok(G.w.__raw === 1 && Object.keys(G.chat[nid].extra.cs_cmt.list).length === 2, 'auto comments fire in chat style', G.w.__raw);
+    // ★ 1.36 คอมเมนต์มากับคำตอบหลัก (ขอครั้งเดียว)
+    {
+      G.ev("csCfg().cmtWith = 'reply'; csCfg().cmtAuto = true; csCfg().cmtEvery = 1; csCfg().cmtRandom = 0; csCloseReader(true)");
+      const raw0 = G.w.__raw;
+      G.fire('gs', 'normal', {}, false);
+      const pr = (G.prompts.chat_story_format || {}).v || '';
+      ok(/<cs-cmt>/.test(pr) && !/\[c\]/.test(pr), 'comment request rides along in the main prompt', pr.slice(0, 80));
+      G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'ฝนตกหนัก\nอาเรีย: ร่มอยู่ไหน\n<cs-cmt>[{"p":1,"c":[{"n":"ploy","t":"หาร่มให้น้องที","r":"heart"},{"n":"moo","t":"ฮือออ","r":"cry"}]}]</cs-cmt>' });
+      G.addMes(G.chat[G.chat.length - 1], G.chat.length - 1);
+      const iid = G.chat.length - 1;
+      G.fire('cmr', iid); await sleep(1100);
+      const m = G.chat[iid];
+      ok(!/cs-cmt|ploy/.test(m.mes) && m.mes.endsWith('ร่มอยู่ไหน'), 'comment block removed from the message');
+      ok(m.extra.cs_cmt && m.extra.cs_cmt.list[1] && m.extra.cs_cmt.list[1].length === 2 && m.extra.cs_cmt.h === G.ev('csHash(' + JSON.stringify(m.mes) + ')'), 'comments stored for the right line');
+      ok(G.w.__raw === raw0, 'no second request for comments');
+      ok(!/<cs-cmt>/.test((G.prompts.chat_story_format || {}).v || ''), 'ask removed again after the reply');
+      ok(!G.ev("csParse('ข้อความ\\n<cs-cmt>[{\"p\":0,\"c\":[{\"n\":\"a\",\"t\":\"b\"}]}]').map(x => x.text).join()").includes('"p"'), 'half-streamed block never shows as bubbles');
+      G.ev("csCfg().cmtWith = 'separate'; csCfg().cmtEvery = 0; csApplyPrompt()");
+    }
     // แถบคอมเมนต์ในหน้าแชทนิยาย
     G.ev(`csOpenMessage(${nid})`);
     const R = () => G.d.getElementById('cs-reader');
@@ -994,7 +1018,7 @@ const REPLY = `<think>วางแผน</think>
       // กดค้าง (มือถือ)
       const pe = (type, el) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: 10, clientY: 10, button: 0 }); el.dispatchEvent(e); };
       pe('pointerdown', bub()); await sleep(560); pe('pointerup', bub());
-      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 4, 'long-press opens the small mark menu');
+      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 5, 'long-press opens the small mark menu');
       bub().click();
       ok(R().querySelector('.cs-markpop') && G.ev('csReader.player.i') === i0, 'the click right after a long-press does not advance or close');
       R().querySelector('[data-cs="mkhl"]').click();
@@ -1021,6 +1045,23 @@ const REPLY = `<think>วางแผน</think>
       ok(R().querySelectorAll('.cs-nav .cs-mkrow').length === 1 && G.ev('csMarks().length') === 1, 'delete from the list');
       R().querySelector('.cs-nav .cs-mkrow').click(); await sleep(20);
       ok(!R().classList.contains('nav-open') && R().querySelector('.cs-flash'), 'tap a mark jumps to it');
+      // ★ 1.36 แก้ไขข้อความจากเมนูกดค้าง
+      {
+        await sleep(700);
+        const bb = () => [...R().querySelectorAll('.cs-bubble')].find(x => x.textContent.includes('ร่มอยู่ไหนนะ'));
+        bb().dispatchEvent(new G.w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+        ok(R().querySelector('.cs-markpop [data-cs="mkedit"]'), 'long-press menu has edit');
+        R().querySelector('.cs-markpop [data-cs="mkedit"]').click();
+        const ta = R().querySelector('.cs-nav .cs-editta');
+        ok(ta && ta.value === G.chat[rid].mes, 'edit sheet shows the whole message');
+        let saved = 0; G.ctx.saveChat = async () => { saved++; };
+        const i0 = G.ev('csReader.player.i');
+        ta.value = G.chat[rid].mes.replace('ร่มอยู่ไหนนะ', 'ร่มสีฟ้าอยู่ไหนนะ');
+        R().querySelector('.cs-nav [data-cs="editsave"]').click(); await sleep(30);
+        ok(/ร่มสีฟ้า/.test(G.chat[rid].mes) && saved === 1 && !R().classList.contains('nav-open'), 'saved to the chat');
+        ok([...R().querySelectorAll('.cs-bubble')].some(x => x.textContent.includes('ร่มสีฟ้าอยู่ไหนนะ')) && G.ev('csReader.player.i') === i0, 'reader updated in place, reading position kept');
+        G.chat[rid].mes = G.chat[rid].mes.replace('ร่มสีฟ้าอยู่ไหนนะ', 'ร่มอยู่ไหนนะ'); G.ev('csReaderReplaceMes(' + rid + ')');
+      }
       // นิยาย: บรรทัดเดียวกันขึ้นไฮไลต์ด้วย
       G.ev("csCloseReader(true); csCfg().style = 'novel'; csOpenNovel(undefined, true)"); await sleep(60);
       const np = [...G.d.querySelectorAll('#cs-novel .cs-np')].find(x => x.textContent.includes('ร่มอยู่ไหนนะ'));

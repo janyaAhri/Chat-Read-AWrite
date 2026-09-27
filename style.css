@@ -728,3 +728,10 @@ body.cs-open #extensionsMenu,body.cs-open #options{z-index:10080 !important;}
 .cs-sfxchip button{background:none !important;padding:7px 4px 7px 11px !important;}
 .cs-sfxchip a{padding:6px 9px 6px 3px;font-size:11px;text-decoration:none !important;opacity:.55;}
 .cs-sfxchip.real{background:color-mix(in srgb,#e8b93a 22%,transparent);}
+
+/* ★ 1.36 แก้ไขข้อความ */
+.cs-edit{padding:0 16px calc(16px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;}
+.cs-editta{width:100%;box-sizing:border-box;min-height:180px;max-height:50dvh;resize:vertical;margin:0 !important;padding:12px 14px !important;border:0 !important;border-radius:14px !important;background:color-mix(in srgb,var(--cs-ink) 7%,transparent) !important;color:var(--cs-ink) !important;font:15px/1.6 -apple-system,system-ui,sans-serif !important;outline:none;}
+.cs-edit .cs-profacts{justify-content:flex-end;}
+.cs-edit .cs-profacts button.pri{background:var(--cs-ink) !important;color:var(--cs-bg) !important;}
+.cs-editta:focus,.cs-editta{outline:none !important;box-shadow:none !important;border:0 !important;}
