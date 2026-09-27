@@ -983,6 +983,55 @@ const REPLY = `<think>วางแผน</think>
       ok(G.d.querySelector('#cs-novel .cs-chapter.cs-flash, #cs-novel .cs-flash'), 'novel: jumps to the chapter');
       G.ev('csCloseNovel(true)'); G.ev("csCfg().style = 'chat'");
     }
+    // ★ 1.25 ไฮไลต์ · ที่คั่น · การ์ดคำคม
+    {
+      G.ev("csCfg().style = 'chat'; csCfg().marks = {}; csCfg().readPos = {}; csCloseReader(true); csCloseNovel(true)");
+      const rid = G.chat.length - 1;
+      G.ev('csOpenMessage(' + rid + ')'); G.ev('csReader.player.all()');
+      const R = () => G.d.getElementById('cs-reader');
+      const bub = () => [...R().querySelectorAll('.cs-bubble')].find(x => x.textContent.includes('ร่มอยู่ไหนนะ'));
+      const i0 = G.ev('csReader.player.i');
+      // กดค้าง (มือถือ)
+      const pe = (type, el) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: 10, clientY: 10, button: 0 }); el.dispatchEvent(e); };
+      pe('pointerdown', bub()); await sleep(560); pe('pointerup', bub());
+      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 4, 'long-press opens the small mark menu');
+      bub().click();
+      ok(R().querySelector('.cs-markpop') && G.ev('csReader.player.i') === i0, 'the click right after a long-press does not advance or close');
+      R().querySelector('[data-cs="mkhl"]').click();
+      ok(!R().querySelector('.cs-markpop') && G.ev('csMarks().length') === 1 && G.ev('csMarks()[0].who') === 'อาเรีย' && G.ev('csMarks()[0].m') === rid, 'highlight saved with speaker and message');
+      await sleep(60);
+      ok(bub().classList.contains('cs-hl'), 'highlighted bubble is marked');
+      // คลิกขวา (คอม) = เมนูเดียวกัน · คั่นหน้า
+      await sleep(700);
+      bub().dispatchEvent(new G.w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      ok(R().querySelector('.cs-markpop [data-cs="mkhl"].on'), 'right-click opens the menu, highlight shows as on');
+      R().querySelector('[data-cs="mkbm"]').click(); await sleep(60);
+      ok(bub().classList.contains('cs-bm') && G.ev("csMarks().filter(x => x.k === 'bm').length") === 1, 'bookmark added');
+      // แตะที่อื่นตอนเมนูเปิด = ปิดเมนูอย่างเดียว
+      await sleep(700);
+      bub().dispatchEvent(new G.w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      await sleep(700);
+      R().querySelector('.cs-body').click();
+      ok(!R().querySelector('.cs-markpop'), 'tapping elsewhere closes the menu');
+      // รายการในสารบัญ
+      R().querySelector('.cs-title').click();
+      R().querySelector('[data-cs="navtab"][data-t="marks"]').click();
+      ok(R().querySelectorAll('.cs-nav .cs-mkrow').length === 2 && /อาเรีย/.test(R().querySelector('.cs-nav .cs-mkrow').textContent), 'marks tab lists highlight and bookmark');
+      R().querySelector('.cs-nav [data-cs="navmkdel"]').click();
+      ok(R().querySelectorAll('.cs-nav .cs-mkrow').length === 1 && G.ev('csMarks().length') === 1, 'delete from the list');
+      R().querySelector('.cs-nav .cs-mkrow').click(); await sleep(20);
+      ok(!R().classList.contains('nav-open') && R().querySelector('.cs-flash'), 'tap a mark jumps to it');
+      // นิยาย: บรรทัดเดียวกันขึ้นไฮไลต์ด้วย
+      G.ev("csCloseReader(true); csCfg().style = 'novel'; csOpenNovel(undefined, true)"); await sleep(60);
+      const np = [...G.d.querySelectorAll('#cs-novel .cs-np')].find(x => x.textContent.includes('ร่มอยู่ไหนนะ'));
+      ok(np && (np.classList.contains('cs-hl') || np.classList.contains('cs-bm')), 'same line marked in novel view');
+      await sleep(700);
+      np.dispatchEvent(new G.w.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      G.d.querySelector('#cs-novel [data-cs="mkcard"]').click(); await sleep(30);
+      ok(!G.d.querySelector('#cs-novel .cs-markpop'), 'quote card action runs without errors (no canvas in jsdom)');
+      G.ev('csCloseNovel(true)'); G.ev("csCfg().style = 'chat'; csCfg().marks = {}");
+      ok(G.ev("csWrapCanvas({ measureText: t => ({ width: [...t].length * 10 }) }, 'สวัสดีครับวันนี้อากาศดีมาก', 60).every(l => [...l].length <= 6 && !/^[\\u0E31\\u0E34-\\u0E3A\\u0E47-\\u0E4E]/.test(l))"), 'Thai wrap never starts a line with a vowel/tone mark');
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };
