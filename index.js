@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.32.0';
+const CS_VERSION = '1.33.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1135,6 +1135,7 @@ function csReaderHTML(title) {
     <button data-cs="all"><i class="fa-solid fa-forward-fast"></i>แสดงทั้งหมด</button>
     <button data-cs="nav"><i class="fa-solid fa-list"></i>สารบัญ · ค้นหา · ที่คั่น</button>
     <button data-cs="tts"><i class="fa-solid fa-volume-high"></i>อ่านออกเสียง</button>
+    <button data-cs="sfxtoggle">${csSfxToggleLabel()}</button>
     <button data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ · เอฟเฟกต์</button>
     <button data-cs="full"><i class="fa-solid fa-expand"></i>เต็มจอ</button>
     <button data-cs="regen"><i class="fa-solid fa-rotate-right"></i>เจนใหม่</button>
@@ -2336,6 +2337,7 @@ function csAaHTML() {
   <div class="cs-aarow cs-aathemes">${CS_AA_THEMES.map(id => `<button data-cs="aa" data-f="theme" data-v="${id}" class="${s.preset === id ? 'on' : ''}" style="background:${CS_PRESETS[id].c.bg};color:${CS_PRESETS[id].c.ink}" title="${CS_PRESETS[id].name}">ก</button>`).join('')}</div>
   <div class="cs-aafonts">${CS_FONTS.filter(f => CS_AA_FONTS.includes(f.id)).map(f => `<button data-cs="aa" data-f="font" data-v="${f.id}" class="${s.font === f.id ? 'on' : ''}" style="font-family:${f.ff}">${csEsc(f.id === 'system' ? 'ตามเครื่อง' : f.name)}</button>`).join('')}</div>
   <button class="cs-aamore" data-cs="tts"><i class="fa-solid fa-volume-high"></i>อ่านออกเสียง</button>
+  <button class="cs-aamore" data-cs="sfxtoggle">${csSfxToggleLabel()}</button>
   <button class="cs-aamore" data-cs="full"><i class="fa-solid fa-expand"></i>${csFull ? 'ออกจากเต็มจอ' : 'เต็มจอ'}</button>
   <button class="cs-aamore" data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ · เอฟเฟกต์${csCfg().ambient !== 'off' ? ` · ${csAmbLabel()}` : ''}</button>
   <button class="cs-aamore" data-cs="pin"><i class="fa-solid fa-thumbtack"></i>${csIsPinned() ? 'เลิกเปิดค้าง' : 'เปิดค้างเป็นหน้าแชท'}</button>
@@ -3122,6 +3124,7 @@ function csTtsNext() {
  if (!t) return;
  t.tok++;
  document.querySelectorAll('.cs-speaking').forEach(x => x.classList.remove('cs-speaking'));
+ csTtsWordClear();
  if (t.paused) return csTtsBar();
  const next = () => { if (csTts === t) { t.idx++; if (t.kind === 'chat') csReaderSavePos(); csTtsNext(); } };
  if (t.kind === 'chat') {
@@ -3133,24 +3136,27 @@ function csTtsNext() {
   const it = p.items[t.idx];
   const box = csReader.el.querySelector(`.cs-list > .cs-item[data-i="${t.idx}"]`);
   const el = box && (box.querySelector('.cs-bubble, .cs-narr, .cs-scene') || box);
-  if (el) { el.classList.add('cs-speaking'); csTtsScroll(el, csReader.el.querySelector('.cs-body')); csSfxPlayIn(el, true); }
+  if (el) { el.classList.add('cs-speaking'); csTtsScroll(el, csReader.el.querySelector('.cs-body')); }
   const who = it.k === 'say' || it.k === 'think' ? it.who : '';
+  t.prog = `${t.idx + 1}/${p.items.length}`;
   csTtsBar(who);
-  csSpeak(it.text, who, next);
+  if (el && box !== el) { csSfxDecorate(csReader.el); csSpeakMap(csTtsTextMap(el), who, next); } else csSpeak(it.text, who, next);
  } else {
   if (!csNovel) return csTtsStop();
   const els = csTtsNovelEls();
   if (t.idx >= els.length) return csTtsStop(true);
   const el = els[t.idx];
   const who = (el.querySelector('.cs-nwho') || {}).textContent || '';
-  el.classList.add('cs-speaking'); csTtsScroll(el, csNovel.el.querySelector('.cs-nbody')); csSfxPlayIn(el, true);
+  el.classList.add('cs-speaking'); csTtsScroll(el, csNovel.el.querySelector('.cs-nbody'));
+  t.prog = `${t.idx + 1}/${els.length}`;
   csTtsBar(who.trim());
-  csSpeak(csMarkText(el), who.trim(), next);
+  csSpeakMap(csTtsTextMap(el), who.trim(), next);
  }
 }
 function csTtsStop(finished) {
  const was = !!csTts;
  csTts = null;
+ csTtsWordClear();
  try { if (was && csTtsOk()) window.speechSynthesis.cancel(); } catch {}
  document.querySelectorAll('.cs-speaking').forEach(x => x.classList.remove('cs-speaking'));
  document.querySelectorAll('.cs-ttsbar').forEach(x => x.remove());
@@ -3171,7 +3177,7 @@ function csTtsBar(who) {
  let bar = host.querySelector(':scope > .cs-ttsbar');
  if (!bar) { bar = document.createElement('div'); bar.className = 'cs-ttsbar'; host.appendChild(bar); }
  const p = csTts.paused;
- bar.innerHTML = `<button data-cs="ttsprev" aria-label="บรรทัดก่อน"><i class="fa-solid fa-backward-step"></i></button><button data-cs="ttspause" aria-label="${p ? 'อ่านต่อ' : 'พัก'}"><i class="fa-solid ${p ? 'fa-play' : 'fa-pause'}"></i></button><span class="cs-ttswho">${p ? 'พักไว้' : csEsc(csTts.who || 'บรรยาย')}</span><button data-cs="ttsnext" aria-label="บรรทัดถัดไป"><i class="fa-solid fa-forward-step"></i></button><button data-cs="ttsstop" aria-label="หยุด"><i class="fa-solid fa-xmark"></i></button>`;
+ bar.innerHTML = `<button data-cs="ttsprev" aria-label="บรรทัดก่อน"><i class="fa-solid fa-backward-step"></i></button><button data-cs="ttspause" aria-label="${p ? 'อ่านต่อ' : 'พัก'}"><i class="fa-solid ${p ? 'fa-play' : 'fa-pause'}"></i></button><span class="cs-ttswho">${p ? 'พักไว้' : csEsc(csTts.who || 'บรรยาย')}${csTts.prog ? `<small>${csTts.prog}</small>` : ''}</span><button data-cs="ttsnext" aria-label="บรรทัดถัดไป"><i class="fa-solid fa-forward-step"></i></button><button data-cs="ttsstop" aria-label="หยุด"><i class="fa-solid fa-xmark"></i></button>`;
 }
 /** ลองฟังเสียงตัวละครในการ์ด */
 function csTtsTry() {
@@ -3796,6 +3802,7 @@ function csSfxRun(id) {
   x.p(P);
   const dur = Math.min(4, P.end || .5);
   csSfxCur = { g, ac };
+  csSfxPill(x.n);
   csSfxBusyUntil = Date.now() + dur * 1000 + 450; // เว้นจังหวะก่อนเสียงถัดไป
   return dur;
  } catch { return 0; }
@@ -3904,14 +3911,108 @@ function csExtraClick(e, b, a) {
  if (a === 'sfxtry') { e.stopPropagation(); csSfxPlay(b.dataset.v, true); return true; }
  if (a === 'sfxset') {
   e.stopPropagation();
-  const was = csCfg().sfx; csCfg().sfx = b.dataset.v; csSave();
+  const was = csCfg().sfx; csCfg().sfx = b.dataset.v; if (b.dataset.v !== 'off') csCfg().sfxLast = b.dataset.v; else { csSfxStopCur(); clearTimeout(csSfxT); csSfxPending = null; } csSave();
   const hosts = [csReader && csReader.el, csNovel && csNovel.el].filter(Boolean);
   if (b.dataset.v === 'off') hosts.forEach(csSfxUndecorate); else if (was === 'off') hosts.forEach(h => csSfxDecorate(h));
   csNavRefresh();
   return true;
  }
+ if (a === 'sfxtoggle') { e.stopPropagation(); csSfxToggle(); return true; }
  if (a === 'full') { e.stopPropagation(); csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open'); csFullToggle(); return true; }
  return false;
+}
+// ══ ★ 1.33 อ่านออกเสียงตามทีละคำ · เอฟเฟกต์ดังตรงคำ · สวิตช์เปิดปิดเอฟเฟกต์ ══
+/** ข้อความของบรรทัดจากหน้าจอจริง พร้อมตำแหน่งตัวอักษร → จุดในหน้า และจุดที่มีเอฟเฟกต์ */
+function csTtsTextMap(el) {
+ const skip = '.cs-nwho, .cs-cmt, button, .cs-code, .cs-html';
+ const w = document.createTreeWalker(el, 4, { acceptNode: n => (n.parentElement && n.parentElement !== el && n.parentElement.closest(skip) && el.contains(n.parentElement.closest(skip)) ? 2 : 1) });
+ const nodes = [];
+ let full = '';
+ while (w.nextNode()) { const n = w.currentNode; nodes.push({ n, s: full.length }); full += n.nodeValue; }
+ const sfx = [...el.querySelectorAll('.cs-sfx')].map(sp => { const hit = nodes.find(x => x.n === sp.firstChild); return hit ? { at: hit.s, id: sp.dataset.sfx, sp, done: false } : null; }).filter(Boolean);
+ return { el, nodes, full, sfx, words: null };
+}
+function csTtsWords(map) {
+ if (map.words) return map.words;
+ const out = [];
+ try { for (const g of new Intl.Segmenter('th', { granularity: 'word' }).segment(map.full)) if (g.isWordLike !== false && g.segment.trim()) out.push([g.index, g.index + g.segment.length]); }
+ catch { const re = /\S+/g; let m; while ((m = re.exec(map.full))) out.push([m.index, m.index + m[0].length]); }
+ return (map.words = out);
+}
+function csTtsRange(map, a, b) {
+ const find = off => { for (let i = map.nodes.length - 1; i >= 0; i--) if (map.nodes[i].s <= off) return { n: map.nodes[i].n, o: Math.min(off - map.nodes[i].s, map.nodes[i].n.nodeValue.length) }; return null; };
+ const x = find(a), y = find(Math.max(a, b));
+ if (!x || !y) return null;
+ const r = document.createRange(); r.setStart(x.n, x.o); r.setEnd(y.n, y.o);
+ return r;
+}
+function csTtsWordClear() { try { if (window.CSS && CSS.highlights) CSS.highlights.delete('cs-tts'); } catch {} document.querySelectorAll('.cs-ttsword').forEach(x => x.classList.remove('cs-ttsword')); }
+/** ไฮไลต์คำที่อ่านอยู่ · ถึงคำที่มีเอฟเฟกต์ = เล่นตอนนั้นเลย */
+function csTtsMark(map, pos, len) {
+ let a = pos, b = pos + (len || 0);
+ if (!len) { const wd = csTtsWords(map).find(x => x[0] <= pos && pos < x[1]) || csTtsWords(map).find(x => x[0] >= pos); if (wd) { a = wd[0]; b = wd[1]; } else b = pos + 2; }
+ map.pos = a;
+ try { if (window.CSS && CSS.highlights && typeof Highlight === 'function') { const r = csTtsRange(map, a, b); if (r) CSS.highlights.set('cs-tts', new Highlight(r)); } } catch {}
+ map.sfx.forEach(x => {
+  if (x.done || x.at > b) return;
+  x.done = true;
+  if (csCfg().sfx === 'off') return;
+  csSfxQueue(x.id, 0);
+  x.sp.classList.add('cs-sfxon'); setTimeout(() => x.sp.classList.remove('cs-sfxon'), 900);
+ });
+}
+/** อ่านบรรทัดจากหน้าจอ: ใช้จุดแบ่งคำของเสียงอ่าน ถ้าเบราว์เซอร์ไม่ส่งมา ประมาณจากเวลา */
+function csSpeakMap(map, who, done) {
+ const t = csTts, tok = t ? t.tok : 0;
+ const alive = () => (t ? csTts === t && t.tok === tok && !t.paused : true);
+ const full = map.full;
+ const chunks = [];
+ { let base = 0, r = full; while (r.length > 180) { let cut = Math.max(r.lastIndexOf(' ', 180), r.lastIndexOf('. ', 180) + 1); if (cut < 60) cut = 180; chunks.push({ base, text: r.slice(0, cut) }); base += cut; r = r.slice(cut); } if (r.trim()) chunks.push({ base, text: r }); }
+ const finish = () => { csTtsWordClear(); done(); };
+ if (!chunks.length || !csTtsClean(full)) return setTimeout(() => alive() && finish(), 0);
+ const v = csVoiceFor(who), pitch = csPitchFor(who, v), rate = +csCfg().ttsRate || 1;
+ let i = 0, iv = 0;
+ const step = () => {
+  clearInterval(iv);
+  if (!alive()) return;
+  if (i >= chunks.length) { map.sfx.forEach(x => { if (!x.done) csTtsMark(map, x.at, 1); }); return finish(); }
+  const c = chunks[i++];
+  const u = new window.SpeechSynthesisUtterance(c.text);
+  u.lang = (v && v.lang) || 'th-TH';
+  try { if (v) u.voice = v; } catch {}
+  u.rate = rate; u.pitch = pitch;
+  let fired = false, got = false, t0 = 0;
+  const go = () => { if (fired) return; fired = true; clearInterval(iv); setTimeout(step, 80); };
+  u.onboundary = e => { if (!alive() || !e || typeof e.charIndex !== 'number') return; got = true; csTtsMark(map, c.base + e.charIndex, e.charLength || 0); };
+  u.onstart = () => { t0 = Date.now(); csTtsMark(map, c.base, 0); iv = setInterval(() => { if (!alive()) return clearInterval(iv); if (!got && t0) csTtsMark(map, Math.min(c.base + c.text.length - 1, c.base + Math.floor((Date.now() - t0) / 1000 * 13 * rate)), 0); }, 140); };
+  u.onend = go;
+  u.onerror = e => { if (e && /interrupted|canceled/.test(e.error || '')) return; go(); };
+  try { window.speechSynthesis.speak(u); } catch { go(); }
+ };
+ step();
+}
+function csSfxToggleLabel() { return csCfg().sfx === 'off' ? '<i class="fa-solid fa-volume-xmark"></i>เอฟเฟกต์: ปิด · แตะเพื่อเปิด' : '<i class="fa-solid fa-wand-magic-sparkles"></i>เอฟเฟกต์: เปิด · แตะเพื่อปิด'; }
+/** เปิด/ปิดเอฟเฟกต์ทั้งหมดในแตะเดียว (เปิดกลับเป็นโหมดที่เคยใช้) */
+function csSfxToggle() {
+ const s = csCfg(), hosts = [csReader && csReader.el, csNovel && csNovel.el].filter(Boolean);
+ if (s.sfx === 'off') { s.sfx = s.sfxLast && s.sfxLast !== 'off' ? s.sfxLast : 'auto'; hosts.forEach(h => csSfxDecorate(h)); csToast(`เปิดเอฟเฟกต์แล้ว · ${s.sfx === 'tap' ? 'แตะคำเพื่อฟัง' : 'อัตโนมัติ'}`, 'ok'); }
+ else { s.sfxLast = s.sfx; s.sfx = 'off'; csSfxStopCur(); clearTimeout(csSfxT); csSfxPending = null; hosts.forEach(csSfxUndecorate); csToast('ปิดเอฟเฟกต์ทั้งหมดแล้ว', 'ok'); }
+ csSave();
+ document.querySelectorAll('[data-cs="sfxtoggle"]').forEach(b => { b.innerHTML = csSfxToggleLabel(); });
+ csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open');
+ csNovel && csNovel.el.querySelector('.cs-aapanel')?.classList.remove('open');
+ if (csNavIsOpen() && csNavState.tab === 'amb') csNavRefresh();
+}
+/** ป้ายเล็กบอกชื่อเสียงที่เพิ่งดัง */
+function csSfxPill(name) {
+ const host = (csReader && csReader.el) || (csNovel && csNovel.el);
+ if (!host || !name) return;
+ host.querySelector(':scope > .cs-sfxpill')?.remove();
+ const d = document.createElement('div');
+ d.className = 'cs-sfxpill';
+ d.innerHTML = `<i class="fa-solid fa-volume-high"></i>${csEsc(name)}`;
+ host.appendChild(d);
+ setTimeout(() => d.remove(), 1500);
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {

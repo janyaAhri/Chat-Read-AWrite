@@ -1236,6 +1236,33 @@ const REPLY = `<think>วางแผน</think>
       R().querySelector('.cs-menu [data-cs="rechap"]').click();
       ok(G.ev('csReader.player.i') === hdIdx + 1 && R().querySelectorAll('.cs-list > .cs-item[data-i]').length === G.ev('csReader.player.i') && G.ev('csPos().chat.m') === sid, 'restart this chapter: only this chapter hidden again, position saved', [G.ev('csReader.player.i'), hdIdx]);
       ok(R().querySelector('.cs-list > .cs-item[data-i="' + (hdIdx - 1) + '"]') || hdIdx === 0, 'earlier chapters stay');
+      // ★ 1.33 สวิตช์เปิดปิดเอฟเฟกต์
+      const tg = () => R().querySelector('.cs-menu [data-cs="sfxtoggle"]');
+      G.ev("csCloseReader(true); csCfg().sfx = 'tap'; csOpenMessage(" + sid + "); csReader.player.all()"); await sleep(60);
+      ok(/เปิด · แตะเพื่อปิด/.test(tg().textContent) && R().querySelector('.cs-list .cs-sfx'), 'menu shows effects on');
+      tg().click();
+      ok(G.ev('csCfg().sfx') === 'off' && !R().querySelector('.cs-list .cs-sfx') && /ปิด · แตะเพื่อเปิด/.test(tg().textContent), 'one tap turns all effects off');
+      tg().click();
+      ok(G.ev('csCfg().sfx') === 'tap' && R().querySelector('.cs-list .cs-sfx'), 'tap again: back on in the mode used before');
+      // ★ 1.33 อ่านออกเสียงตามทีละคำ · เอฟเฟกต์ดังตรงคำ
+      {
+        const said = [];
+        G.w.SpeechSynthesisUtterance = function (tx) { this.text = tx; };
+        G.w.speechSynthesis = { speak(u) { said.push(u); setTimeout(() => { u.onstart && u.onstart(); const k = u.text.indexOf('เหมียว'); if (k >= 0 && u.onboundary) { u.onboundary({ charIndex: 0, charLength: 3 }); } setTimeout(() => { if (k >= 0) u._before = [G.ev('csSfxPending'), G.w.__sfx.includes('cat')]; if (k >= 0 && u.onboundary) u.onboundary({ charIndex: k, charLength: 6 }); setTimeout(() => u.onend && u.onend(), 30); }, 40); }, 5); }, cancel() {}, getVoices() { return [{ name: 'Kanya', lang: 'th-TH' }]; } };
+        G.ev("csCfg().sfx = 'auto'; csCloseReader(true); csOpenMessage(" + sid + ")"); await sleep(60);
+        G.w.__sfx.length = 0; G.ev('csSfxBusyUntil = 0');
+        R().querySelector('.cs-menu [data-cs="tts"]').click();
+        await sleep(30);
+        ok(/\d+\/\d+/.test(R().querySelector('.cs-ttsbar').textContent), 'read-aloud bar shows which line (n/total)');
+        let waited = 0; while (!said.some(u => /เหมียว/.test(u.text)) && waited < 3000) { await sleep(50); waited += 50; }
+        const catU = said.find(u => /เหมียว/.test(u.text));
+        await sleep(120);
+        ok(catU && !/อาเรีย/.test(catU.text), 'reads the rendered line (speaker name not read out)');
+        ok(G.w.__sfx.includes('cat') || G.ev('csSfxPending') === 'cat', 'reaching the word plays its effect', [G.w.__sfx, G.ev('csSfxPending')]);
+        G.ev('csTtsStop(); csCloseReader(true)');
+        delete G.w.speechSynthesis;
+      }
+      G.ev('csOpenMessage(' + sid + '); csReader.player.all()');
       // เต็มจอ
       R().querySelector('.cs-menu [data-cs="full"]').click();
       ok(G.ev('csFull') && G.d.body.classList.contains('cs-full') && !R().classList.contains('cs-under-bar'), 'fullscreen on');
