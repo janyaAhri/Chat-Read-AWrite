@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.36.0';
+const CS_VERSION = '1.37.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -60,6 +60,7 @@ const CS_SOUNDS = [
 const CS_DEFAULTS = {
  enabled: true,
  ttsRate: 1, ttsNarr: true, ttsVoice: '', // ★ 1.27 อ่านออกเสียง
+ ttsEngine: 'google', ttsGVoice: '', // ★ 1.37 google (ฟรี) | gemini (30 เสียง) | device
  cmtWith: 'reply', // ★ 1.36 คอมเมนต์มากับคำตอบหลัก (ขอครั้งเดียว) | separate
  sfx: 'off', sfxVol: .7, // ★ 1.31 เสียงเอฟเฟกต์: off | tap | auto
  ambient: 'off', ambVol: .35, // ★ 1.29 เสียงบรรยากาศ: off | auto | rain | sea | cafe | night | fire
@@ -1735,7 +1736,7 @@ function csTabHTML(tab) {
   <div class="cs-card">${csToggle('edgeBtn', 'ปุ่มลัดชิดขอบจอ', 'แตะเปิดหน้าอ่าน · ลากขึ้นลงได้ · ลากไปอีกฝั่งเพื่อย้ายข้าง')}</div>
   <div class="cs-card">${csToggle('showInput', 'ช่องพิมพ์ในหน้าอ่าน')}${csToggle('enterSend', 'กด Enter เพื่อส่ง', 'Shift+Enter ขึ้นบรรทัดใหม่')}${csRange('history', 'แสดงข้อความก่อนหน้า', 0, 20, 1, ' ข้อความ')}</div>
   <div class="cs-card">${csRange('typingMs', 'จุดพิมพ์ก่อนฟองเด้ง', 0, 1200, 50, ' ms')}${csRange('autoSpeed', 'ความเร็วเล่นอัตโนมัติ', .5, 3, .25, 'x')}</div>
-  ${csTtsOk() ? `<div class="cs-card"><div class="cs-cardh">อ่านออกเสียง<small>เมนูสามจุด (แชทนิยาย) หรือ Aa (นิยาย) → อ่านออกเสียง · ตัวละครได้เสียงต่างกันเองตามเพศ ตั้งรายตัวได้ที่การ์ดตัวละคร</small></div>${csSelect('ttsVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...csVoicesTh().map(v => [v.name, csEsc(v.name)])])}${csRange('ttsRate', 'ความเร็ว', .6, 1.8, .1, 'x')}${csToggle('ttsNarr', 'อ่านบรรยายด้วย', 'ปิด = อ่านเฉพาะบทพูด')}</div>` : ''}
+  ${csTtsOk() || true ? `<div class="cs-card"><div class="cs-cardh">อ่านออกเสียง<small>เมนูสามจุด (แชทนิยาย) หรือ Aa (นิยาย) → อ่านออกเสียง · ตัวละครได้เสียงต่างกันเองตามเพศ ตั้งรายตัวได้ที่การ์ดตัวละคร</small></div>${csSelect('ttsEngine', 'เสียงจาก', [['google', 'Google · ฟรี เป็นธรรมชาติ'], ['gemini', 'Gemini · 30 เสียง แยกตัวละคร'], ['device', 'เสียงในเครื่อง']], s.ttsEngine === 'gemini' ? 'ใช้คีย์ Google AI Studio ที่ตั้งใน SillyTavern · ฟรีมีโควตาจำกัด เต็มแล้วสลับเป็น Google ให้เอง' : s.ttsEngine === 'google' ? 'ผ่านเซิร์ฟเวอร์ SillyTavern ไม่ต้องใช้คีย์ · ตัวละครต่างกันที่ระดับเสียง' : 'เสียงของมือถือ/คอม')}${s.ttsEngine === 'gemini' ? csSelect('ttsGVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...CS_GVOICES.map(v => [v.id, `${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}`])]) : s.ttsEngine === 'device' ? csSelect('ttsVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...csVoicesTh().map(v => [v.name, csEsc(v.name)])]) : ''}${csRange('ttsRate', 'ความเร็ว', .6, 1.8, .1, 'x')}${csToggle('ttsNarr', 'อ่านบรรยายด้วย', 'ปิด = อ่านเฉพาะบทพูด')}</div>` : ''}
   <div class="cs-card cs-btnrow"><button class="cs-btn2" data-act="read-last"><i class="fa-solid fa-book-open"></i> เปิดหน้าอ่าน</button><button class="cs-btn2" data-act="read-all"><i class="fa-solid fa-book"></i> อ่านทั้งแชท</button><button class="cs-btn2 danger" data-act="reset"><i class="fa-solid fa-rotate"></i> คืนค่าเริ่มต้น</button></div>
   <div class="cs-foot">แชทนิยาย ${CS_VERSION} · แตะหรือ Space อ่านต่อ · ลูกศรซ้ายย้อนกลับ · Esc ปิด</div>`;
 }
@@ -1996,7 +1997,7 @@ function csSettingsChange(e) {
  const s = csCfg();
  if (el.dataset.k === 'alwaysOn') { csSetPinned(el.checked); if (el.checked) csPinOpen(); return; }
  if (el.dataset.k && el.type === 'checkbox') { csSet(el.dataset.k, el.checked); if (el.dataset.k === 'keepTopBar') { csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); } if (el.dataset.k === 'cmtAuto' && el.checked) csCfg().cmtOn = true; csAfterChange(true); if (el.dataset.k === 'cmtAuto' || el.dataset.k === 'cmtOn') csRenderSettingsBody(); return; }
- if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); csAfterChange(true); return; }
+ if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); if (el.dataset.k === 'ttsEngine') { csTtsFail = ''; csTtsCache.clear(); csRenderSettingsBody(); } csAfterChange(true); return; }
  if (el.dataset.k && el.classList.contains('cs-text')) {
   csSet(el.dataset.k, el.value.trim());
   csAfterChange();
@@ -3022,7 +3023,8 @@ function csProfHTML() {
   ${st.lastLine ? `<blockquote class="cs-profq">“${csEsc(st.lastLine.slice(0, 160))}”</blockquote>` : ''}
   <div class="cs-proff">
    <label class="cs-profrow"><span>เพศ</span><select class="cs-sel" data-pf="g">${[['', 'อัตโนมัติ'], ['m', 'ชาย'], ['f', 'หญิง']].map(([v, l]) => `<option value="${v}"${g === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-   ${csTtsOk() ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="voice"><option value="">อัตโนมัติ</option>${csVoicesTh().map(v => `<option value="${csEsc(v.name)}"${o.voice === v.name ? ' selected' : ''}>${csEsc(v.name)}</option>`).join('')}</select></label>
+   ${csTtsEngine() === 'gemini' ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="gvoice"><option value="">อัตโนมัติ (${csEsc(csGVoiceFor(who))})</option>${CS_GVOICES.map(v => `<option value="${v.id}"${o.gvoice === v.id ? ' selected' : ''}>${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}</option>`).join('')}</select></label>` : csTtsEngine() === 'device' && csTtsOk() ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="voice"><option value="">อัตโนมัติ</option>${csVoicesTh().map(v => `<option value="${csEsc(v.name)}"${o.voice === v.name ? ' selected' : ''}>${csEsc(v.name)}</option>`).join('')}</select></label>` : ''}
+   ${true ? `
    <label class="cs-profrow"><span>ระดับเสียง</span><select class="cs-sel" data-pf="pitch">${[['', 'อัตโนมัติ'], ['0.75', 'ต่ำ'], ['1', 'กลาง'], ['1.25', 'สูง']].map(([v, l]) => `<option value="${v}"${String(o.pitch || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select><button class="cs-proftry" data-cs="ttstry" aria-label="ลองฟัง"><i class="fa-solid fa-play"></i></button></label>` : ''}
    ${card ? '' : `<label class="cs-profrow"><span>ชื่อเรียกอื่น</span><input class="cs-text" data-pf="aliases" value="${csEsc(o.aliases || '')}" placeholder="เช่น พี่มิ, คุณหนู" maxlength="200"></label>
    <label class="cs-profrow cs-profme"><span>นี่คือตัวเรา</span><input type="checkbox" data-pf="me"${o.me ? ' checked' : ''}></label>`}
@@ -3036,8 +3038,8 @@ function csProfChange(el) {
  const who = csNavState.who, key = csNavState.ck || who;
  const v = f === 'me' ? !!el.checked : String(el.value || '').trim();
  csCastEdit(key, who, { [f]: v === false ? '' : v });
- csToast(f === 'voice' || f === 'pitch' ? 'บันทึกแล้ว' : 'บันทึกแล้ว · มีผลตอนเปิดอ่านใหม่', 'ok');
- if (f === 'voice' || f === 'pitch') csTtsTry();
+ csToast(f === 'voice' || f === 'pitch' || f === 'gvoice' ? 'บันทึกแล้ว' : 'บันทึกแล้ว · มีผลตอนเปิดอ่านใหม่', 'ok');
+ if (f === 'voice' || f === 'pitch' || f === 'gvoice') csTtsTry();
  if (f !== 'aliases') csNavRefresh();
 }
 // ══ ★ 1.27 อ่านออกเสียง (เสียงของเบราว์เซอร์ · ไม่ใช้โทเคน) ══
@@ -3082,6 +3084,7 @@ function csTtsChunks(t) {
  return out;
 }
 function csSpeak(text, who, done) {
+ if (csTtsEngine() !== 'device') return csSpeakAudio(text, who, null, done);
  const t = csTts, tok = t ? t.tok : 0;
  const alive = () => (t ? csTts === t && t.tok === tok && !t.paused : true);
  const chunks = csTtsChunks(csTtsClean(text));
@@ -3115,8 +3118,9 @@ function csTtsNovelEls() {
 }
 function csTtsHost() { return (csReader && csReader.el) || (csNovel && csNovel.el) || null; }
 function csTtsStart() {
- if (!csTtsOk()) { csToast('เบราว์เซอร์นี้อ่านออกเสียงไม่ได้'); return false; }
+ if (!csTtsOk() && csTtsEngine() === 'device') { csToast('เบราว์เซอร์นี้อ่านออกเสียงไม่ได้'); return false; }
  csTtsStop();
+ csTtsUnlock();
  if (csReader) {
   csStopAuto();
   const p = csReader.player;
@@ -3161,6 +3165,7 @@ function csTtsNext() {
   const who = it.k === 'say' || it.k === 'think' ? it.who : '';
   t.prog = `${t.idx + 1}/${p.items.length}`;
   csTtsBar(who);
+  csTtsPrefetch(t);
   if (el && box !== el) { csSfxDecorate(csReader.el); csSpeakMap(csTtsTextMap(el), who, next); } else csSpeak(it.text, who, next);
  } else {
   if (!csNovel) return csTtsStop();
@@ -3171,6 +3176,7 @@ function csTtsNext() {
   el.classList.add('cs-speaking'); csTtsScroll(el, csNovel.el.querySelector('.cs-nbody'));
   t.prog = `${t.idx + 1}/${els.length}`;
   csTtsBar(who.trim());
+  csTtsPrefetch(t);
   csSpeakMap(csTtsTextMap(el), who.trim(), next);
  }
 }
@@ -3179,6 +3185,7 @@ function csTtsStop(finished) {
  csTts = null;
  csTtsWordClear();
  try { if (was && csTtsOk()) window.speechSynthesis.cancel(); } catch {}
+ csTtsAudioStop();
  document.querySelectorAll('.cs-speaking').forEach(x => x.classList.remove('cs-speaking'));
  document.querySelectorAll('.cs-ttsbar').forEach(x => x.remove());
  if (finished && was) csToast('อ่านจบแล้ว', 'ok');
@@ -3187,10 +3194,10 @@ function csTtsPause() {
  const t = csTts;
  if (!t) return;
  t.paused = !t.paused;
- if (t.paused) { t.tok++; try { window.speechSynthesis.cancel(); } catch {} csTtsBar(t.who); }
+ if (t.paused) { t.tok++; try { window.speechSynthesis.cancel(); } catch {} csTtsAudioStop(); csTtsBar(t.who); }
  else csTtsNext(); // อ่านบรรทัดเดิมต่อตั้งแต่ต้นบรรทัด
 }
-function csTtsSkip(d) { const t = csTts; if (!t) return; try { window.speechSynthesis.cancel(); } catch {} t.idx = Math.max(0, t.idx + (d || 1)); t.paused = false; csTtsNext(); }
+function csTtsSkip(d) { const t = csTts; if (!t) return; try { window.speechSynthesis.cancel(); } catch {} csTtsAudioStop(); t.idx = Math.max(0, t.idx + (d || 1)); t.paused = false; csTtsNext(); }
 function csTtsBar(who) {
  const host = csTtsHost();
  if (!host || !csTts) return;
@@ -3206,6 +3213,7 @@ function csTtsTry() {
  const who = csNavState.who;
  if (!who) return;
  try { window.speechSynthesis.cancel(); } catch {}
+ csTtsAudioStop(); csTtsUnlock();
  const st = csProfStats(who, csNavState.ck);
  const save = csTts; csTts = null;
  csSpeak(st.lastLine || ('สวัสดี ฉันชื่อ' + who), who, () => {});
@@ -4026,6 +4034,7 @@ function csTtsMark(map, pos, len) {
 }
 /** อ่านบรรทัดจากหน้าจอ: ใช้จุดแบ่งคำของเสียงอ่าน ถ้าเบราว์เซอร์ไม่ส่งมา ประมาณจากเวลา */
 function csSpeakMap(map, who, done) {
+ if (csTtsEngine() !== 'device') return csSpeakAudio(map.full, who, map, done);
  const t = csTts, tok = t ? t.tok : 0;
  const alive = () => (t ? csTts === t && t.tok === tok && !t.paused : true);
  const full = map.full;
@@ -4246,6 +4255,107 @@ function csMirrorStInput() {
  const before = st.value;
  let n = 0;
  const t = setInterval(() => { n++; if (st.value !== before && st.value.trim()) { ta.value = st.value; ta.dispatchEvent(new Event('input', { bubbles: true })); clearInterval(t); } if (n > 120) clearInterval(t); }, 500);
+}
+// ══ ★ 1.37 เสียงอ่าน: Google (ฟรี) · Gemini (30 เสียง) · เสียงเครื่อง — ผ่านเซิร์ฟเวอร์ SillyTavern ══
+const CS_GVOICES = [
+ ['Kore', 'f', 'หนักแน่น'], ['Leda', 'f', 'สาวใส'], ['Aoede', 'f', 'สบาย ๆ'], ['Callirhoe', 'f', 'ง่าย ๆ'], ['Autonoe', 'f', 'สดใส'], ['Despina', 'f', 'นุ่ม'], ['Erinome', 'f', 'ชัด'], ['Laomedeia', 'f', 'ร่าเริง'],
+ ['Achernar', 'f', 'เบา'], ['Gacrux', 'f', 'ผู้ใหญ่'], ['Pulcherrima', 'f', 'มั่นใจ'], ['Vindemiatrix', 'f', 'อ่อนโยน'], ['Sulafat', 'f', 'อบอุ่น'], ['Zephyr', 'f', 'สว่าง'],
+ ['Puck', 'm', 'ร่าเริง'], ['Charon', 'm', 'เล่าเรื่อง'], ['Fenrir', 'm', 'ตื่นเต้น'], ['Orus', 'm', 'หนักแน่น'], ['Enceladus', 'm', 'แหบลมหายใจ'], ['Iapetus', 'm', 'ชัด'], ['Umbriel', 'm', 'สบาย ๆ'], ['Algieba', 'm', 'นุ่มลื่น'],
+ ['Algenib', 'm', 'แหบ'], ['Rasalgethi', 'm', 'รู้เรื่อง'], ['Alnilam', 'm', 'หนักแน่น'], ['Schedar', 'm', 'เรียบ'], ['Achird', 'm', 'เป็นมิตร'], ['Zubenelgenubi', 'm', 'ชิล'], ['Sadachbia', 'm', 'มีชีวิตชีวา'], ['Sadaltager', 'm', 'ปราชญ์']
+].map(([id, g, d]) => ({ id, g, d }));
+let csTtsEl = null, csTtsLoop = 0, csTtsFail = '';
+const csTtsCache = new Map();
+function csTtsEngine() { const e = csCfg().ttsEngine; return e === 'gemini' || e === 'device' ? (e === 'gemini' && csTtsFail === 'gemini' ? 'google' : e) : (csTtsFail === 'google' ? 'device' : 'google'); }
+/** เสียง Gemini ของแต่ละคน: ตั้งเอง > ตามเพศ ไม่ซ้ำกันตามชื่อ · ผู้บรรยายใช้เสียงที่ตั้งไว้ */
+function csGVoiceFor(who) {
+ const s = csCfg();
+ if (!who) return s.ttsGVoice || 'Charon';
+ const o = csCastGet(who) || {};
+ if (o.gvoice) return o.gvoice;
+ const g = csGenderOf(who);
+ const pool = CS_GVOICES.filter(v => !g || v.g === g).filter(v => v.id !== (s.ttsGVoice || 'Charon'));
+ return pool[csHash(who) % pool.length].id;
+}
+/** Google มีเสียงไทยเสียงเดียว: ตัวละครต่างกันที่ระดับเสียง (เล่นเร็ว/ช้าลงเล็กน้อย) */
+function csGRateFor(who) { if (!who) return 1; return Math.max(.8, Math.min(1.2, 1 + (csPitchFor(who) - 1) * .55)); }
+function csTtsKey(eng, voice, text) { return eng + '|' + voice + '|' + String(text).replace(/[^\p{L}\p{N}]+/gu, ''); }
+function csTtsFetch(text, who) {
+ const eng = csTtsEngine(), clean = csTtsClean(text).slice(0, 900);
+ const voice = eng === 'gemini' ? csGVoiceFor(who) : 'th';
+ const key = csTtsKey(eng, voice, clean);
+ if (csTtsCache.has(key)) return csTtsCache.get(key);
+ const ctx = csCtx();
+ const headers = (typeof ctx.getRequestHeaders === 'function' ? ctx.getRequestHeaders() : { 'Content-Type': 'application/json' });
+ const body = eng === 'gemini'
+  ? { text: (who ? 'Say this Thai line as a character in a drama, natural and in the right emotion: ' : 'Read this like a Thai audiobook narrator: ') + clean, voice, model: 'gemini-2.5-flash-preview-tts' }
+  : { text: clean, voice: 'th' };
+ const pr = fetch(eng === 'gemini' ? '/api/google/generate-native-tts' : '/api/google/generate-voice', { method: 'POST', headers, body: JSON.stringify(body) })
+  .then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).error || ''; } catch {} throw Object.assign(new Error(m || ('HTTP ' + r.status)), { status: r.status, eng }); } return r.blob(); })
+  .catch(e => { csTtsCache.delete(key); throw Object.assign(e, { eng }); });
+ csTtsCache.set(key, pr);
+ if (csTtsCache.size > 40) csTtsCache.delete(csTtsCache.keys().next().value);
+ return pr;
+}
+/** ตัวเล่นเสียงตัวเดียวใช้ทั้งเรื่อง · ปลดล็อกตอนแตะเริ่มอ่าน (มือถือไม่ยอมเล่นเสียงที่ไม่ได้มาจากการแตะ) */
+function csTtsUnlock() {
+ try {
+  if (!csTtsEl) { csTtsEl = new Audio(); csTtsEl.preload = 'auto'; }
+  if (!csTtsEl.dataset || !csTtsEl.dataset.ok) {
+   csTtsEl.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+   const r = csTtsEl.play(); if (r && r.catch) r.catch(() => {});
+   if (csTtsEl.dataset) csTtsEl.dataset.ok = '1';
+  }
+ } catch {}
+}
+function csTtsAudioStop() { clearInterval(csTtsLoop); try { if (csTtsEl) { csTtsEl.onended = null; csTtsEl.onerror = null; csTtsEl.pause(); } } catch {} }
+function csSpeakAudio(text, who, map, done) {
+ const t = csTts, tok = t ? t.tok : 0;
+ const alive = () => (t ? csTts === t && t.tok === tok && !t.paused : true);
+ const clean = csTtsClean(text);
+ if (!clean) return setTimeout(() => alive() && done(), 0);
+ const eng = csTtsEngine();
+ const fallback = e => {
+  if (!alive()) return;
+  const was = e && e.eng || eng;
+  csTtsFail = was;
+  csToast(was === 'gemini' ? `Gemini ใช้ไม่ได้${e && e.status === 429 ? ' (โควตาเต็ม)' : ''} · ใช้ Google แทน` : 'เสียง Google ใช้ไม่ได้ · ใช้เสียงเครื่องแทน', 'err');
+  if (map) csSpeakMap(map, who, done); else csSpeak(text, who, done);
+ };
+ csTtsFetch(clean, who).then(blob => {
+  if (!alive()) return;
+  if (!csTtsEl) csTtsEl = new Audio();
+  const a = csTtsEl, url = URL.createObjectURL(blob);
+  const rate = +csCfg().ttsRate || 1;
+  a.onended = null; a.onerror = null;
+  a.src = url;
+  const gr = eng === 'google' ? csGRateFor(who) : 1;
+  try { a.preservesPitch = gr === 1; a.mozPreservesPitch = gr === 1; a.webkitPreservesPitch = gr === 1; } catch {}
+  a.playbackRate = Math.max(.5, Math.min(2.5, rate * gr));
+  let fin = false;
+  const end = () => { if (fin) return; fin = true; clearInterval(csTtsLoop); URL.revokeObjectURL(url); if (alive()) { if (map) map.sfx.forEach(x => { if (!x.done) csTtsMark(map, x.at, 1); }); csTtsWordClear(); done(); } };
+  a.onended = end;
+  a.onerror = () => { if (!fin) { fin = true; clearInterval(csTtsLoop); fallback({ eng }); } };
+  clearInterval(csTtsLoop);
+  if (map) csTtsLoop = setInterval(() => { if (!alive()) return clearInterval(csTtsLoop); const d = a.duration; if (d && isFinite(d)) csTtsMark(map, Math.min(map.full.length - 1, Math.floor(a.currentTime / d * map.full.length)), 0); }, 140);
+  const pr = a.play();
+  if (pr && pr.catch) pr.catch(e => { if (!fin && alive()) { fin = true; clearInterval(csTtsLoop); if (e && e.name === 'NotAllowedError') { csToast('แตะ ⏵ ที่แถบอ่านอีกครั้งเพื่อให้เสียงเล่น'); t && (t.paused = true); csTtsBar(t && t.who); } else fallback({ eng }); } });
+ }).catch(fallback);
+}
+/** โหลดเสียงบรรทัดถัดไปไว้ก่อน (ไม่ต้องรอตอนอ่านถึง) */
+function csTtsPrefetch(t) {
+ if (!t || csTtsEngine() === 'device') return;
+ try {
+  if (t.kind === 'chat' && csReader) {
+   const p = csReader.player;
+   let j = t.idx + 1;
+   while (j < p.items.length && !csTtsWant(p.items[j])) j++;
+   const it = p.items[j];
+   if (it) csTtsFetch(it.text, it.k === 'say' || it.k === 'think' ? it.who : '').catch(() => {});
+  } else if (t.kind === 'novel') {
+   const el = csTtsNovelEls()[t.idx + 1];
+   if (el) csTtsFetch(csTtsTextMap(el).full, ((el.querySelector('.cs-nwho') || {}).textContent || '').trim()).catch(() => {});
+  }
+ } catch {}
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {

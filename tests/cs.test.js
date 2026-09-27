@@ -1095,7 +1095,7 @@ const REPLY = `<think>วางแผน</think>
         const spoken = []; let hold = false;
         G.w.SpeechSynthesisUtterance = function (t) { this.text = t; };
         G.w.speechSynthesis = { speak(u) { spoken.push(u); if (!hold) setTimeout(() => u.onend && u.onend(), 5); }, cancel() {}, getVoices() { return [{ name: 'Kanya', lang: 'th-TH' }, { name: 'Niwat', lang: 'th-TH' }, { name: 'Alex', lang: 'en-US' }]; } };
-        G.ev("csCfg().ttsNarr = true; csCfg().ttsRate = 1; csCfg().readPos = {}");
+        G.ev("csCfg().ttsEngine = 'device'; csCfg().ttsNarr = true; csCfg().ttsRate = 1; csCfg().readPos = {}");
         G.ev('csOpenMessage(' + rid + ')');
         ok(R().querySelector('.cs-menu [data-cs="tts"]'), 'read-aloud in the menu');
         const before = G.ev('csReader.player.i');
@@ -1143,6 +1143,42 @@ const REPLY = `<think>วางแผน</think>
         vs.value = 'Niwat'; vs.dispatchEvent(new G.w.Event('change', { bubbles: true }));
         ok(G.ev("csVoiceFor('อาเรีย').name") === 'Niwat' && spoken[spoken.length - 1].voice.name === 'Niwat', 'per-character voice saved and previewed');
         G.ev("csNavClose(); csCloseReader(true); delete csCast(true)['อาเรีย'].voice");
+        delete G.w.speechSynthesis;
+      }
+      // ★ 1.37 เสียงอ่านจาก Google / Gemini ผ่านเซิร์ฟเวอร์ SillyTavern
+      {
+        const calls = [];
+        G.w.fetch = async (url, o) => { const b = JSON.parse(o.body); calls.push({ url, b }); if (G.w.__fail && url.includes(G.w.__fail)) return { ok: false, status: 429, json: async () => ({ error: 'quota' }) }; return { ok: true, blob: async () => new G.w.Blob(['x'], { type: 'audio/mpeg' }) }; };
+        G.w.URL.createObjectURL = () => 'blob:x'; G.w.URL.revokeObjectURL = () => {};
+        const played = [];
+        G.w.Audio = function () { const a = { dataset: {}, currentTime: 0, duration: 1, playbackRate: 1, play() { if (this.src && !String(this.src).startsWith('data:')) { played.push({ rate: this.playbackRate, pp: this.preservesPitch }); setTimeout(() => this.onended && this.onended(), 20); } return Promise.resolve(); }, pause() {} }; return a; };
+        G.w.speechSynthesis = { speak(u) { setTimeout(() => u.onend && u.onend(), 5); }, cancel() {}, getVoices() { return []; } };
+        G.w.SpeechSynthesisUtterance = function (t) { this.text = t; };
+        G.ev("csTtsEl = null; csTtsFail = ''; csTtsCache.clear(); csCfg().ttsEngine = 'google'; csCfg().ttsNarr = true; csCfg().sfx = 'off'; csCloseReader(true); csOpenMessage(" + rid + ")");
+        R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(400);
+        const g = calls.filter(c => c.url.includes('/api/google/generate-voice'));
+        ok(g.length >= 2 && g.every(c => c.b.voice === 'th') && played.length >= 2, 'Google voice: fetched through SillyTavern and played', [g.length, played.length]);
+        const nar = played[0], chr = played.find(p => p.rate !== 1);
+        ok(nar && nar.rate === 1 && chr && chr.pp === false, 'characters sound different from the narrator (pitch)', played);
+        ok(!G.ev('!!csTts'), 'finished reading');
+        // Gemini: แต่ละคนได้เสียงของตัวเอง
+        calls.length = 0; played.length = 0;
+        G.ev("csTtsCache.clear(); csCfg().ttsEngine = 'gemini'; csCfg().ttsGVoice = 'Charon'; csCloseReader(true); csOpenMessage(" + rid + ")");
+        R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(400);
+        const gm = calls.filter(c => c.url.includes('generate-native-tts'));
+        ok(gm.length >= 2 && gm[0].b.voice === 'Charon' && gm.some(c => c.b.voice !== 'Charon' && G.ev('CS_GVOICES.some(v => v.id === ' + JSON.stringify(c.b.voice) + ')')), 'Gemini: narrator and each character get their own voice', gm.map(c => c.b.voice));
+        ok(G.ev("csGVoiceFor('อาเรีย')") === G.ev("csGVoiceFor('อาเรีย')") && G.ev("CS_GVOICES.find(v => v.id === csGVoiceFor('อาเรีย')).g") === 'f', 'a female character gets a female voice');
+        // โควตาเต็ม → สลับเป็น Google เอง
+        calls.length = 0; G.w.__fail = 'generate-native-tts';
+        G.ev("csTtsCache.clear(); csTtsFail = ''; csCloseReader(true); csOpenMessage(" + rid + ")");
+        R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(500);
+        ok(G.ev('csTtsFail') === 'gemini' && calls.some(c => c.url.includes('/api/google/generate-voice')), 'Gemini out of quota → continues with Google');
+        G.w.__fail = ''; G.ev("csTtsStop(); csCloseReader(true); csTtsFail = ''; csCfg().ttsEngine = 'device'");
+        // การ์ดตัวละคร: เลือกเสียง Gemini ได้
+        G.ev("csCfg().ttsEngine = 'gemini'; csOpenMessage(" + rid + "); csReader.player.all()");
+        [...R().querySelectorAll('.cs-name[data-cs="prof"]')].find(x => x.dataset.who === 'อาเรีย').click();
+        ok(R().querySelectorAll('.cs-prof [data-pf="gvoice"] option').length === 31, 'profile: pick any of the 30 Gemini voices');
+        G.ev("csNavClose(); csCloseReader(true); csCfg().ttsEngine = 'device'");
         delete G.w.speechSynthesis;
       }
       ok(G.ev("csWrapCanvas({ measureText: t => ({ width: [...t].length * 10 }) }, 'สวัสดีครับวันนี้อากาศดีมาก', 60).every(l => [...l].length <= 6 && !/^[\\u0E31\\u0E34-\\u0E3A\\u0E47-\\u0E4E]/.test(l))"), 'Thai wrap never starts a line with a vowel/tone mark');
@@ -1290,7 +1326,7 @@ const REPLY = `<think>วางแผน</think>
         const said = [];
         G.w.SpeechSynthesisUtterance = function (tx) { this.text = tx; };
         G.w.speechSynthesis = { speak(u) { said.push(u); setTimeout(() => { u.onstart && u.onstart(); const k = u.text.indexOf('เหมียว'); if (k >= 0 && u.onboundary) { u.onboundary({ charIndex: 0, charLength: 3 }); } setTimeout(() => { if (k >= 0) u._before = [G.ev('csSfxPending'), G.w.__sfx.includes('cat')]; if (k >= 0 && u.onboundary) u.onboundary({ charIndex: k, charLength: 6 }); setTimeout(() => u.onend && u.onend(), 30); }, 40); }, 5); }, cancel() {}, getVoices() { return [{ name: 'Kanya', lang: 'th-TH' }]; } };
-        G.ev("csCfg().sfx = 'auto'; csCloseReader(true); csOpenMessage(" + sid + ")"); await sleep(60);
+        G.ev("csCfg().ttsEngine = 'device'; csCfg().sfx = 'auto'; csCloseReader(true); csOpenMessage(" + sid + ")"); await sleep(60);
         G.w.__sfx.length = 0; G.ev('csSfxBusyUntil = 0');
         R().querySelector('.cs-menu [data-cs="tts"]').click();
         await sleep(30);
