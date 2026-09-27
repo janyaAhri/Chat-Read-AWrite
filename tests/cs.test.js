@@ -1194,22 +1194,28 @@ const REPLY = `<think>วางแผน</think>
     // ★ 1.31 เสียงเอฟเฟกต์ · อ่านบทนี้ใหม่ · เต็มจอ
     {
       const R = () => G.d.getElementById('cs-reader');
-      ok(G.ev('CS_SFX.length') >= 80, 'lots of sound effects', G.ev('CS_SFX.length'));
+      ok(G.ev('CS_SFX.length') >= 100, 'lots of sound effects', G.ev('CS_SFX.length'));
+      ok(G.ev("csSfxFind('หมาตัวนั้นนอนอยู่ แมวของฉันน่ารัก เขาเดินไปที่ร้าน กินไก่ทอด เปิดไฟ เขียนจดหมาย').length") === 0, 'just mentioning animals/things makes no sound');
       ok(G.ev("csSfxFind('ฟ้าผ่าเปรี้ยง แมวร้องเหมียว').map(h => h.id).join()") === 'thunder,thunder,cat,cat', 'finds effect words');
-      ok(G.ev("csSfxFind('จดหมายมีความหมาย ควบคุมตัว กินหมี่ ข้าวมันไก่ location training').length") === 1, 'avoids look-alike words', G.ev("csSfxFind('จดหมายมีความหมาย ควบคุมตัว กินหมี่ ข้าวมันไก่ location training').map(h=>h.id).join()"));
-      ok(G.ev("csCfg().sfx") === 'auto', 'effects on (auto) by default');
-      G.ev("(() => { const o = csSfxPlay; window.__sfx = []; csSfxPlay = (id, f) => { window.__sfx.push(id); return o(id, f); }; })()");
+      ok(G.ev("csSfxFind('จดหมายมีความหมาย ควบคุมตัว กินหมี่ ข้าวมันไก่ location training').length") === 0, 'avoids look-alike words', G.ev("csSfxFind('จดหมายมีความหมาย ควบคุมตัว กินหมี่ ข้าวมันไก่ location training').map(h=>h.id).join()"));
+      ok(G.ev("csCfg().sfx") === 'off', 'effects off by default');
+      G.ev("csCfg().sfx = 'auto'");
+      G.ev("(() => { const o = csSfxPlay; window.__sfx = []; csSfxRun = id => { window.__sfx.push(id); return o(id); }; })()".replace('const o = csSfxPlay', 'const o = csSfxRun'));
       G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'ฟ้าผ่าเปรี้ยงลงกลางลาน\nอาเรีย: "แมวร้องเหมียวอยู่ใต้โต๊ะ"\nเสียงฝีเท้าย่องเข้ามาใกล้' });
       const sid = G.chat.length - 1;
       G.ev("csCfg().typingMs = 0; csCfg().readPos = {}; csCfg().style = 'chat'; csCloseReader(true); csOpenMessage(" + sid + ")"); await sleep(120);
-      ok(R().querySelector('.cs-sfx[data-sfx="thunder"]') && G.w.__sfx.includes('thunder'), 'auto: effect word underlined and played when the bubble appears', G.w.__sfx);
+      ok(R().querySelector('.cs-sfx[data-sfx="thunder"]') && !G.w.__sfx.length && G.ev('csSfxPending') === 'thunder', 'auto: underlined, queued to play just after the bubble appears');
+      await sleep(400);
+      ok(G.w.__sfx.join() === 'thunder', 'one sound per line (not both words at once)', G.w.__sfx);
       G.w.__sfx.length = 0;
       const i0 = G.ev('csReader.player.i');
       R().querySelector('.cs-sfx[data-sfx="thunder"]').click();
       ok(G.w.__sfx[0] === 'thunder' && G.ev('csReader.player.i') === i0, 'tap an underlined word = play it (does not advance)');
       G.w.__sfx.length = 0;
-      R().querySelector('.cs-body').click(); await sleep(120);
-      ok(G.w.__sfx.includes('cat') && R().querySelector('.cs-bubble .cs-sfx[data-sfx="cat"]'), 'next bubble plays its effect');
+      R().querySelector('.cs-body').click(); await sleep(420);
+      ok(!G.w.__sfx.length && G.ev('csSfxPending') === 'cat' && R().querySelector('.cs-bubble .cs-sfx[data-sfx="cat"]'), 'next sound waits its turn until the previous one ends');
+      G.ev('csSfxBusyUntil = 0; csSfxQueue(csSfxPending, 0)'); await sleep(20);
+      ok(G.w.__sfx.join() === 'cat', 'then plays');
       // แตะเล่นอย่างเดียว
       R().querySelector('.cs-menu [data-cs="amb"]').click();
       ok(R().querySelectorAll('.cs-nav .cs-sfxseg button').length === 3 && R().querySelectorAll('.cs-nav .cs-sfxchips button').length === G.ev('CS_SFX.length'), 'sheet: effect mode + try every sound');

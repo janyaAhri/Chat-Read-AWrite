@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.31.0';
+const CS_VERSION = '1.32.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -60,7 +60,7 @@ const CS_SOUNDS = [
 const CS_DEFAULTS = {
  enabled: true,
  ttsRate: 1, ttsNarr: true, ttsVoice: '', // ★ 1.27 อ่านออกเสียง
- sfx: 'auto', sfxVol: .7, // ★ 1.31 เสียงเอฟเฟกต์: off | tap | auto
+ sfx: 'off', sfxVol: .7, // ★ 1.31 เสียงเอฟเฟกต์: off | tap | auto
  ambient: 'off', ambVol: .35, // ★ 1.29 เสียงบรรยากาศ: off | auto | rain | sea | cafe | night | fire
  swipeCh: false, // ★ 1.28 ปัดซ้ายขวาเปลี่ยนบท (ปิดไว้ก่อน บางคนไม่ชอบ)
  mode: 'reader',        // reader | inline
@@ -147,6 +147,7 @@ function csCfg() {
  if (s._v < 21) { if (s.preset === 'moon') s.preset = 'classic'; s._v = 21; }
  if (s._v < 22) { csCastCleanup(s); s._v = 22; }
  if (s._v < 23) { if (s.preset === 'classic') s.preset = 'ink'; if (s.volume === 0.6) s.volume = 0.8; s._v = 23; } // ★ 1.21 ค่าเริ่มต้นดำขาว + เสียงดังขึ้น // ★ 1.20 ล้างชื่อที่เดาผิด (ความ คำ ปลาย น้ำเ …) // ★ 1.18 กลับมาเริ่มที่ขาวดำเรียบ (จันทร์นวลยังเลือกได้)
+ if (s._v < 24) { if (s.sfx === 'auto') s.sfx = 'off'; s._v = 24; } // ★ 1.32 เอฟเฟกต์ปิดเป็นค่าเริ่มต้น
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -3518,9 +3519,10 @@ function csSfxP(ac, out, t0) {
   else g.gain.exponentialRampToValueAtTime(.0001, at(t) + dur);
  };
  const R = Math.random;
- return {
-  R,
+ const P = {
+  R, end: 0,
   n(t, dur, o = {}) {
+   P.end = Math.max(P.end, t + dur);
    const src = ac.createBufferSource(); src.buffer = csAmbNoise(ac, o.brown ? 'brown' : 'white');
    const f = ac.createBiquadFilter(); f.type = o.type || 'bandpass'; f.frequency.setValueAtTime(o.f || 1000, at(t));
    if (o.f2) f.frequency.exponentialRampToValueAtTime(o.f2, at(t) + dur); f.Q.value = o.q || 1;
@@ -3528,6 +3530,7 @@ function csSfxP(ac, out, t0) {
    src.connect(f); f.connect(g); g.connect(out); src.start(at(t), R() * 3); src.stop(at(t) + dur + .05);
   },
   s(t, fr, dur, o = {}) {
+   P.end = Math.max(P.end, t + dur);
    const osc = ac.createOscillator(); osc.type = o.type || 'sine'; osc.frequency.setValueAtTime(fr, at(t));
    if (o.path) o.path.forEach(([tt, ff]) => osc.frequency.linearRampToValueAtTime(ff, at(t) + tt));
    else if (o.f2) osc.frequency.exponentialRampToValueAtTime(o.f2, at(t) + (o.gl || dur));
@@ -3538,11 +3541,15 @@ function csSfxP(ac, out, t0) {
    node.connect(g); g.connect(out); osc.start(at(t)); osc.stop(at(t) + dur + .05);
   }
  };
+ return P;
 }
 const csFxGun = (P, t, v = .85) => { P.n(t, .18, { type: 'lowpass', f: 4000, f2: 600, v, a: .001 }); P.s(t, 150, .25, { f2: 40, v: .8 * v, a: .001 }); P.n(t + .05, .6, { brown: 1, type: 'lowpass', f: 500, v: .3 * v }); };
 const csFxThud = (P, t, v = .9) => { P.s(t, 80, .35, { f2: 35, v, a: .002 }); P.n(t, .35, { brown: 1, type: 'lowpass', f: 500, v: v * .9, a: .002 }); };
 const csFxStep = (P, t, v = .6) => { P.n(t, .09, { brown: 1, type: 'lowpass', f: 500, v, a: .004 }); P.n(t, .04, { type: 'bandpass', f: 1800, q: 2, v: v * .14, a: .002 }); };
 const csFxCrackle = (P, t, n, spread) => { for (let i = 0; i < n; i++) P.n(t + P.R() * spread, .01 + P.R() * .02, { type: 'highpass', f: 1800 + P.R() * 2500, v: .15 + P.R() * .4, a: .001 }); };
+const CS_VOW = { a: [800, 1200], e: [500, 1900], i: [320, 2300], o: [520, 900], u: [350, 800] };
+/** เสียงคนแบบง่าย: คลื่นฟันเลื่อยผ่านฟอร์แมนต์สระ */
+const csFxVox = (P, t, f0, dur, vw, o = {}) => { const [f1, f2] = CS_VOW[vw] || CS_VOW.a, v = o.v ?? .5, c = { type: 'sawtooth', a: o.a ?? .02, path: o.path, f2: o.f2, vib: o.vib, sus: o.sus }; P.s(t, f0, dur, { ...c, bp: f1, q: 4, v }); P.s(t, f0, dur, { ...c, bp: f2, q: 6, v: v * .45 }); };
 const CS_SFX = [
  // ธรรมชาติ
  { id: 'thunder', n: 'ฟ้าผ่า', k: 'ฟ้าผ่า|ฟ้าร้อง|ฟ้าคำราม|เปรี้ยง|ครืน|สายฟ้า|thunder|lightning', p: P => { P.n(0, .25, { type: 'highpass', f: 800, v: .9, a: .002 }); P.n(.02, 3, { brown: 1, type: 'lowpass', f: 300, f2: 80, v: 1, a: .05 }); P.n(.3, 2.2, { brown: 1, type: 'lowpass', f: 180, v: .7, a: .2 }); } },
@@ -3580,7 +3587,7 @@ const CS_SFX = [
  { id: 'clink', n: 'ชนแก้ว', k: 'ชนแก้ว|กริ๊ก|แก้วกระทบ|cheers|clink', p: P => { P.s(0, 3100, .6, { v: .18, a: .001 }); P.s(0, 4700, .4, { v: .1, a: .001 }); } },
  { id: 'coin', n: 'เหรียญ', k: 'เหรียญ|ถุงเงิน|เหรียญทอง|coins?', p: P => { P.s(0, 2600, .4, { v: .18, a: .001 }); P.s(.08, 3400, .5, { v: .15, a: .001 }); } },
  { id: 'paper', n: 'กระดาษ', k: 'พลิกหน้า|หน้ากระดาษ|กระดาษ|ฉีก|จดหมาย|page turn|paper|rustl', p: P => { for (let i = 0; i < 5; i++) P.n(i * .05, .08, { type: 'highpass', f: 2500, v: .2, a: .01 }); } },
- { id: 'typing', n: 'พิมพ์', k: 'พิมพ์ข้อความ|พิมพ์ตอบ|กดพิมพ์|แป้นพิมพ์|คีย์บอร์ด|typing|keyboard', p: P => { for (let i = 0; i < 12; i++) P.n(i * .09 + P.R() * .04, .02, { type: 'bandpass', f: 2000 + P.R() * 1500, q: 3, v: .35, a: .001 }); } },
+ { id: 'typing', n: 'พิมพ์', k: 'พิมพ์ข้อความ|พิมพ์ตอบ|กดพิมพ์|แป้นพิมพ์|คีย์บอร์ด|typing|keyboard', p: P => { for (let i = 0; i < 12; i++) P.n(i * .09 + P.R() * .04, .02, { type: 'bandpass', f: 2000 + P.R() * 1500, q: 3, v: .8, a: .001 }); } },
  { id: 'camera', n: 'ถ่ายรูป', k: 'ถ่ายรูป|ชัตเตอร์|แชะ|กดถ่าย|camera|shutter', p: P => { P.n(0, .03, { type: 'highpass', f: 3000, v: .6, a: .001 }); P.n(.09, .04, { type: 'bandpass', f: 1800, v: .5, a: .001 }); } },
  { id: 'phone', n: 'โทรศัพท์', k: 'โทรศัพท์ดัง|มือถือดัง|โทรศัพท์สั่น|มือถือสั่น|สายเรียกเข้า|ริงโทน|phone rang|ringtone', p: P => { for (let i = 0; i < 2; i++) { P.s(i * 1.1, 880, .8, { type: 'square', lp: 2500, v: .1, vib: [18, 90], sus: 1 }); } } },
  { id: 'notif', n: 'แจ้งเตือน', k: 'แจ้งเตือน|ข้อความเข้า|ติ๊ง|notification|ding', p: P => { P.s(0, 1320, .5, { v: .25 }); P.s(.12, 1760, .7, { v: .25 }); } },
@@ -3639,13 +3646,131 @@ const CS_SFX = [
  { id: 'guitar', n: 'กีตาร์', k: 'กีตาร์|ดีดกีตาร์|guitar|strum', p: P => [196, 247, 294, 392, 494].forEach((f, i) => P.s(i * .04, f, 1.5, { type: 'triangle', v: .15, a: .002, lp: 2500 })) },
  { id: 'violin', n: 'ไวโอลิน', k: 'ไวโอลิน|violin|cello', p: P => P.s(0, 440, 1.4, { type: 'sawtooth', lp: 3000, vib: [5.5, 6], v: .12, a: .25, sus: 1 }) },
  { id: 'flute', n: 'ขลุ่ย', k: 'ขลุ่ย|ฟลุต|flute', p: P => { P.s(0, 880, .6, { vib: [5, 8], v: .15, a: .08 }); P.s(.55, 988, .8, { vib: [5, 8], v: .15, a: .05 }); } },
- { id: 'whistle', n: 'ผิวปาก', k: 'ผิวปาก|whistl', p: P => P.s(0, 1500, .8, { path: [[.3, 2200], [.8, 1800]], v: .15, a: .03 }) }
+ { id: 'whistle', n: 'ผิวปาก', k: 'ผิวปาก|whistl', p: P => P.s(0, 1500, .8, { path: [[.3, 2200], [.8, 1800]], v: .15, a: .03 }) },
+ // ★ 1.32 คน · ของตก
+ { id: 'chatter', n: 'คนคุยกัน', k: '', p: P => { const vs = 'aeiou'; for (let i = 0; i < 22; i++) { const f0 = [130, 200, 250][i % 3] * (.9 + P.R() * .2); csFxVox(P, P.R() * 2.2, f0, .12 + P.R() * .14, vs[Math.floor(P.R() * 5)], { v: .35, f2: f0 * (.85 + P.R() * .3) }); } } },
+ { id: 'laugh', n: 'หัวเราะ', k: '', p: P => { for (let i = 0; i < 6; i++) { csFxVox(P, i * .16, 230 - i * 8, .1, 'a', { v: .45, a: .01 }); P.n(i * .16, .09, { type: 'bandpass', f: 1500, v: .08 }); } } },
+ { id: 'giggle', n: 'คิกคัก', k: '', p: P => { for (let i = 0; i < 5; i++) csFxVox(P, i * .11, 400 + P.R() * 40, .07, 'i', { v: .8, a: .008 }); } },
+ { id: 'cry', n: 'ร้องไห้', k: '', p: P => { for (let i = 0; i < 3; i++) { csFxVox(P, i * .6, 330, .48, 'u', { path: [[.15, 380], [.48, 260]], vib: [7, 12], v: .35, a: .05 }); P.n(i * .6 + .5, .12, { type: 'bandpass', f: 1200, v: .12 }); } } },
+ { id: 'scream', n: 'กรี๊ด', k: '', p: P => csFxVox(P, 0, 900, 1.2, 'a', { path: [[.2, 1100], [1.2, 800]], vib: [8, 40], v: .45, a: .03 }) },
+ { id: 'gasp', n: 'เฮือก', k: '', p: P => P.n(0, .4, { type: 'bandpass', f: 900, f2: 2200, q: 1.5, v: .45, a: .1 }) },
+ { id: 'sigh', n: 'ถอนหายใจ', k: '', p: P => P.n(0, 1.3, { type: 'bandpass', f: 1100, f2: 450, q: 1.2, v: .4, a: .25 }) },
+ { id: 'cough', n: 'ไอ', k: '', p: P => { for (let i = 0; i < 3; i++) { P.n(i * .32, .14, { type: 'lowpass', f: 1600, v: .6, a: .005 }); P.s(i * .32, 180, .1, { f2: 90, v: .25 }); } } },
+ { id: 'sneeze', n: 'จาม', k: '', p: P => { P.n(0, .45, { type: 'bandpass', f: 700, f2: 1600, v: .3, a: .35 }); P.n(.5, .22, { type: 'highpass', f: 1500, v: .8, a: .003 }); } },
+ { id: 'yawn', n: 'หาว', k: '', p: P => csFxVox(P, 0, 260, 1.4, 'a', { path: [[.4, 420], [1.4, 200]], v: .3, a: .2 }) },
+ { id: 'drop', n: 'ของตก', k: '', p: P => { P.s(0, 200, .12, { f2: 90, v: .6, a: .002 }); P.n(0, .1, { type: 'bandpass', f: 1200, v: .4, a: .002 }); P.s(.24, 240, .07, { f2: 120, v: .3 }); P.n(.24, .05, { type: 'bandpass', f: 1400, v: .2 }); P.s(.4, 260, .05, { v: .15 }); } },
+ { id: 'clatter', n: 'ของโลหะตก', k: '', p: P => { [0, .18, .3].forEach((t, k) => { P.n(t, .05, { type: 'bandpass', f: 2500, v: .5 / (k + 1), a: .001 }); [2100, 3300, 4700].forEach(f => P.s(t, f * (1 + k * .03), .4, { v: .08 / (k + 1), a: .001 })); }); } }
 ];
-CS_SFX.forEach(x => { x.re = new RegExp(x.k, 'gi'); });
+/** ★ 1.32 จับเฉพาะคำเสียงตรง ๆ หรือวลีที่บอกว่ามีเสียงจริง — แค่เอ่ยชื่อสัตว์/สิ่งของไม่ดัง */
+const CS_SFX_K = {
+ thunder: 'ฟ้าผ่า|ฟ้าร้อง|ฟ้าคำราม|เปรี้ยง|ครืน ?ๆ|thunderclap|lightning struck',
+ gust: 'ลมกระโชก|หวีดหวิว|gust of wind|wind howled',
+ quake: 'แผ่นดินไหว|พื้นสั่นสะเทือน|earthquake',
+ splash: 'ตูมลงน้ำ|กระโดดลงน้ำ|ตกลงไปในน้ำ|น้ำกระเซ็น|จ๋อม|splashed',
+ drip: 'ติ๋ง ?ๆ|ติ๋ง|น้ำหยดติ๋ง|dripping',
+ pour: 'รินน้ำ|รินชา|รินไวน์|รินเหล้า|poured',
+ bubble: 'ปุด ?ๆ|เดือดปุด|bubbling',
+ flame: 'พรึ่บ|ไฟลุกท่วม|ลุกเป็นไฟ|burst into flames',
+ gun: 'ยิงปืน|เสียงปืน|ปืนลั่น|ลั่นไก|เหนี่ยวไก|(?<!ขนม)ปัง(?= ?!)|gunshot|opened fire',
+ mgun: 'ปืนกล|ยิงรัว|กระสุนรัว|ห่ากระสุน|machine ?gun',
+ reload: 'บรรจุกระสุน|ขึ้นลำ|ง้างนก|reloaded',
+ cannon: 'ยิงปืนใหญ่|ปืนใหญ่ยิง|cannon fire',
+ boom: 'ระเบิดดัง|ระเบิดขึ้น|ระเบิดออก|ตูม(?!ลงน้ำ)|บึ้ม|exploded|explosion',
+ swdraw: 'ชักดาบ|ถอดดาบ|ชักกระบี่|ถอดกระบี่|unsheathed',
+ swclash: 'ดาบกระทบ|ปะทะดาบ|เคร้ง|แกร๊ง|swords clashed|clang',
+ slash: 'ฉึก|แทงเข้า|slashed|stabbed',
+ arrow: 'ยิงธนู|ปล่อยลูกธนู|ลูกธนูพุ่ง|ฟิ้ว|loosed an arrow',
+ whip: 'ฟาดแส้|เพี้ยะ|cracked the whip',
+ whoosh: 'ฟึ่บ|ฟุ่บ|หวือ|whoosh|swoosh',
+ punch: 'ต่อยเข้า|ชกเข้า|ผลัวะ|พลั่ก|ตุ้บ|โป๊ก|punched',
+ slap: 'ตบหน้า|เพียะ|ฉาด|slapped',
+ chain: 'โซ่กระทบ|เสียงโซ่|chains rattled',
+ steps: 'เสียงฝีเท้า|เสียงเท้า|ย่องเข้ามา|footsteps',
+ run: 'วิ่งตึงตัง|ตึงตัง|วิ่งหนี|ran away',
+ knock: 'เคาะประตู|ก๊อก ?ๆ|ก๊อก|knocked on the door',
+ creak: 'เอี๊ยด|ประตูลั่น|creaked',
+ slam: 'กระแทกประตู|ปิดประตูดังปัง|ปิดประตูปัง|slammed',
+ close: 'ปิดประตูเบา ?ๆ|closed the door',
+ lock: 'ไขกุญแจ|แกร๊ก|unlocked',
+ glass: '(?:แก้ว|จาน|ชาม|กระจก|ขวด|แจกัน|ถ้วย)\\S{0,8}?แตก|เพล้ง|shattered',
+ clink: 'ชนแก้ว|แก้วกระทบกัน|clinked',
+ coin: 'เหรียญกระทบ|เหรียญหล่น|coins jingled',
+ paper: 'พลิกหน้ากระดาษ|ฉีกกระดาษ|ขยำกระดาษ|turned the page',
+ typing: 'รัวแป้นพิมพ์|ต๊อกแต๊ก|typing',
+ camera: 'แชะ|ชัตเตอร์|shutter clicked',
+ phone: 'โทรศัพท์ดัง|มือถือดัง|เสียงเรียกเข้า|ริงโทน|phone rang',
+ notif: 'ติ๊ง|เสียงแจ้งเตือน|ding',
+ clock: 'ติ๊กต็อก|tick-tock',
+ alarm: 'นาฬิกาปลุกดัง|เสียงนาฬิกาปลุก|สัญญาณเตือนภัย|alarm went off',
+ bell: 'ระฆังดัง|ตีระฆัง|เสียงระฆัง|เหง่ง|ตีฆ้อง|bell tolled',
+ chime: 'กดกริ่ง|กดออด|กริ่งดัง|เสียงกระดิ่ง|กรุ๊งกริ๊ง|doorbell',
+ crunch: 'กรุบ|กร้วม|crunch',
+ gulp: 'อึก ?ๆ|อึกใหญ่|gulped',
+ stomach: 'ท้องร้อง|โครกคราก|stomach growled',
+ snore: 'กรนเสียงดัง|ครอก|snored',
+ kiss: 'จุ๊บ|ฟอด|kissed',
+ snap: 'ดีดนิ้ว|snapped (?:his|her) fingers',
+ clap: 'ปรบมือ|เสียงเชียร์|applause',
+ fall: 'ล้มตึง|ล้มลงกับพื้น|ล้มโครม|ตุบ|ตึ้ง|thud',
+ crash: 'โครม|พังครืน|ถล่มลงมา|crashed',
+ wood: 'กิ่งไม้หัก|ไม้หัก|กร๊อบ|snapped in two',
+ heart: 'ตึกตัก|หัวใจเต้นแรง|heart pounded',
+ horn: 'บีบแตร|ปี๊น|honked',
+ engine: 'สตาร์ทรถ|บิดคันเร่ง|เร่งเครื่อง|บรื้น|engine roared|revved',
+ brake: 'เบรกดังเอี๊ยด|ล้อเสียดสี|เบรกกะทันหัน|screeched',
+ siren: 'ไซเรน|เสียงหวอ|หวอ ?ๆ|siren',
+ train: 'หวูดรถไฟ|ฉึกฉัก|train whistle',
+ plane: 'เครื่องบินบินผ่าน|เสียงเครื่องบิน|jet roared',
+ fireworks: 'จุดพลุ|พลุแตก|ดอกไม้ไฟ|fireworks',
+ cat: 'เหมียว|เมี้ยว|แมวร้อง|meowed',
+ purr: 'ครางครืด|แมวคราง|purring',
+ dog: 'โฮ่ง|บ๊อก|หมาเห่า|เสียงเห่า|woof|barked',
+ wolf: 'หมาป่าหอน|หอนยาว|โหยหวน|howled',
+ roar: 'คำราม|roared|growled',
+ horse: 'ควบม้า|กีบม้า|กุบกับ|galloped',
+ cow: 'มอ ?ๆ|วัวร้อง|mooed',
+ sheep: 'แบ๊ะ|แกะร้อง|bleated',
+ elephant: 'ช้างร้อง|แปร๋น|trumpeted',
+ rooster: 'ไก่ขัน|เอ้กอี้|crowed',
+ hen: 'กุ๊ก ?ๆ|ไก่ร้อง|clucked',
+ duck: 'ก๊าบ|เป็ดร้อง|quacked',
+ bird: 'นกร้อง|เสียงนก|จิ๊บ ?ๆ|chirped|birdsong',
+ crow: 'อีการ้อง|cawed',
+ owl: 'นกฮูกร้อง|ฮู้ ?ๆ|hooted',
+ wings: 'กระพือปีก|พึ่บพั่บ|flapped',
+ frog: 'อ๊บ|กบร้อง|croaked',
+ snake: 'ฟ่อ|hissed',
+ bee: 'หึ่ง|buzzed',
+ magic: 'ร่ายเวท|ร่ายคาถา|วิ้ง|แสงวาบ|cast (?:a|the) spell',
+ warp: 'วาร์ป|เทเลพอร์ต|หายวับ|teleported',
+ zap: 'ไฟช็อต|ไฟฟ้าช็อต|zapped',
+ laser: 'ยิงเลเซอร์|ลำแสงพุ่ง|laser fired',
+ ghost: 'ขนลุกซู่|เสียงหลอน|ghostly wail',
+ drum: 'ตีกลอง|ตึ่ง ?ๆ|drums beat',
+ piano: 'เล่นเปียโน|piano played',
+ guitar: 'ดีดกีตาร์|เล่นกีตาร์|strummed',
+ violin: 'สีไวโอลิน|เล่นไวโอลิน',
+ flute: 'เป่าขลุ่ย|เป่าฟลุต',
+ whistle: 'ผิวปาก|whistled',
+ chatter: 'เสียงคุยจอแจ|จอแจ|เซ็งแซ่|พูดคุยกันเสียงดัง|chatter',
+ laugh: 'ฮ่า ?ๆ|ฮ่าฮ่า|หัวเราะลั่น|หัวเราะเสียงดัง|หัวเราะร่า|laughed out loud',
+ giggle: 'คิกคัก|คิก ?ๆ|giggled',
+ cry: 'ฮือ ?ๆ|สะอื้น|ร้องไห้โฮ|sobbed',
+ scream: 'กรี๊ด|กรีดร้อง|screamed',
+ gasp: 'เฮือก|gasped',
+ sigh: 'เฮ้อ|ถอนหายใจ|sighed',
+ cough: 'แค่ก ?ๆ|ไอค่อกแค่ก|กระแอม|coughed',
+ sneeze: 'ฮัดชิ่ว|ฮัดเช้ย|sneezed',
+ yawn: 'หาวหวอด|yawned',
+ drop: 'หล่นลงพื้น|ตกลงพื้น|ร่วงลงพื้น|หล่นตุ้บ|ตกพื้น|dropped',
+ clatter: '(?:ช้อน|ส้อม|มีด|กระทะ|ถาด)\\S{0,6}?(?:หล่น|ตก)|เคร้งคร้าง|clattered'
+};
+CS_SFX.forEach(x => { if (CS_SFX_K[x.id] !== undefined) x.k = CS_SFX_K[x.id]; });
+CS_SFX.forEach(x => { x.re = x.k ? new RegExp(x.k, 'gi') : null; });
 /** หาเสียงในข้อความ: ไม่ซ้อนกัน อันที่เริ่มก่อนและยาวกว่าชนะ */
 function csSfxFind(text) {
  const t = String(text || ''), all = [];
- CS_SFX.forEach(x => { x.re.lastIndex = 0; let m; while ((m = x.re.exec(t))) {
+ CS_SFX.forEach(x => { if (!x.re) return; x.re.lastIndex = 0; let m; while ((m = x.re.exec(t))) {
   if (!m[0]) { x.re.lastIndex++; continue; }
   // คำอังกฤษต้องเป็นคำเต็ม (cat ไม่ติดใน location) ยอมให้มีท้ายคำ s/ed/ing
   if (/^[a-z]/i.test(m[0]) && /[a-z]/i.test(t[m.index - 1] || '')) continue;
@@ -3656,31 +3781,56 @@ function csSfxFind(text) {
  all.forEach(h => { if (h.i >= end) { out.push(h); end = h.i + h.len; } });
  return out;
 }
-let csSfxOut = null, csSfxLastAt = 0;
-function csSfxPlay(id, force) {
+let csSfxOut = null, csSfxCur = null, csSfxBusyUntil = 0, csSfxPending = null, csSfxT = 0;
+/** เล่นเสียงเดียวทันที (ตัดเสียงที่ค้างอยู่ให้ค่อย ๆ เงียบ) · คืนความยาวเป็นวินาที */
+function csSfxRun(id) {
  const x = CS_SFX.find(e => e.id === id);
- const s = csCfg();
- if (!x || (s.sfx === 'off' && !force)) return false;
- const ac = csAc();
- if (!ac || typeof ac.createBiquadFilter !== 'function') return false;
+ const ac = x && csAc();
+ if (!ac || typeof ac.createBiquadFilter !== 'function') return 0;
  try {
   if (!csSfxOut || csSfxOut.context !== ac) { csSfxOut = ac.createGain(); csSfxOut.connect(csMaster(ac)); }
-  csSfxOut.gain.value = Math.max(0, Math.min(1, +s.sfxVol || 0));
-  x.p(csSfxP(ac, csSfxOut, ac.currentTime + .02));
-  return true;
- } catch { return false; }
+  csSfxOut.gain.value = Math.max(0, Math.min(1, +csCfg().sfxVol || 0));
+  csSfxStopCur();
+  const g = ac.createGain(); g.gain.value = 1; g.connect(csSfxOut);
+  const P = csSfxP(ac, g, ac.currentTime + .02);
+  x.p(P);
+  const dur = Math.min(4, P.end || .5);
+  csSfxCur = { g, ac };
+  csSfxBusyUntil = Date.now() + dur * 1000 + 450; // เว้นจังหวะก่อนเสียงถัดไป
+  return dur;
+ } catch { return 0; }
 }
-/** เล่นเสียงในบรรทัดนี้ (ไม่เกิน 2 เสียง เว้นจังหวะ) · ไม่เล่นซ้ำบรรทัดเดิมภายใน 3 วิ */
+function csSfxStopCur() {
+ const c = csSfxCur;
+ csSfxCur = null;
+ if (c) { try { c.g.gain.setTargetAtTime(0, c.ac.currentTime, .05); } catch {} }
+}
+/** แตะเล่น/ลองฟัง: เล่นเลย ล้างคิว */
+function csSfxPlay(id, force) {
+ if (!CS_SFX.some(e => e.id === id) || (csCfg().sfx === 'off' && !force)) return false;
+ clearTimeout(csSfxT); csSfxPending = null;
+ return csSfxRun(id) > 0;
+}
+/** อัตโนมัติ: เข้าคิว รอเสียงก่อนหน้าจบ · เลื่อนเร็วจนค้างหลายอัน = เอาอันล่าสุดอันเดียว (แบบเว็บตูน) */
+function csSfxQueue(id, delay) {
+ csSfxPending = id;
+ clearTimeout(csSfxT);
+ const wait = Math.max(delay ?? 350, csSfxBusyUntil - Date.now());
+ csSfxT = setTimeout(() => { const p = csSfxPending; csSfxPending = null; if (p && csCfg().sfx !== 'off') csSfxRun(p); }, wait);
+}
+/** เสียงของบรรทัดนี้: เสียงเดียว (คำแรก) เข้าคิว · บรรทัดเดิมไม่ซ้ำภายใน 3 วิ */
 function csSfxPlayIn(el, reading) {
  const s = csCfg();
  if (!el || s.sfx === 'off' || (s.sfx === 'tap' && !reading)) return 0;
  if (el._sfxAt && Date.now() - el._sfxAt < 3000) return 0;
- const spans = [...el.querySelectorAll('.cs-sfx')];
- const ids = [...new Set(spans.map(x => x.dataset.sfx))].slice(0, 2);
- if (!ids.length) return 0;
+ const sp = el.querySelector('.cs-sfx');
+ if (!sp) return 0;
  el._sfxAt = Date.now();
- ids.forEach((id, k) => setTimeout(() => { csSfxPlay(id); spans.filter(x => x.dataset.sfx === id).forEach(x => { x.classList.add('cs-sfxon'); setTimeout(() => x.classList.remove('cs-sfxon'), 700); }); }, k * 450));
- return ids.length;
+ const id = sp.dataset.sfx;
+ csSfxQueue(id, reading ? 150 : 350);
+ const flash = () => { sp.classList.add('cs-sfxon'); setTimeout(() => sp.classList.remove('cs-sfxon'), 700); };
+ setTimeout(flash, Math.max(350, csSfxBusyUntil - Date.now()));
+ return 1;
 }
 const CS_SFX_SKIP = '.cs-code, .cs-html, code, pre, .cs-sfx, .cs-cmt, button, .cs-nwho, .cs-name, .cs-turn';
 /** ใส่เส้นประใต้คำที่มีเสียง (ครั้งเดียวต่อบรรทัด) · คืนบรรทัดที่เพิ่งทำ */
