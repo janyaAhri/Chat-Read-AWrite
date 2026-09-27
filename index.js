@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.28.0';
+const CS_VERSION = '1.29.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -60,6 +60,7 @@ const CS_SOUNDS = [
 const CS_DEFAULTS = {
  enabled: true,
  ttsRate: 1, ttsNarr: true, ttsVoice: '', // ★ 1.27 อ่านออกเสียง
+ ambient: 'off', ambVol: .35, // ★ 1.29 เสียงบรรยากาศ: off | auto | rain | sea | cafe | night | fire
  swipeCh: false, // ★ 1.28 ปัดซ้ายขวาเปลี่ยนบท (ปิดไว้ก่อน บางคนไม่ชอบ)
  mode: 'reader',        // reader | inline
  autoOpen: true,
@@ -1131,6 +1132,7 @@ function csReaderHTML(title) {
     <button data-cs="all"><i class="fa-solid fa-forward-fast"></i>แสดงทั้งหมด</button>
     <button data-cs="nav"><i class="fa-solid fa-list"></i>สารบัญ · ค้นหา · ที่คั่น</button>
     <button data-cs="tts"><i class="fa-solid fa-volume-high"></i>อ่านออกเสียง</button>
+    <button data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ</button>
     <button data-cs="regen"><i class="fa-solid fa-rotate-right"></i>เจนใหม่</button>
     <button data-cs="dellast"><i class="fa-solid fa-trash-can"></i>ลบข้อความล่าสุด</button>
     <button data-cs="pin"><i class="fa-solid fa-thumbtack"></i>เปิดค้างเป็นหน้าแชท</button>
@@ -1163,6 +1165,7 @@ function csOpenReader(items, title, pre) {
  el.addEventListener('click', csReaderClick);
  csMarksBind(el);
  csSwipeChBind(el);
+ csAmbKick();
  el.querySelector('.cs-body').addEventListener('scroll', csReaderOnScroll, { passive: true });
  el.addEventListener('pointerdown', () => { if (csCfg().sound !== 'none') csAc(); }, { passive: true, once: true });
  csBindInput(el);
@@ -1182,6 +1185,7 @@ function csReaderUpdate() {
  el.classList.toggle('done', player.done);
  el.classList.toggle('generating', csGenerating);
  csReaderSavePos();
+ csAmbAutoSoon();
  const send = el.querySelector('.cs-send i');
  if (send) send.className = csGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-paper-plane';
  const sb = el.querySelector('.cs-send'); if (sb) { sb.title = csGenerating ? 'หยุด' : 'ส่ง'; sb.setAttribute('aria-label', sb.title); }
@@ -1252,6 +1256,7 @@ function csReaderClick(e) {
 function csCloseReader(instant) {
  if (!csReader) return;
  csTtsStop();
+ csAmbStopSoon();
  if (!instant && csIsPinned()) csAlwaysPaused = true;
  setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
  clearTimeout(csReaderScrollT); csReaderSavePos();
@@ -2186,6 +2191,7 @@ function csOpenNovel(mesId, all, resume) {
  el.addEventListener('click', csNovelClick);
  csMarksBind(el);
  csSwipeChBind(el);
+ csAmbKick();
  const body = el.querySelector('.cs-nbody');
  body.addEventListener('scroll', csNovelProgress, { passive: true });
  body.addEventListener('scroll', csNovelPosSave, { passive: true });
@@ -2245,6 +2251,7 @@ function csNovelGoto(mesId) {
  csNovelProgress();
 }
 function csNovelProgress() {
+ csAmbAutoSoon();
  if (!csNovel) return;
  const body = csNovel.el.querySelector('.cs-nbody');
  const max = body.scrollHeight - body.clientHeight;
@@ -2321,6 +2328,7 @@ function csAaHTML() {
   <div class="cs-aarow cs-aathemes">${CS_AA_THEMES.map(id => `<button data-cs="aa" data-f="theme" data-v="${id}" class="${s.preset === id ? 'on' : ''}" style="background:${CS_PRESETS[id].c.bg};color:${CS_PRESETS[id].c.ink}" title="${CS_PRESETS[id].name}">ก</button>`).join('')}</div>
   <div class="cs-aafonts">${CS_FONTS.filter(f => CS_AA_FONTS.includes(f.id)).map(f => `<button data-cs="aa" data-f="font" data-v="${f.id}" class="${s.font === f.id ? 'on' : ''}" style="font-family:${f.ff}">${csEsc(f.id === 'system' ? 'ตามเครื่อง' : f.name)}</button>`).join('')}</div>
   <button class="cs-aamore" data-cs="tts"><i class="fa-solid fa-volume-high"></i>อ่านออกเสียง</button>
+  <button class="cs-aamore" data-cs="amb"><i class="fa-solid fa-cloud-rain"></i>เสียงบรรยากาศ${csCfg().ambient !== 'off' ? ` · ${csAmbLabel()}` : ''}</button>
   <button class="cs-aamore" data-cs="pin"><i class="fa-solid fa-thumbtack"></i>${csIsPinned() ? 'เลิกเปิดค้าง' : 'เปิดค้างเป็นหน้าแชท'}</button>
   <button class="cs-aamore" data-cs="nsettings">ตั้งค่าเพิ่มเติม</button>`;
 }
@@ -2340,6 +2348,7 @@ function csAaAct(b) {
 function csCloseNovel(instant) {
  if (!csNovel) return;
  csTtsStop();
+ csAmbStopSoon();
  if (!instant && csIsPinned()) csAlwaysPaused = true;
  setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
  if (csCmtOpen && csCmtOpen.host === csNovel.el) csCmtClose();
@@ -2605,6 +2614,7 @@ function csNavMark(text, q) {
 }
 function csNavHTML() {
  if (csNavState.tab === 'prof') return csProfHTML();
+ if (csNavState.tab === 'amb') return csAmbHTML();
  const w = csChWord();
  const tabs = `<div class="cs-navtabs"><button data-cs="navtab" data-t="toc" class="${csNavState.tab === 'toc' ? 'on' : ''}">สารบัญ</button><button data-cs="navtab" data-t="find" class="${csNavState.tab === 'find' ? 'on' : ''}">ค้นหา</button><button data-cs="navtab" data-t="marks" class="${csNavState.tab === 'marks' ? 'on' : ''}">ที่คั่น</button></div>`;
  let body;
@@ -2632,6 +2642,7 @@ function csNavOpen(tab) {
   const bd = document.createElement('div'); bd.className = 'cs-nav-bd'; bd.dataset.cs = 'navclose'; host.appendChild(bd);
   sh.addEventListener('input', e => { if (e.target.classList.contains('cs-navq')) { csNavState.q = e.target.value; clearTimeout(csNavT); csNavT = setTimeout(() => csNavRefresh(true), 220); } });
   sh.addEventListener('change', e => csProfChange(e.target));
+  sh.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.amb === 'vol') { csCfg().ambVol = +e.target.value; csAmbVolume(); clearTimeout(csAmbSaveT); csAmbSaveT = setTimeout(csSave, 400); } });
  }
  csNavRefresh();
  void sh.offsetHeight; // ให้ทรานสิชันเลื่อนขึ้นทำงาน
@@ -2655,7 +2666,9 @@ function csNavRefresh(keepFocus) {
 }
 function csNavClose() { const h = csNavHost(); if (h) h.classList.remove('nav-open'); }
 function csNavClick(a, b) {
- if (a === 'nav') { csNavOpen(csNavState.tab === 'prof' ? 'toc' : ''); return true; }
+ if (a === 'nav') { csNavOpen(csNavState.tab === 'prof' || csNavState.tab === 'amb' ? 'toc' : ''); return true; }
+ if (a === 'amb') { csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open'); csNovel && csNovel.el.querySelector('.cs-aapanel')?.classList.remove('open'); csNavOpen('amb'); return true; }
+ if (a === 'ambset') { csAmbSet(b.dataset.v); csNavRefresh(); return true; }
  if (a === 'prof') { Object.assign(csNavState, { who: b.dataset.who || '', ck: b.dataset.ck || '', av: b.dataset.av || '' }); csNavOpen('prof'); return true; }
  if (a === 'proffind') { csNavState.q = csNavState.who; csNavState.tab = 'find'; csNavRefresh(); return true; }
  if (a === 'profmore') { csNavClose(); csOpenSettings('chars'); return true; }
@@ -3241,6 +3254,129 @@ function csSwipeChBind(host) {
   csChPill(n);
  }, { passive: true });
  host.addEventListener('touchcancel', () => { st = null; }, { passive: true });
+}
+// ══ ★ 1.29 เสียงบรรยากาศ — สังเคราะห์สดด้วย Web Audio (ไม่มีไฟล์เสียง) ══
+const CS_AMB = [
+ { id: 'rain', name: 'ฝน', icon: 'fa-cloud-rain', kw: /ฝน|พายุ|ฟ้าร้อง|ฟ้าผ่า|หยดน้ำ|ร่ม|rain|storm|thunder/gi },
+ { id: 'sea', name: 'คลื่น', icon: 'fa-water', kw: /ทะเล|คลื่น|ชายหาด|หาดทราย|ริมหาด|มหาสมุทร|เรือ|beach|ocean|waves?|sea\b/gi },
+ { id: 'cafe', name: 'ร้านกาแฟ', icon: 'fa-mug-hot', kw: /คาเฟ่|ร้านกาแฟ|ร้านอาหาร|ร้านขนม|โรงอาหาร|ภัตตาคาร|บาร์|กาแฟ|แก้วชา|cafe|coffee|restaurant|\bbar\b/gi },
+ { id: 'night', name: 'กลางคืน', icon: 'fa-moon', kw: /กลางคืน|ยามค่ำ|ค่ำคืน|ดึกสงัด|เที่ยงคืน|จิ้งหรีด|แสงจันทร์|พระจันทร์|ดวงดาว|night|midnight|moon|crickets?/gi },
+ { id: 'fire', name: 'เตาผิง', icon: 'fa-fire', kw: /เตาผิง|กองไฟ|ฟืน|เปลวไฟ|แคมป์ไฟ|ผิงไฟ|fireplace|campfire|bonfire/gi }
+];
+let csAmb = null, csAmbT = 0, csAmbSaveT = 0, csAmbStopT = 0;
+const csAmbBuf = {};
+function csAmbLabel() { const s = csCfg(); if (s.ambient === 'auto') { const cur = csAmb && CS_AMB.find(x => x.id === csAmb.id); return 'อัตโนมัติ' + (cur ? ` (${cur.name})` : ''); } const x = CS_AMB.find(a => a.id === s.ambient); return x ? x.name : 'ปิด'; }
+/** เดาฉากจากคำในบท (นับคำ เอาอันที่เจอมากสุด) */
+function csAmbDetect(text) {
+ const t = String(text || '');
+ let best = '', n = 0;
+ CS_AMB.forEach(a => { const c = (t.match(a.kw) || []).length; if (c > n) { n = c; best = a.id; } });
+ return best;
+}
+function csAmbSceneText() {
+ const chat = csCtx().chat || [];
+ let id = -1;
+ if (csReader) { const p = csReader.player; const it = p.items[Math.min(p.i, p.items.length) - 1]; id = it && it._m !== undefined ? it._m : -1; }
+ else if (csNovel) id = csNavCurrentId();
+ if (id < 0) id = chat.length - 1;
+ // บทของบอทที่อ่านอยู่ + ข้อความเราก่อนหน้า (บอกฉากได้เหมือนกัน)
+ return [chat[id - 1], chat[id]].filter(m => m && !m.is_system).map(m => m.mes || '').join('\n');
+}
+function csAmbWant() {
+ const s = csCfg();
+ if (!csReader && !csNovel) return '';
+ if (s.ambient === 'auto') return csAmbDetect(csAmbSceneText()) || (csAmb ? csAmb.id : '');
+ return CS_AMB.some(a => a.id === s.ambient) ? s.ambient : '';
+}
+function csAmbKick() { clearTimeout(csAmbStopT); if (csCfg().ambient !== 'off') setTimeout(csAmbSync, 50); }
+function csAmbAutoSoon() { if (csCfg().ambient !== 'auto') return; clearTimeout(csAmbT); csAmbT = setTimeout(csAmbSync, 900); }
+function csAmbStopSoon() { clearTimeout(csAmbStopT); csAmbStopT = setTimeout(() => { if (!csReader && !csNovel) csAmbStop(); }, 250); }
+function csAmbSync() {
+ const want = csAmbWant();
+ if ((csAmb ? csAmb.id : '') === want) return;
+ csAmbStop();
+ if (want) csAmbStart(want);
+}
+function csAmbSet(v) {
+ const s = csCfg();
+ s.ambient = v === 'auto' || CS_AMB.some(a => a.id === v) ? v : 'off';
+ csSave();
+ if (s.ambient === 'off') return csAmbStop();
+ csAc(); // แตะเลือก = ท่าทางผู้ใช้ เปิดเสียงได้
+ if (s.ambient === 'auto') { csAmbSync(); if (!csAmb) csToast('ยังไม่เจอฉากที่มีเสียง · จะเปิดเองเมื่อเจอ เช่น ฝน ทะเล คาเฟ่'); return; }
+ csAmbStop(); const w = csAmbWant(); if (w) csAmbStart(w);
+}
+function csAmbVolume() { if (csAmb && csAmb.out && csAmb.ac) { try { csAmb.out.gain.setTargetAtTime(Math.max(0, Math.min(1, +csCfg().ambVol || 0)) * .6, csAmb.ac.currentTime, .15); } catch {} } }
+function csAmbNoise(ac, kind) {
+ const k = kind + ac.sampleRate;
+ if (csAmbBuf[k]) return csAmbBuf[k];
+ const len = Math.floor(ac.sampleRate * 4), b = ac.createBuffer(1, len, ac.sampleRate), d = b.getChannelData(0);
+ let last = 0;
+ for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; if (kind === 'brown') { last = (last + .02 * w) / 1.02; d[i] = last * 3.5; } else d[i] = w; }
+ return (csAmbBuf[k] = b);
+}
+function csAmbStart(id) {
+ const ac = csAc();
+ if (!ac) return;
+ try {
+  const out = ac.createGain();
+  out.gain.value = 0.0001;
+  out.connect(ac.destination);
+  const A = { id, ac, out, nodes: [out], timers: [] };
+  const src = (kind, rate) => { const n = ac.createBufferSource(); n.buffer = csAmbNoise(ac, kind); n.loop = true; if (rate) n.playbackRate.value = rate; n.start(); A.nodes.push(n); return n; };
+  const filt = (type, f, q) => { const n = ac.createBiquadFilter(); n.type = type; n.frequency.value = f; if (q) n.Q.value = q; A.nodes.push(n); return n; };
+  const gain = v => { const g = ac.createGain(); g.gain.value = v; A.nodes.push(g); return g; };
+  const chain = (...ns) => { for (let i = 0; i < ns.length - 1; i++) ns[i].connect(ns[i + 1]); return ns[ns.length - 1]; };
+  const lfo = (param, hz, depth) => { const o = ac.createOscillator(); o.frequency.value = hz; const g = gain(depth); o.connect(g); g.connect(param); o.start(); A.nodes.push(o); };
+  const every = (min, max, fn) => { const tick = () => { if (csAmb !== A) return; try { fn(); } catch {} A.timers.push(setTimeout(tick, min + Math.random() * (max - min))); }; A.timers.push(setTimeout(tick, min)); };
+  const burst = (f, q, v, dur, type) => { const t = ac.currentTime, n = ac.createBufferSource(); n.buffer = csAmbNoise(ac, 'white'); const bf = ac.createBiquadFilter(); bf.type = type || 'bandpass'; bf.frequency.value = f; bf.Q.value = q; const g = ac.createGain(); g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur); n.connect(bf); bf.connect(g); g.connect(out); n.start(t, Math.random() * 3); n.stop(t + dur + .02); };
+  const ping = (f, v, dur) => { const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.frequency.value = f; g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur); o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + .02); };
+  if (id === 'rain') {
+   chain(src('brown'), filt('highpass', 350), filt('lowpass', 5200), gain(1.8), out);
+   chain(src('white'), filt('bandpass', 2600, .6), gain(.14), out);
+   every(25, 110, () => burst(1600 + Math.random() * 3200, 2.5, .08 + Math.random() * .14, .02 + Math.random() * .03));
+  } else if (id === 'sea') {
+   const g = gain(.8);
+   chain(src('brown', .8), filt('lowpass', 850), g, out);
+   lfo(g.gain, .085, .65);
+   const h = gain(.06); chain(src('white'), filt('highpass', 3000), h, out); lfo(h.gain, .085, .05);
+  } else if (id === 'cafe') {
+   const g = gain(1.3);
+   chain(src('brown', 1.4), filt('bandpass', 520, .45), g, out);
+   lfo(g.gain, .32, .3);
+   every(250, 900, () => burst(280 + Math.random() * 650, 1.6, .14 + Math.random() * .14, .3 + Math.random() * .6)); // เสียงคุยพึมพำ
+   every(1800, 6000, () => ping(2300 + Math.random() * 1600, .09, .35)); // แก้วช้อนกระทบ
+  } else if (id === 'night') {
+   chain(src('brown', .6), filt('lowpass', 380), gain(.9), out);
+   const cr = f => () => { for (let k = 0; k < 3; k++) setTimeout(() => csAmb === A && ping(f + Math.random() * 60, .06, .045), k * 70); };
+   every(700, 1300, cr(4350));
+   every(900, 1700, cr(4780));
+  } else if (id === 'fire') {
+   chain(src('brown', .7), filt('lowpass', 560), gain(1.1), out);
+   every(35, 320, () => burst(1800 + Math.random() * 2500, .9, .15 + Math.random() * .45, .008 + Math.random() * .02, 'highpass'));
+  } else return;
+  csAmb = A;
+  csAmbVolume();
+ } catch (e) { csAmb = null; }
+}
+function csAmbStop() {
+ const A = csAmb;
+ csAmb = null;
+ if (!A) return;
+ A.timers.forEach(clearTimeout);
+ try { A.out.gain.setTargetAtTime(.0001, A.ac.currentTime, .25); } catch {}
+ setTimeout(() => A.nodes.forEach(n => { try { n.stop && n.stop(); } catch {} try { n.disconnect(); } catch {} }), 1200);
+}
+function csAmbHTML() {
+ const s = csCfg();
+ const cur = csAmb ? csAmb.id : '';
+ const btn = (v, icon, name, extra) => `<button class="cs-ambbtn${s.ambient === v ? ' on' : ''}" data-cs="ambset" data-v="${v}"><i class="fa-solid ${icon}"></i><span>${name}</span>${extra || ''}</button>`;
+ return `<div class="cs-cmt-grab"></div><div class="cs-navhead cs-profhead"><b class="cs-ambh">เสียงบรรยากาศ</b><button class="cs-navx" data-cs="navclose" aria-label="ปิด"><i class="fa-solid fa-xmark"></i></button></div>
+ <div class="cs-amb">
+  <div class="cs-ambgrid">${btn('off', 'fa-volume-xmark', 'ปิด')}${btn('auto', 'fa-wand-magic-sparkles', 'อัตโนมัติ', s.ambient === 'auto' && cur ? `<small>${csEsc((CS_AMB.find(a => a.id === cur) || {}).name || '')}</small>` : '')}${CS_AMB.map(a => btn(a.id, a.icon, a.name)).join('')}</div>
+  <div class="cs-ambvol"><i class="fa-solid fa-volume-low"></i><input type="range" class="cs-range" data-amb="vol" min="0" max="1" step=".05" value="${+s.ambVol}"><i class="fa-solid fa-volume-high"></i></div>
+  <div class="cs-ambnote">อัตโนมัติ = ฟังจากคำในบทที่อ่านอยู่ เช่น ฝน ทะเล คาเฟ่ กลางคืน กองไฟ · เสียงสร้างสดในเครื่อง ไม่ใช้เน็ตหรือโทเคน</div>
+ </div>`;
 }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {

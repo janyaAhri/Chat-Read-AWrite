@@ -1140,6 +1140,34 @@ const REPLY = `<think>วางแผน</think>
       ok(G.d.querySelector('#cs-novel .cs-chpill') && /บทที่|ตอนที่/.test(G.d.querySelector('#cs-novel .cs-chpill').textContent), 'novel: swipe changes chapter too');
       G.ev("csCloseNovel(true); csCfg().style = 'chat'; csCfg().swipeCh = false");
     }
+    // ★ 1.29 เสียงบรรยากาศ
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      const ac = G.ev('csAc()');
+      const param = () => ({ value: 0, setValueAtTime() {}, exponentialRampToValueAtTime() {}, setTargetAtTime(v) { this.value = v; } });
+      const node = () => ({ connect() {}, disconnect() {}, start() {}, stop() {}, gain: param(), frequency: param(), Q: param(), playbackRate: param() });
+      let made = 0;
+      Object.assign(ac, { sampleRate: 800, createBuffer: (c, len) => ({ getChannelData: () => new Float32Array(len) }), createBufferSource: () => { made++; return node(); }, createBiquadFilter: node, createGain: node, createOscillator: node });
+      ok(G.ev("csAmbDetect('ฝนตกหนัก เธอกางร่ม')") === 'rain' && G.ev("csAmbDetect('คลื่นซัดชายหาด')") === 'sea' && G.ev("csAmbDetect('ร้านกาแฟเล็ก ๆ')") === 'cafe' && G.ev("csAmbDetect('เดินเล่นในห้าง')") === '', 'scene keywords → sound');
+      ok(G.ev('csCfg().ambient') === 'off', 'ambient off by default');
+      G.ev("csCfg().style = 'chat'; csCloseReader(true); csOpenMessage(G_RID)".replace('G_RID', G.chat.length - 1)); G.ev('csReader.player.all()');
+      R().querySelector('.cs-menu [data-cs="amb"]').click();
+      ok(R().querySelectorAll('.cs-nav .cs-ambbtn').length === 7 && R().querySelector('.cs-nav [data-amb="vol"]'), 'ambient sheet: off, auto, 5 sounds, volume');
+      R().querySelector('.cs-nav [data-cs="ambset"][data-v="fire"]').click();
+      ok(G.ev('csAmb && csAmb.id') === 'fire' && G.ev('csCfg().ambient') === 'fire' && made > 0 && R().querySelector('.cs-nav .cs-ambbtn.on').dataset.v === 'fire', 'pick a sound: plays and is remembered');
+      const vol = R().querySelector('.cs-nav [data-amb="vol"]'); vol.value = '0.8'; vol.dispatchEvent(new G.w.Event('input', { bubbles: true }));
+      ok(G.ev('csCfg().ambVol') === 0.8 && Math.abs(G.ev('csAmb.out.gain.value') - .48) < 1e-6, 'volume slider adjusts live');
+      R().querySelector('.cs-nav [data-cs="ambset"][data-v="auto"]').click();
+      ok(G.ev('csAmb && csAmb.id') === 'rain', 'auto: follows the scene (rain in this chapter)', G.ev('csAmb && csAmb.id'));
+      G.ev('csNavClose(); csCloseReader(true)'); await sleep(320);
+      ok(!G.ev('csAmb'), 'closing the reader fades it out');
+      G.ev("csOpenMessage(G_RID)".replace('G_RID', G.chat.length - 1)); await sleep(120);
+      ok(G.ev('csAmb && csAmb.id') === 'rain', 'reopening resumes the chosen ambience');
+      R().querySelector('.cs-title').click();
+      ok(R().querySelector('.cs-nav .cs-navtabs'), 'title still opens contents after the ambience sheet');
+      G.ev("csNavClose(); csAmbSet('off'); csCloseReader(true)");
+      ok(!G.ev('csAmb') && G.ev('csCfg().ambient') === 'off', 'turn off');
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };
