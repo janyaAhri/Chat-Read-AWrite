@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.33.0';
+const CS_VERSION = '1.34.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1172,6 +1172,7 @@ function csOpenReader(items, title, pre) {
  csSwipeChBind(el);
  csAmbKick();
  csStatBind(el);
+ if (csCfg().sfx !== 'off') csSfxFilesLoad();
  el.querySelector('.cs-body').addEventListener('scroll', csReaderOnScroll, { passive: true });
  el.addEventListener('pointerdown', () => { if (csCfg().sound !== 'none') csAc(); }, { passive: true, once: true });
  csBindInput(el);
@@ -2201,6 +2202,7 @@ function csOpenNovel(mesId, all, resume) {
  csSwipeChBind(el);
  csAmbKick();
  csStatBind(el);
+ if (csCfg().sfx !== 'off') csSfxFilesLoad();
  const body = el.querySelector('.cs-nbody');
  body.addEventListener('scroll', csNovelProgress, { passive: true });
  body.addEventListener('scroll', csNovelPosSave, { passive: true });
@@ -2682,7 +2684,7 @@ function csNavRefresh(keepFocus) {
 function csNavClose() { const h = csNavHost(); if (h) h.classList.remove('nav-open'); }
 function csNavClick(a, b) {
  if (a === 'nav') { csNavOpen(csNavState.tab === 'prof' || csNavState.tab === 'amb' ? 'toc' : ''); return true; }
- if (a === 'amb') { csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open'); csNovel && csNovel.el.querySelector('.cs-aapanel')?.classList.remove('open'); csNavOpen('amb'); return true; }
+ if (a === 'amb') { if (!csSfxFiles) csSfxFilesLoad().then(() => { if (csNavIsOpen() && csNavState.tab === 'amb') csNavRefresh(); }); csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open'); csNovel && csNovel.el.querySelector('.cs-aapanel')?.classList.remove('open'); csNavOpen('amb'); return true; }
  if (a === 'ambset') { csAmbSet(b.dataset.v); csNavRefresh(); return true; }
  if (a === 'prof') { Object.assign(csNavState, { who: b.dataset.who || '', ck: b.dataset.ck || '', av: b.dataset.av || '' }); csNavOpen('prof'); return true; }
  if (a === 'proffind') { csNavState.q = csNavState.who; csNavState.tab = 'find'; csNavRefresh(); return true; }
@@ -3665,6 +3667,19 @@ const CS_SFX = [
  { id: 'sneeze', n: 'จาม', k: '', p: P => { P.n(0, .45, { type: 'bandpass', f: 700, f2: 1600, v: .3, a: .35 }); P.n(.5, .22, { type: 'highpass', f: 1500, v: .8, a: .003 }); } },
  { id: 'yawn', n: 'หาว', k: '', p: P => csFxVox(P, 0, 260, 1.4, 'a', { path: [[.4, 420], [1.4, 200]], v: .3, a: .2 }) },
  { id: 'drop', n: 'ของตก', k: '', p: P => { P.s(0, 200, .12, { f2: 90, v: .6, a: .002 }); P.n(0, .1, { type: 'bandpass', f: 1200, v: .4, a: .002 }); P.s(.24, 240, .07, { f2: 120, v: .3 }); P.n(.24, .05, { type: 'bandpass', f: 1400, v: .2 }); P.s(.4, 260, .05, { v: .15 }); } },
+ // ★ 1.34 เสียงใหม่จากชุดเสียงจริง (ไม่มีไฟล์ = เสียงสังเคราะห์ง่าย ๆ)
+ { id: 'pig', n: 'หมู', k: '', p: P => { for (let i = 0; i < 3; i++) P.s(i * .2, 250, .12, { type: 'sawtooth', bp: 800, q: 3, v: .4, vib: [40, 50] }); } },
+ { id: 'baby', n: 'เด็กร้องไห้', k: '', p: P => { for (let i = 0; i < 2; i++) csFxVox(P, i * .8, 450, .7, 'a', { path: [[.2, 520], [.7, 380]], vib: [6, 20], v: .4, a: .05 }); } },
+ { id: 'can', n: 'เปิดกระป๋อง', k: '', p: P => { P.n(0, .03, { type: 'highpass', f: 2000, v: .6, a: .001 }); P.n(.03, .8, { type: 'highpass', f: 5000, v: .2, a: .01 }); } },
+ { id: 'heli', n: 'เฮลิคอปเตอร์', k: '', p: P => { for (let i = 0; i < 16; i++) P.n(i * .1, .07, { brown: 1, type: 'lowpass', f: 600, v: .5, a: .005 }); } },
+ { id: 'chainsaw', n: 'เลื่อยยนต์', k: '', p: P => P.s(0, 110, 2, { type: 'sawtooth', lp: 2500, v: .3, vib: [30, 20], a: .1, sus: 1 }) },
+ { id: 'saw', n: 'เลื่อย', k: '', p: P => { for (let i = 0; i < 4; i++) P.n(i * .35, .3, { type: 'bandpass', f: 1500, f2: 2500, q: 2, v: .35, a: .1 }); } },
+ { id: 'vacuum', n: 'ดูดฝุ่น', k: '', p: P => P.n(0, 2, { type: 'bandpass', f: 900, q: .8, v: .4, a: .2, sus: 1 }) },
+ { id: 'washer', n: 'เครื่องซักผ้า', k: '', p: P => P.n(0, 2.5, { brown: 1, type: 'lowpass', f: 400, v: .5, a: .3, sus: 1 }) },
+ { id: 'flush', n: 'ชักโครก', k: '', p: P => P.n(0, 2, { type: 'bandpass', f: 800, f2: 300, q: .7, v: .5, a: .1 }) },
+ { id: 'brush', n: 'แปรงฟัน', k: '', p: P => { for (let i = 0; i < 8; i++) P.n(i * .18, .14, { type: 'highpass', f: 3000, v: .25, a: .03 }); } },
+ { id: 'waves', n: 'คลื่นซัด', k: '', p: P => { P.n(0, 2.5, { brown: 1, type: 'lowpass', f: 300, f2: 1500, v: .7, a: .8 }); P.n(.8, 1.7, { type: 'highpass', f: 2500, v: .2, a: .3 }); } },
+ { id: 'downpour', n: 'ฝนตกหนัก', k: '', p: P => P.n(0, 3, { type: 'bandpass', f: 2500, q: .5, v: .45, a: .4 }) },
  { id: 'clatter', n: 'ของโลหะตก', k: '', p: P => { [0, .18, .3].forEach((t, k) => { P.n(t, .05, { type: 'bandpass', f: 2500, v: .5 / (k + 1), a: .001 }); [2100, 3300, 4700].forEach(f => P.s(t, f * (1 + k * .03), .4, { v: .08 / (k + 1), a: .001 })); }); } }
 ];
 /** ★ 1.32 จับเฉพาะคำเสียงตรง ๆ หรือวลีที่บอกว่ามีเสียงจริง — แค่เอ่ยชื่อสัตว์/สิ่งของไม่ดัง */
@@ -3769,9 +3784,23 @@ const CS_SFX_K = {
  sneeze: 'ฮัดชิ่ว|ฮัดเช้ย|sneezed',
  yawn: 'หาวหวอด|yawned',
  drop: 'หล่นลงพื้น|ตกลงพื้น|ร่วงลงพื้น|หล่นตุ้บ|ตกพื้น|dropped',
- clatter: '(?:ช้อน|ส้อม|มีด|กระทะ|ถาด)\\S{0,6}?(?:หล่น|ตก)|เคร้งคร้าง|clattered'
+ clatter: '(?:ช้อน|ส้อม|มีด|กระทะ|ถาด)\\S{0,6}?(?:หล่น|ตก)|เคร้งคร้าง|clattered',
+ pig: 'อู๊ด ?ๆ|อู๊ด|หมูร้อง|oinked',
+ baby: 'เด็กร้องไห้|ทารกร้อง|เสียงเด็กร้อง|อุแว้|baby cried',
+ can: 'เปิดกระป๋อง|ดึงฝากระป๋อง|cracked open a can',
+ heli: 'เฮลิคอปเตอร์|helicopter',
+ chainsaw: 'เลื่อยยนต์|chainsaw',
+ saw: 'เลื่อยไม้|ชักเลื่อย|sawing',
+ vacuum: 'ดูดฝุ่น|vacuuming',
+ washer: 'เครื่องซักผ้า|washing machine',
+ flush: 'กดชักโครก|flushed',
+ brush: 'แปรงฟัน|brushed (?:his|her|my) teeth',
+ waves: 'คลื่นซัด|คลื่นกระทบฝั่ง|คลื่นกระทบโขดหิน|waves crashed',
+ downpour: 'ฝนตกหนัก|ฝนเทลงมา|ฝนกระหน่ำ|ห่าฝน|pouring rain'
 };
 CS_SFX.forEach(x => { if (CS_SFX_K[x.id] !== undefined) x.k = CS_SFX_K[x.id]; });
+/** ★ 1.34 คำค้นภาษาอังกฤษ (หาเสียงจริงใน Pixabay · จับคู่ชื่อไฟล์) */
+const CS_SFX_EN = {"thunder": "thunder", "gust": "wind gust", "quake": "earthquake rumble", "splash": "water splash", "drip": "water drip", "pour": "pouring water", "bubble": "bubbles", "flame": "fire whoosh", "gun": "gunshot", "mgun": "machine gun", "reload": "gun reload", "cannon": "cannon", "boom": "explosion", "swdraw": "sword unsheath", "swclash": "sword clash", "slash": "sword slash", "arrow": "arrow", "whip": "whip crack", "whoosh": "whoosh", "punch": "punch", "slap": "slap", "chain": "chains", "steps": "footsteps", "run": "running footsteps", "knock": "door knock", "creak": "door creak", "slam": "door slam", "close": "door close", "lock": "key lock", "glass": "glass break", "clink": "glass clink", "coin": "coins", "paper": "paper", "typing": "keyboard typing", "camera": "camera shutter", "phone": "phone ringing", "notif": "notification", "clock": "clock ticking", "alarm": "alarm clock", "bell": "church bell", "chime": "doorbell", "crunch": "crunch eating", "gulp": "gulp", "stomach": "stomach growl", "snore": "snoring", "kiss": "kiss", "snap": "finger snap", "clap": "applause", "fall": "body fall", "crash": "crash", "wood": "wood crack", "heart": "heartbeat", "horn": "car horn", "engine": "car engine", "brake": "tire screech", "siren": "siren", "train": "train whistle", "plane": "airplane", "fireworks": "fireworks", "cat": "cat meow", "purr": "cat purr", "dog": "dog bark", "wolf": "wolf howl", "roar": "monster roar", "horse": "horse gallop", "cow": "cow moo", "sheep": "sheep", "elephant": "elephant", "rooster": "rooster", "hen": "chicken", "duck": "duck quack", "bird": "birds chirping", "crow": "crow", "owl": "owl", "wings": "wings flapping", "frog": "frog", "snake": "snake hiss", "bee": "bee buzz", "magic": "magic spell", "warp": "teleport", "zap": "electric zap", "laser": "laser", "ghost": "ghost", "drum": "drum", "piano": "piano", "guitar": "guitar strum", "violin": "violin", "flute": "flute", "whistle": "whistling", "chatter": "crowd talking", "laugh": "laugh", "giggle": "giggle", "cry": "crying", "scream": "scream", "gasp": "gasp", "sigh": "sigh", "cough": "cough", "sneeze": "sneeze", "yawn": "yawn", "drop": "object drop", "clatter": "metal clatter", "pig": "pig", "baby": "baby crying", "can": "can opening", "heli": "helicopter", "chainsaw": "chainsaw", "saw": "hand saw", "vacuum": "vacuum cleaner", "washer": "washing machine", "flush": "toilet flush", "brush": "brushing teeth", "waves": "waves crashing", "downpour": "heavy rain"};
 CS_SFX.forEach(x => { x.re = x.k ? new RegExp(x.k, 'gi') : null; });
 /** หาเสียงในข้อความ: ไม่ซ้อนกัน อันที่เริ่มก่อนและยาวกว่าชนะ */
 function csSfxFind(text) {
@@ -3790,6 +3819,18 @@ function csSfxFind(text) {
 let csSfxOut = null, csSfxCur = null, csSfxBusyUntil = 0, csSfxPending = null, csSfxT = 0;
 /** เล่นเสียงเดียวทันที (ตัดเสียงที่ค้างอยู่ให้ค่อย ๆ เงียบ) · คืนความยาวเป็นวินาที */
 function csSfxRun(id) {
+ const b = csSfxBufs.get(id);
+ if (b) return csSfxRunBuf(id, b);
+ if (csSfxFiles && csSfxFiles[id]) {
+  // มีไฟล์จริงแต่ยังโหลดไม่เสร็จ: รอไฟล์ ไม่เล่นเสียงสังเคราะห์แทน
+  const t0 = Date.now();
+  csSfxBusyUntil = Date.now() + 1500;
+  csSfxBuf(id).then(bb => { if (bb && Date.now() - t0 < 4000) csSfxRunBuf(id, bb); else if (!bb) csSfxRunSynth(id); });
+  return 1;
+ }
+ return csSfxRunSynth(id);
+}
+function csSfxRunSynth(id) {
  const x = CS_SFX.find(e => e.id === id);
  const ac = x && csAc();
  if (!ac || typeof ac.createBiquadFilter !== 'function') return 0;
@@ -3821,6 +3862,7 @@ function csSfxPlay(id, force) {
 /** อัตโนมัติ: เข้าคิว รอเสียงก่อนหน้าจบ · เลื่อนเร็วจนค้างหลายอัน = เอาอันล่าสุดอันเดียว (แบบเว็บตูน) */
 function csSfxQueue(id, delay) {
  csSfxPending = id;
+ csSfxBuf(id); // เริ่มโหลดไฟล์ไว้ก่อนถึงคิว
  clearTimeout(csSfxT);
  const wait = Math.max(delay ?? 350, csSfxBusyUntil - Date.now());
  csSfxT = setTimeout(() => { const p = csSfxPending; csSfxPending = null; if (p && csCfg().sfx !== 'off') csSfxRun(p); }, wait);
@@ -3902,7 +3944,9 @@ function csSfxSheetHTML() {
   <div class="cs-navtabs cs-sfxseg">${seg}</div>
   <div class="cs-ambvol"><i class="fa-solid fa-volume-low"></i><input type="range" class="cs-range" data-amb="sfxvol" min="0" max="1" step=".05" value="${+s.sfxVol}"><i class="fa-solid fa-volume-high"></i></div>
   <div class="cs-ambnote">คำที่มีเสียงมีเส้นประใต้คำ แตะเพื่อฟังได้ทุกโหมด · อัตโนมัติ = ดังเองเมื่อฟองเด้ง เลื่อนถึง หรืออ่านออกเสียงถึง</div>
-  <details class="cs-sfxall"><summary>ฟังเสียงทั้งหมด</summary><div class="cs-sfxchips">${CS_SFX.map(x => `<button data-cs="sfxtry" data-v="${x.id}">${csEsc(x.n)}</button>`).join('')}</div></details>`;
+  <details class="cs-sfxall"><summary>ฟังเสียงทั้งหมด${csSfxFiles ? ` · เสียงจริง ${CS_SFX.filter(x => csSfxFiles[x.id]).length}/${CS_SFX.length}` : ''}</summary>
+   <div class="cs-ambnote" style="margin:4px 0 8px">● = เสียงจริง · 🔍 = หาเสียงนี้ใน Pixabay</div>
+   <div class="cs-sfxchips">${CS_SFX.map(x => `<span class="cs-sfxchip${csSfxFiles && csSfxFiles[x.id] ? ' real' : ''}"><button data-cs="sfxtry" data-v="${x.id}">${csSfxFiles && csSfxFiles[x.id] ? '● ' : ''}${csEsc(x.n)}</button><a href="${csSfxPixabay(x.id)}" target="_blank" rel="noopener" aria-label="หาใน Pixabay">🔍</a></span>`).join('')}</div></details>`;
 }
 /** ปุ่มเพิ่มเติม (เรียกก่อนตัวจัดการคลิกอื่น) */
 function csExtraClick(e, b, a) {
@@ -4014,6 +4058,65 @@ function csSfxPill(name) {
  host.appendChild(d);
  setTimeout(() => d.remove(), 1500);
 }
+// ══ ★ 1.34 เสียงจริง: ไฟล์ในโฟลเดอร์ sounds/ ของส่วนขยาย (sounds/index.json บอกว่าเสียงไหนใช้ไฟล์อะไร) ══
+let csSfxFiles = null, csSfxBase = '', csSfxFilesP = null;
+const csSfxBufs = new Map(), csSfxLoading = new Map();
+function csSfxFilesLoad() {
+ if (csSfxFilesP) return csSfxFilesP;
+ csSfxFilesP = (async () => {
+  const found = {};
+  if (typeof fetch !== 'function') return (csSfxFiles = found);
+  const bases = [...new Set([...document.querySelectorAll('script[src*="/scripts/extensions/"]')].map(x => ((x.getAttribute('src') || '').match(/^(.*\/scripts\/extensions\/.+?)\/index\.js(?:[?#].*)?$/) || [])[1]).filter(Boolean))];
+  for (const base of bases) {
+   try {
+    const r = await fetch(base + '/sounds/index.json', { cache: 'no-cache' });
+    if (!r.ok) continue;
+    const j = await r.json();
+    if (j && typeof j === 'object') { Object.assign(found, j.files || j); csSfxBase = base + '/sounds/'; break; }
+   } catch {}
+  }
+  return (csSfxFiles = found);
+ })();
+ return csSfxFilesP;
+}
+function csSfxBuf(id) {
+ if (csSfxBufs.has(id)) return Promise.resolve(csSfxBufs.get(id));
+ if (csSfxLoading.has(id)) return csSfxLoading.get(id);
+ const pr = (async () => {
+  const f = (await csSfxFilesLoad())[id];
+  const ac = csAc();
+  if (!f || !ac || typeof ac.decodeAudioData !== 'function') return null;
+  const r = await fetch(csSfxBase + f.split('/').map(encodeURIComponent).join('/'));
+  if (!r.ok) return null;
+  const b = await ac.decodeAudioData(await r.arrayBuffer());
+  csSfxBufs.set(id, b);
+  return b;
+ })().catch(() => null).finally(() => csSfxLoading.delete(id));
+ csSfxLoading.set(id, pr);
+ return pr;
+}
+/** เล่นไฟล์จริง · ยาวเกิน 6 วิค่อย ๆ เบาลงแล้วหยุด */
+function csSfxRunBuf(id, b) {
+ const ac = csAc();
+ if (!ac) return 0;
+ try {
+  if (!csSfxOut || csSfxOut.context !== ac) { csSfxOut = ac.createGain(); csSfxOut.connect(csMaster(ac)); }
+  csSfxOut.gain.value = Math.max(0, Math.min(1, +csCfg().sfxVol || 0));
+  csSfxStopCur();
+  const g = ac.createGain(); g.connect(csSfxOut);
+  const src = ac.createBufferSource(); src.buffer = b; src.connect(g);
+  const t = ac.currentTime + .01, dur = Math.min(6, b.duration || 1);
+  g.gain.setValueAtTime(1, t);
+  if (b.duration > 6) { g.gain.setValueAtTime(1, t + 5.2); g.gain.linearRampToValueAtTime(0, t + 6); }
+  src.start(t); src.stop(t + dur + .02);
+  csSfxCur = { g, ac };
+  csSfxBusyUntil = Date.now() + dur * 1000 + 450;
+  const x = CS_SFX.find(e => e.id === id);
+  if (x) csSfxPill(x.n);
+  return dur;
+ } catch { return 0; }
+}
+function csSfxPixabay(id) { return 'https://pixabay.com/sound-effects/search/' + encodeURIComponent(CS_SFX_EN[id] || id) + '/'; }
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {
  if (!csReader) return -1;

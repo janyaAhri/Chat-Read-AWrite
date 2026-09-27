@@ -1263,6 +1263,12 @@ const REPLY = `<think>วางแผน</think>
         delete G.w.speechSynthesis;
       }
       G.ev('csOpenMessage(' + sid + '); csReader.player.all()');
+      // ★ 1.34 ไฟล์เสียงจริงมาก่อนเสียงสังเคราะห์
+      ok(G.ev("Object.keys(CS_SFX_EN).length === CS_SFX.length && /pixabay\\.com\\/sound-effects\\/search\\/dog%20bark/.test(csSfxPixabay('dog'))"), 'every sound has a Pixabay search link');
+      G.ev("csSfxFiles = { dog: 'dog.mp3' }; csSfxBufs.set('dog', { duration: 1.25 })");
+      ok(G.ev("csSfxRun('dog')") === 1.25, 'a sound with a real file plays the file (its own length)');
+      ok(G.ev("csSfxRun('knock')") > 0 && G.ev("csSfxRun('knock')") !== 1.25, 'no file = synthesized fallback');
+      G.ev("csSfxBufs.clear(); csSfxFiles = null; csSfxFilesP = null");
       // เต็มจอ
       R().querySelector('.cs-menu [data-cs="full"]').click();
       ok(G.ev('csFull') && G.d.body.classList.contains('cs-full') && !R().classList.contains('cs-under-bar'), 'fullscreen on');

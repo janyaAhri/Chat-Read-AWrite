@@ -722,3 +722,9 @@ body.cs-open #extensionsMenu,body.cs-open #options{z-index:10080 !important;}
 .cs-sfxpill{position:absolute;left:50%;top:70px;z-index:47;display:flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;background:var(--cs-bar);color:var(--cs-ink);font:500 13px/1 -apple-system,system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25),0 0 0 .5px color-mix(in srgb,var(--cs-ink) 18%,transparent);pointer-events:none;animation:csSfxPill 1.5s ease forwards;}
 .cs-sfxpill i{font-size:12px;opacity:.7;}
 .cs-sfx.cs-sfxon{background:color-mix(in srgb,#e8b93a 35%,transparent);}
+
+/* ★ 1.34 เสียงจริง */
+.cs-sfxchip{display:inline-flex;align-items:center;border-radius:999px;background:color-mix(in srgb,var(--cs-ink) 8%,transparent);}
+.cs-sfxchip button{background:none !important;padding:7px 4px 7px 11px !important;}
+.cs-sfxchip a{padding:6px 9px 6px 3px;font-size:11px;text-decoration:none !important;opacity:.55;}
+.cs-sfxchip.real{background:color-mix(in srgb,#e8b93a 22%,transparent);}
