@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.21.0';
+const CS_VERSION = '1.22.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -851,7 +851,9 @@ function csCharOpt(who, ck) {
 }
 function csItemHTML(it, prev) {
  const html = (it.hd ? `<div class="cs-turn" aria-label="${csChWord()}ที่ ${it.hd}"><span>${csChWord()} ${it.hd}</span></div>` : '') + csItemHTML0(it, prev);
- return it.cm !== undefined && csCfg().cmtOn ? html + csCmtBarHTML(it.cm) : html;
+ const sw = it.end !== undefined ? csSwipeHTML(it.end) : '';
+ const cm = it.cm !== undefined && csCfg().cmtOn ? csCmtBarHTML(it.cm) : '';
+ return sw || cm ? html + `<div class="cs-endrow">${sw}${cm}</div>` : html;
 }
 function csItemHTML0(it, prev) {
  if (it.k === 'code') return csCodeBlockHTML(it);
@@ -1089,6 +1091,7 @@ function csMarkCmt(items, m, mesId) {
  items.forEach((it, k) => { it._m = mesId; it._k = k; });
  const s = csCfg();
  if (items.length && m && !m.is_user && s.enabled && s.cmtOn) items[items.length - 1].cm = mesId;
+ if (items.length && m && !m.is_user) items[items.length - 1].end = mesId; // ★ 1.22 ท้ายข้อความบอท (ไว้วางปุ่มสลับคำตอบ)
  return items;
 }
 /** รูปและกุญแจของการ์ดที่ส่งข้อความนี้จริง ๆ (ในกลุ่มมีชื่อซ้ำได้ ดูจากไฟล์การ์ดไม่ใช่ชื่อ) */
@@ -1219,6 +1222,7 @@ function csReaderClick(e) {
  if (a === 'all') { menu && menu.classList.remove('open'); csStopAuto(); return csReader.player.all(); }
  if (a === 'settings') { menu && menu.classList.remove('open'); return csOpenSettings(); }
  if (a === 'regen') { menu && menu.classList.remove('open'); return csRegen(); }
+ if (a === 'swl' || a === 'swr') return csSwipe(a === 'swl' ? -1 : 1);
  if (a === 'dellast') { menu && menu.classList.remove('open'); return csDeleteLast(); }
  if (a === 'send') return csGenerating ? csStopGeneration() : csSend();
  if (a === 'auto') {
@@ -1300,6 +1304,47 @@ function csSend() {
  btn.click();
  if (csNovel) csNovelRefresh(false);
  return true;
+}
+// ══ ★ 1.22 สลับคำตอบ (swipe ของ SillyTavern) จากในหน้าอ่าน ══
+/** ข้อความล่าสุดเป็นของบอทไหม และตอนนี้อยู่คำตอบที่เท่าไหร่จากทั้งหมด */
+function csSwipeState(mesId) {
+ const chat = csCtx().chat || [];
+ const m = chat[mesId];
+ if (!m || m.is_user || m.is_system || mesId !== chat.length - 1) return null;
+ const total = Array.isArray(m.swipes) && m.swipes.length ? m.swipes.length : 1;
+ const cur = Math.min(total, Math.max(1, (m.swipe_id | 0) + 1));
+ return { cur, total };
+}
+function csSwipeHTML(mesId) {
+ const st = csSwipeState(mesId);
+ if (!st) return '';
+ return `<div class="cs-swipe" data-mes="${mesId}"><button data-cs="swl" aria-label="คำตอบก่อนหน้า"${st.cur <= 1 ? ' disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button><span>${st.cur}/${st.total}</span><button data-cs="swr" aria-label="${st.cur >= st.total ? 'เจนคำตอบใหม่' : 'คำตอบถัดไป'}"><i class="fa-solid fa-chevron-right"></i></button></div>`;
+}
+/** dir: -1 ก่อนหน้า · 1 ถัดไป (ถ้าอยู่อันสุดท้าย SillyTavern จะเจนอันใหม่ให้) */
+function csSwipe(dir) {
+ if (csGenerating || csStBusy()) { csToast('รอให้ตอบเสร็จก่อน'); return false; }
+ const ctx = csCtx();
+ const chat = ctx.chat || [];
+ const id = chat.length - 1;
+ const st = csSwipeState(id);
+ if (!st) { csToast('สลับได้เฉพาะคำตอบล่าสุดของบอท'); return false; }
+ if (dir < 0 && st.cur <= 1) return false;
+ csReaderPrune(id);
+ try {
+  const api = ctx.swipe && (dir < 0 ? ctx.swipe.left : ctx.swipe.right);
+  if (typeof api === 'function') { const r = api(null, {}); if (r && r.catch) r.catch(() => {}); }
+  else document.querySelector(`#chat .mes[mesid="${id}"] .${dir < 0 ? 'swipe_left' : 'swipe_right'}`)?.click();
+ } catch { csToast('สลับคำตอบไม่ได้'); return false; }
+ return true;
+}
+/** หลังสลับ: เอาฟองของคำตอบใหม่มาแทน (ถ้ากำลังเจนอันใหม่ รอให้เสร็จก่อน) */
+function csOnSwiped(mesId) {
+ const id = +mesId;
+ if (csReader) {
+  csReaderPrune(id);
+  if (!csGenerating && !csStBusy()) { csReader.player.append(csItemsForMessage(id), true); }
+ }
+ if (csNovel) setTimeout(() => csNovelRefresh(false), 0);
 }
 /** ★ 1.16 เจนใหม่โดยไม่ต้องออกจากหน้าอ่าน (ใช้ปุ่ม Regenerate ของ SillyTavern) */
 function csRegen() {
@@ -2077,7 +2122,7 @@ function csNovelChapterHTML(ch, n) {
   ${userPart}
   ${lines.map((l, i) => l === title ? '' : csNovelLineHTML(l, false, s.cmtOn && ch.bot && csCmtShowIcon(ch.botId, i, l) ? { mes: ch.botId, i } : null)).join('')}
   ${ch.bot ? `<footer class="cs-cfoot" aria-label="จบ${w}ที่ ${n}"><span>❖</span></footer>` : ''}
-  ${ch.bot && ch.botId === csLastCharMesId() && ch.botId === (csCtx().chat || []).length - 1 ? `<div class="cs-nacts"><a data-cs="regen">เจนใหม่</a><span>·</span><a data-cs="dellast">ลบ${w}นี้</a></div>` : ''}
+  ${ch.bot && ch.botId === csLastCharMesId() && ch.botId === (csCtx().chat || []).length - 1 ? `<div class="cs-nacts">${csSwipeHTML(ch.botId)}<a data-cs="regen">เจนใหม่</a><span>·</span><a data-cs="dellast">ลบ${w}นี้</a></div>` : ''}
  </section>`;
 }
 function csNovelBodyHTML(all) {
@@ -2213,6 +2258,7 @@ function csNovelClick(e) {
  if (a === 'ntap' && csNovel.el.classList.contains('cmt-open')) return csCmtClose();
  if (a === 'nclose') return csCloseNovel();
  if (a === 'regen') return csRegen();
+ if (a === 'swl' || a === 'swr') return csSwipe(a === 'swl' ? -1 : 1);
  if (a === 'dellast') return csDeleteLast();
  if (a === 'toChat') return csSwitchStyle('chat');
  if (a === 'nsettings') { csNovel.el.querySelector('.cs-aapanel')?.classList.remove('open'); return csOpenSettings('novel'); }
@@ -3178,7 +3224,7 @@ function csOnCharRendered(mesId) {
  if (csNovel) { csNovelRefresh(fresh && id === csLastCharMesId()); return; }
  if (!fresh || id !== csLastCharMesId()) return;
  if (s.style === 'novel') { if (s.autoOpen) csOpenNovel(id); return; }
- if (csReader) { csReader.player.append(csItemsForMessage(id), true); const t = csReader.el.querySelector('.cs-title b'); const m = csCtx().chat[id]; if (t && m) t.textContent = m.name; return; }
+ if (csReader) { csReaderPrune(id); csReader.player.append(csItemsForMessage(id), true); const t = csReader.el.querySelector('.cs-title b'); const m = csCtx().chat[id]; if (t && m) t.textContent = m.name; return; }
  if (s.autoOpen) csOpenMessage(id);
 }
 function csOnUserRendered(mesId) {
@@ -3223,6 +3269,7 @@ function csInit() {
   if (T.CHARACTER_MESSAGE_RENDERED) ev.on(T.CHARACTER_MESSAGE_RENDERED, csOnCharRendered);
   if (T.USER_MESSAGE_RENDERED) ev.on(T.USER_MESSAGE_RENDERED, csOnUserRendered);
   if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => setTimeout(csAfterDelete, 0));
+  if (T.MESSAGE_SWIPED) ev.on(T.MESSAGE_SWIPED, id => csOnSwiped(id));
   [T.MESSAGE_EDITED, T.MESSAGE_UPDATED, T.MESSAGE_SWIPED].filter(Boolean).forEach(t => ev.on(t, id => { csRerender(id); if (csNovel) setTimeout(() => csNovelRefresh(false), 0); }));
   if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csApplyPrompt(); setTimeout(() => { csAddAllButtons(); csInlineAll(); }, 50); });
   if (T.MORE_MESSAGES_LOADED) ev.on(T.MORE_MESSAGES_LOADED, () => { csAddAllButtons(); csInlineAll(); });

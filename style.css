@@ -536,3 +536,14 @@ code.cs-ic{background:color-mix(in srgb,var(--cs-ink) 8%,transparent) !important
 .cs-row.right code.cs-ic{background:rgba(255,255,255,.18) !important;}
 .cs-nacts a,.cs-nacts a:visited{color:var(--cs-ink2) !important;text-decoration-color:color-mix(in srgb,var(--cs-ink2) 50%,transparent);}
 #cs-novel .cs-code,#cs-novel .cs-html{text-indent:0;}
+
+/* ══ ★ 1.22 สลับคำตอบ ‹ 2/3 › ══ */
+.cs-endrow{display:flex;align-items:center;gap:8px;margin:2px 4px 8px 44px;min-height:26px;}
+.cs-endrow .cs-cmtbar-wrap{margin:0 0 0 auto;}
+.cs-swipe{display:inline-flex;align-items:center;gap:2px;color:var(--cs-ink2);font:500 12px/1 -apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;}
+.cs-swipe button{border:none;background:none;color:inherit;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;}
+.cs-swipe button:active{background:color-mix(in srgb,var(--cs-ink) 8%,transparent);}
+.cs-swipe button:disabled{opacity:.3;cursor:default;}
+.cs-swipe span{min-width:30px;text-align:center;}
+.cs-nacts .cs-swipe{margin-right:6px;font-size:12px;}
+.mes_text .cs-inline .cs-swipe{display:none;}

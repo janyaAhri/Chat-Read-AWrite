@@ -866,6 +866,36 @@ const REPLY = `<think>วางแผน</think>
     ok(!G.w.__qr, 'queued comment call waits while generating');
     G.ev('csGenerating = false'); await sleep(1700);
     ok(G.w.__qr === 1, 'runs after generation is done');
+    // ★ 1.22 สลับคำตอบ
+    {
+      const L = () => G.chat[G.chat.length - 1];
+      G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'อาเรีย: แบบแรก', swipes: ['อาเรีย: แบบแรก', 'อาเรีย: แบบสอง'], swipe_id: 0 });
+      const sid = G.chat.length - 1;
+      G.ctx.swipe = {
+        left: () => { const m = L(); m.swipe_id--; m.mes = m.swipes[m.swipe_id]; G.fire('ms', sid); },
+        right: () => { const m = L(); if (m.swipe_id < m.swipes.length - 1) { m.swipe_id++; m.mes = m.swipes[m.swipe_id]; G.fire('ms', sid); } else { G.w.__gen = 1; } },
+      };
+      G.ev("csCfg().style = 'chat'; csCfg().mode = 'reader'; csCfg().readPos = {}");
+      G.ev(`csOpenMessage(${sid}); csReader.player.all()`);
+      const sw = () => G.d.querySelector('#cs-reader .cs-swipe');
+      ok(sw() && sw().textContent.trim() === '1/2' && sw().querySelector('[data-cs="swl"]').disabled, 'swipe control on latest reply: 1/2, back disabled');
+      sw().querySelector('[data-cs="swr"]').click(); await sleep(20);
+      ok(/แบบสอง/.test(G.d.querySelector('#cs-reader .cs-list').textContent) && !/แบบแรก/.test(G.d.querySelector('#cs-reader .cs-list').textContent), 'next swipe replaces the bubbles (no duplicates)');
+      ok(sw() && sw().textContent.trim() === '2/2', 'counter updates');
+      sw().querySelector('[data-cs="swr"]').click(); await sleep(20);
+      ok(G.w.__gen === 1, 'next on the last version asks SillyTavern to generate a new one');
+      G.ev('csCloseReader(true)'); G.ev(`csOpenMessage(${sid}); csReader.player.all()`);
+      sw().querySelector('[data-cs="swl"]').click(); await sleep(20);
+      ok(/แบบแรก/.test(G.d.querySelector('#cs-reader .cs-list').textContent) && L().swipe_id === 0, 'go back to the earlier version');
+      G.ev('csCloseReader(true)');
+      G.ev(`csOpenReadAll(); csReader.player.all()`);
+      ok(G.d.querySelectorAll('#cs-reader .cs-swipe').length === 1, 'whole chat: only the latest reply gets the control');
+      G.ev('csCloseReader(true)');
+      G.ev("csCfg().style = 'novel'; csOpenNovel()");
+      ok(!!G.d.querySelector('#cs-novel .cs-nacts .cs-swipe'), 'novel: control under the latest chapter');
+      G.ev('csCloseNovel(true)'); G.ev("csCfg().style = 'chat'");
+      delete G.ctx.swipe;
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };
