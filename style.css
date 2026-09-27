@@ -547,3 +547,27 @@ code.cs-ic{background:color-mix(in srgb,var(--cs-ink) 8%,transparent) !important
 .cs-swipe span{min-width:30px;text-align:center;}
 .cs-nacts .cs-swipe{margin-right:6px;font-size:12px;}
 .mes_text .cs-inline .cs-swipe{display:none;}
+
+/* ══ ★ 1.23 อยู่ใต้แถบบนของ SillyTavern ══ */
+#cs-reader.cs-under-bar,#cs-novel.cs-under-bar{top:var(--cs-topoff,0px) !important;height:calc(100vh - var(--cs-topoff,0px)) !important;height:calc(100dvh - var(--cs-topoff,0px)) !important;z-index:2999;}
+#cs-reader.cs-under-bar .cs-top{padding-top:8px;}
+#cs-reader.cs-under-bar .cs-progress{top:56px;}
+#cs-reader.cs-under-bar .cs-body{padding-top:76px;}
+#cs-novel.cs-under-bar .cs-ntop{padding-top:0;}
+.cs-aamore i{margin-right:6px;}
+
+/* ══ ★ 1.23 เปิดค้าง · หลบหน้าอื่นของ ST · ปุ่มของ ST ในหน้าอ่าน ══ */
+body.cs-st-panel #cs-reader,body.cs-st-panel #cs-novel{visibility:hidden !important;pointer-events:none !important;}
+body.cs-always #cs-edge{display:flex !important;z-index:3002;}
+body.cs-always.cs-st-panel #cs-edge{display:none !important;}
+body.cs-open #extensionsMenu,body.cs-open #options{z-index:10080 !important;}
+.cs-stbtns{display:flex;align-items:center;gap:2px;flex-shrink:0;}
+.cs-stbtns:empty{display:none;}
+.cs-stbtn{width:32px;height:36px;border:none;background:none;color:var(--cs-ink2);font-size:16px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+.cs-stbtn:active,.cs-stchip:active{background:color-mix(in srgb,var(--cs-ink) 8%,transparent);}
+.cs-sttray{display:none;gap:6px;padding:8px 10px 2px;overflow-x:auto;scrollbar-width:none;background:var(--cs-bar);-webkit-overflow-scrolling:touch;}
+.cs-sttray::-webkit-scrollbar{display:none;}
+.cs-sttray.open{display:flex;animation:cs-pop .16s ease both;}
+.cs-stchip{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:none;border-radius:99px;background:color-mix(in srgb,var(--cs-ink) 7%,transparent);color:var(--cs-ink);font:500 13px/1 -apple-system,system-ui,sans-serif;cursor:pointer;white-space:nowrap;}
+.cs-stchip i{font-size:13px;color:var(--cs-ink2);}
+#cs-novel .cs-sttray{position:relative;}

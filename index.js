@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.22.0';
+const CS_VERSION = '1.23.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -99,6 +99,8 @@ const CS_DEFAULTS = {
  cmtOn: false,          // คอมเมนต์และรีแอคชันท้ายย่อหน้า (หน้านิยาย)
  cmtAuto: true,         // เรียกคอมเมนต์เองตามเงื่อนไข (โมเดลเลือก · ครบรอบ · สุ่ม · คีย์เวิร์ด)
  cmtAmount: 'normal',   // (เก่า) few | normal | many
+ keepTopBar: true,      // ★ 1.23 หน้าอ่านเริ่มใต้แถบบนของ SillyTavern (กดเมนูของ ST ได้ตลอด)
+ alwaysOn: false,       // ★ 1.23 เปิดหน้าอ่านค้างเป็นหน้าแชททุกแชท (หลบให้หน้าอื่นของ SillyTavern)
  edgeBtn: true,         // ★ 1.16 ปุ่มลัดชิดขอบจอ
  edgeSide: 'right',
  edgeY: 0.62,           // ตำแหน่งแนวตั้ง (สัดส่วนความสูงจอ)
@@ -1127,6 +1129,7 @@ function csReaderHTML(title) {
     <button data-cs="all"><i class="fa-solid fa-forward-fast"></i>แสดงทั้งหมด</button>
     <button data-cs="regen"><i class="fa-solid fa-rotate-right"></i>เจนใหม่</button>
     <button data-cs="dellast"><i class="fa-solid fa-trash-can"></i>ลบข้อความล่าสุด</button>
+    <button data-cs="pin"><i class="fa-solid fa-thumbtack"></i>เปิดค้างเป็นหน้าแชท</button>
     <button data-cs="settings"><i class="fa-solid fa-sliders"></i>ปรับแต่ง</button>
    </div>
   </div>
@@ -1135,7 +1138,7 @@ function csReaderHTML(title) {
    <div class="cs-hint">แตะเพื่ออ่านต่อ</div>
    <div class="cs-end"><span>อ่านถึงล่าสุดแล้ว</span></div>
   </div>
-  ${s.showInput ? `<div class="cs-inputbar">
+  ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div>
    <textarea class="cs-input" rows="1" placeholder="พิมพ์ข้อความ… หรือกดส่งเลย" title="ช่องว่างแล้วกดส่ง = ให้บอทเขียนต่อ"></textarea>
    <button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button>
   </div>` : ''}`;
@@ -1151,6 +1154,7 @@ function csOpenReader(items, title, pre) {
  document.body.appendChild(el);
  const player = new CsPlayer(el.querySelector('.cs-list'), items || [], () => csReaderUpdate());
  csReader = { el, player, auto: null };
+ csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  if (pre && pre.length) player.preload(pre);
  el.addEventListener('click', csReaderClick);
  el.querySelector('.cs-body').addEventListener('scroll', csReaderOnScroll, { passive: true });
@@ -1222,6 +1226,9 @@ function csReaderClick(e) {
  if (a === 'all') { menu && menu.classList.remove('open'); csStopAuto(); return csReader.player.all(); }
  if (a === 'settings') { menu && menu.classList.remove('open'); return csOpenSettings(); }
  if (a === 'regen') { menu && menu.classList.remove('open'); return csRegen(); }
+ if (a === 'pin') { menu && menu.classList.remove('open'); return csSetPinned(!csIsPinned()); }
+ if (a === 'stbtn') return csStBtnClick(b);
+ if (a === 'sttray') return csReader.el.querySelector('.cs-sttray')?.classList.toggle('open');
  if (a === 'swl' || a === 'swr') return csSwipe(a === 'swl' ? -1 : 1);
  if (a === 'dellast') { menu && menu.classList.remove('open'); return csDeleteLast(); }
  if (a === 'send') return csGenerating ? csStopGeneration() : csSend();
@@ -1234,6 +1241,8 @@ function csReaderClick(e) {
 }
 function csCloseReader(instant) {
  if (!csReader) return;
+ if (!instant && csIsPinned()) csAlwaysPaused = true;
+ setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
  clearTimeout(csReaderScrollT); csReaderSavePos();
  if (csCmtOpen && csCmtOpen.host === csReader.el) csCmtClose();
  document.getElementById('cs-settings') && csCloseSettings();
@@ -1688,6 +1697,7 @@ function csTabHTML(tab) {
   <div class="cs-card">${csSelect('plainUser', 'ข้อความของเราที่ไม่มีเครื่องหมาย', [['auto', 'เดาให้'], ['say', 'เป็นคำพูด'], ['narr', 'เป็นบรรยาย']], 'ในเครื่องหมายคำพูด = คำพูด · *ดอกจัน* = บรรยาย · ไม่มีเลยตามที่ตั้งนี้')}</div>
   <div class="cs-card cs-tokcard"><div class="cs-srow"><div class="cs-slb"><span>คำสั่งรูปแบบกินโทเคนต่อเทิร์น</span><small>${s.enabled && s.forceFormat ? 'แทรกเข้าโรลหลักทุกครั้งที่บอทตอบ' : 'ปิดอยู่ ไม่ใช้โทเคน'}</small></div><div class="cs-sctl"><b data-tok="format">…</b></div></div></div>
   <div class="cs-card">${csToggle('enabled', 'เปิดใช้แชทนิยาย')}${csToggle('autoOpen', 'บอทตอบเสร็จแล้วเปิดหน้าอ่านเอง', 'โหมดหน้าอ่าน')}${csToggle('forceFormat', 'สั่งบอทเขียนตามแบบที่เลือก', 'แชทนิยาย: ชื่อ: คำพูด · นิยาย: ย่อหน้าต่อเนื่อง')}</div>
+  <div class="cs-card">${csToggle('keepTopBar', 'เห็นแถบบนของ SillyTavern ตอนอ่าน', 'กดเมนู สลับแชท เปิดรายชื่อตัวละครได้โดยไม่ต้องปิดหน้าอ่าน')}${csToggle('alwaysOn', 'เปิดหน้าอ่านค้างเป็นหน้าแชท', 'ทุกแชท · ไปหน้าเลือกตัวละครหรือข้อมูลตัวละครจะหลบให้ กลับมาแชทก็อยู่เหมือนเดิม · ปุ่มข้างจอ = ซ่อน/แสดง')}</div>
   <div class="cs-card">${csToggle('edgeBtn', 'ปุ่มลัดชิดขอบจอ', 'แตะเปิดหน้าอ่าน · ลากขึ้นลงได้ · ลากไปอีกฝั่งเพื่อย้ายข้าง')}</div>
   <div class="cs-card">${csToggle('showInput', 'ช่องพิมพ์ในหน้าอ่าน')}${csToggle('enterSend', 'กด Enter เพื่อส่ง', 'Shift+Enter ขึ้นบรรทัดใหม่')}${csRange('history', 'แสดงข้อความก่อนหน้า', 0, 20, 1, ' ข้อความ')}</div>
   <div class="cs-card">${csRange('typingMs', 'จุดพิมพ์ก่อนฟองเด้ง', 0, 1200, 50, ' ms')}${csRange('autoSpeed', 'ความเร็วเล่นอัตโนมัติ', .5, 3, .25, 'x')}</div>
@@ -1948,7 +1958,8 @@ function csSettingsKey(e) {
 function csSettingsChange(e) {
  const el = e.target;
  const s = csCfg();
- if (el.dataset.k && el.type === 'checkbox') { csSet(el.dataset.k, el.checked); if (el.dataset.k === 'cmtAuto' && el.checked) csCfg().cmtOn = true; csAfterChange(true); if (el.dataset.k === 'cmtAuto' || el.dataset.k === 'cmtOn') csRenderSettingsBody(); return; }
+ if (el.dataset.k === 'alwaysOn') { csSetPinned(el.checked); if (el.checked) csPinOpen(); return; }
+ if (el.dataset.k && el.type === 'checkbox') { csSet(el.dataset.k, el.checked); if (el.dataset.k === 'keepTopBar') { csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); } if (el.dataset.k === 'cmtAuto' && el.checked) csCfg().cmtOn = true; csAfterChange(true); if (el.dataset.k === 'cmtAuto' || el.dataset.k === 'cmtOn') csRenderSettingsBody(); return; }
  if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); csAfterChange(true); return; }
  if (el.dataset.k && el.classList.contains('cs-text')) {
   csSet(el.dataset.k, el.value.trim());
@@ -2019,8 +2030,8 @@ function csSettingsChange(e) {
 function csDrawerHTML() {
  const s = csCfg();
  return `<div class="chat-story-settings"><div class="inline-drawer">
-  <div class="inline-drawer-toggle inline-drawer-header"><b>แชทนิยาย (Chat Story)</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
-  <div class="inline-drawer-content">
+  <div class="inline-drawer-toggle inline-drawer-header"><b>Paper-Whisper · แชทนิยาย</b><div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>
+  <div class="inline-drawer-content" style="display:none">
    <label class="checkbox_label"><input type="checkbox" id="cs-enabled"${s.enabled ? ' checked' : ''}><span>เปิดใช้</span></label>
    <label class="cs-dl">แบบการอ่าน <select id="cs-style" class="text_pole"><option value="chat"${s.style === 'chat' ? ' selected' : ''}>แชทนิยาย (ฟองแชท แตะทีละฟอง)</option><option value="novel"${s.style === 'novel' ? ' selected' : ''}>นิยาย (อ่านแบบหนังสือ)</option></select></label>
    <label class="cs-dl">แสดงที่ <select id="cs-mode" class="text_pole"><option value="reader"${s.mode === 'reader' ? ' selected' : ''}>หน้าอ่านเปิดทับแชท</option><option value="inline"${s.mode === 'inline' ? ' selected' : ''}>ในแชทหลัก</option></select></label>
@@ -2153,10 +2164,11 @@ function csOpenNovel(mesId, all, resume) {
   <div class="cs-nbody" data-cs="ntap"><article class="cs-page">${csNovelBodyHTML(all)}</article></div>
   <div class="cs-nbottom">
    <div class="cs-nnav"><button data-cs="nprev" aria-label="${csChWord()}ก่อนหน้า"><i class="fa-solid fa-arrow-up"></i></button><span class="cs-npct"></span><button data-cs="nnext" aria-label="${csChWord()}ถัดไป"><i class="fa-solid fa-arrow-down"></i></button></div>
-   ${s.showInput ? `<div class="cs-inputbar"><textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
+   ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div><textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
   </div>`;
  document.body.appendChild(el);
  csNovel = { el };
+ csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  el.addEventListener('click', csNovelClick);
  const body = el.querySelector('.cs-nbody');
  body.addEventListener('scroll', csNovelProgress, { passive: true });
@@ -2258,6 +2270,9 @@ function csNovelClick(e) {
  if (a === 'ntap' && csNovel.el.classList.contains('cmt-open')) return csCmtClose();
  if (a === 'nclose') return csCloseNovel();
  if (a === 'regen') return csRegen();
+ if (a === 'pin') { csNovel.el.querySelector('.cs-aapanel')?.classList.remove('open'); return csSetPinned(!csIsPinned()); }
+ if (a === 'stbtn') return csStBtnClick(b);
+ if (a === 'sttray') return csNovel.el.querySelector('.cs-sttray')?.classList.toggle('open');
  if (a === 'swl' || a === 'swr') return csSwipe(a === 'swl' ? -1 : 1);
  if (a === 'dellast') return csDeleteLast();
  if (a === 'toChat') return csSwitchStyle('chat');
@@ -2291,6 +2306,7 @@ function csAaHTML() {
   <div class="cs-aarow cs-aaseg">${[['1.6', 'แคบ'], ['1.95', 'ปกติ'], ['2.3', 'กว้าง']].map(([v, l]) => `<button data-cs="aa" data-f="lh" data-v="${v}" class="${String(s.novelLH) === v ? 'on' : ''}">${l}</button>`).join('')}</div>
   <div class="cs-aarow cs-aathemes">${CS_AA_THEMES.map(id => `<button data-cs="aa" data-f="theme" data-v="${id}" class="${s.preset === id ? 'on' : ''}" style="background:${CS_PRESETS[id].c.bg};color:${CS_PRESETS[id].c.ink}" title="${CS_PRESETS[id].name}">ก</button>`).join('')}</div>
   <div class="cs-aafonts">${CS_FONTS.filter(f => CS_AA_FONTS.includes(f.id)).map(f => `<button data-cs="aa" data-f="font" data-v="${f.id}" class="${s.font === f.id ? 'on' : ''}" style="font-family:${f.ff}">${csEsc(f.id === 'system' ? 'ตามเครื่อง' : f.name)}</button>`).join('')}</div>
+  <button class="cs-aamore" data-cs="pin"><i class="fa-solid fa-thumbtack"></i>${csIsPinned() ? 'เลิกเปิดค้าง' : 'เปิดค้างเป็นหน้าแชท'}</button>
   <button class="cs-aamore" data-cs="nsettings">ตั้งค่าเพิ่มเติม</button>`;
 }
 function csAaAct(b) {
@@ -2308,6 +2324,8 @@ function csAaAct(b) {
 }
 function csCloseNovel(instant) {
  if (!csNovel) return;
+ if (!instant && csIsPinned()) csAlwaysPaused = true;
+ setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
  if (csCmtOpen && csCmtOpen.host === csNovel.el) csCmtClose();
  const el = csNovel.el;
  csNovel = null;
@@ -2427,6 +2445,98 @@ function csPosSave(part, val) {
  if (keys.length > 60) keys.sort((a, b) => (s.readPos[a].t || 0) - (s.readPos[b].t || 0)).slice(0, keys.length - 60).forEach(x => delete s.readPos[x]);
  csSave();
 }
+// ══ ★ 1.23 หน้าอ่านอยู่ใต้แถบบนของ SillyTavern + ปักไว้ในแชท ══
+function csTopBarBottom() {
+ try {
+  const el = document.getElementById('top-settings-holder') || document.getElementById('top-bar');
+  const r = el && el.getBoundingClientRect();
+  return r && r.height && r.bottom > 0 && r.bottom < csViewH() / 3 ? Math.round(r.bottom) : 0;
+ } catch { return 0; }
+}
+function csApplyUnderBar(el) {
+ if (!el) return;
+ const on = !!csCfg().keepTopBar && csTopBarBottom() > 0;
+ el.classList.toggle('cs-under-bar', on);
+ el.style.setProperty('--cs-topoff', (on ? csTopBarBottom() : 0) + 'px');
+}
+function csIsPinned() { return !!csCfg().alwaysOn; }
+let csAlwaysPaused = false; // ปิดชั่วคราว (กดย้อนกลับ/ปุ่มข้างจอ) จนกว่าจะสลับแชทหรือกดเปิดใหม่
+function csSetPinned(on) {
+ const s = csCfg();
+ s.alwaysOn = !!on;
+ csAlwaysPaused = false;
+ csSave();
+ csPinSync();
+ document.body.classList.toggle('cs-always', !!on);
+ csToast(on ? 'เปิดค้างเป็นหน้าแชทแล้ว' : 'เลิกเปิดค้างแล้ว', 'ok');
+}
+/** อัปเดตป้ายปักในหน้าอ่านที่เปิดอยู่ */
+function csPinSync() {
+ const on = csIsPinned();
+ [csReader && csReader.el, csNovel && csNovel.el].filter(Boolean).forEach(el => {
+  el.classList.toggle('cs-pinned', on);
+  el.querySelectorAll('[data-cs="pin"]').forEach(b => { b.innerHTML = `<i class="fa-solid fa-thumbtack"></i>${on ? 'เลิกเปิดค้าง' : 'เปิดค้างเป็นหน้าแชท'}`; });
+ });
+}
+/** มีแชทเปิดอยู่ไหม (ไม่ใช่หน้าเลือกตัวละคร) */
+function csHasChat() { try { const c = csCtx(); return (c.characterId !== undefined && c.characterId !== null && c.characterId !== '') || !!c.groupId; } catch { return false; } }
+/** โหมดเปิดค้าง: เข้าแชทไหนก็เปิดหน้าอ่านให้เอง */
+function csPinOpen() { if (csCfg().enabled && csIsPinned() && !csAlwaysPaused && csHasChat() && !csReader && !csNovel) csOpenLatest(); }
+/** หน้าอื่นของ SillyTavern (เลือกตัวละคร ข้อมูลตัวละคร แผงตั้งค่า) เปิดอยู่ = หลบให้ */
+function csStPanelOpen() {
+ return !!document.querySelector('#right-nav-panel.openDrawer, #left-nav-panel.openDrawer, .drawer-content.openDrawer:not(.pinnedOpen), #character_popup[style*="flex"], #character_popup[style*="block"]');
+}
+function csSyncStPanels() { document.body.classList.toggle('cs-st-panel', csStPanelOpen()); }
+// ══ ★ 1.23 ปุ่มท้ายช่องพิมพ์ของ SillyTavern (☰ ไม้กายสิทธิ์ ปุ่มส่วนขยายอื่น ๆ Quick Reply) ดึงมาไว้ในหน้าอ่าน ══
+let csProxyTargets = [];
+function csVisible(el) { try { if (!el || !el.isConnected) return false; const cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && !el.classList.contains('displayNone'); } catch { return false; } }
+function csStButtons() {
+ const core = ['#options_button', '#extensionsMenuButton'].map(q => document.querySelector(q)).filter(csVisible);
+ const skip = new Set(['send_but', 'mes_stop', 'send_textarea', 'options_button', 'extensionsMenuButton', 'file_form', 'nonQRFormItems', 'leftSendForm', 'rightSendForm']);
+ const extras = [];
+ const add = el => { if (!el || skip.has(el.id) || extras.includes(el) || core.includes(el) || el.closest('#file_form') || /stscript_/.test(el.className || '') && !csVisible(el)) return; if (csVisible(el)) extras.push(el); };
+ document.querySelectorAll('#leftSendForm > *, #rightSendForm > *').forEach(add);
+ document.querySelectorAll('#send_form .qr--button, #send_form button, #send_form .menu_button, #form_sheld > :not(#send_form):not(#dialogue_del_mes) [class*="fa-"], #form_sheld > :not(#send_form):not(#dialogue_del_mes) button').forEach(el => {
+  if (el.closest('#nonQRFormItems') && !el.closest('#leftSendForm, #rightSendForm')) return;
+  add(el.closest('button, .qr--button, .menu_button, .interactable') || el);
+ });
+ return { core, extras: extras.slice(0, 30) };
+}
+function csProxyBtn(el, cls) {
+ const i = csProxyTargets.push(el) - 1;
+ const icon = [...(el.classList || [])].concat([...(el.querySelector('i[class*="fa-"]')?.classList || [])]).filter(c => /^fa-/.test(c) && c !== 'fa-fw');
+ const label = (el.getAttribute('title') || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 18);
+ const ic = icon.length ? `<i class="fa-solid ${icon.filter(c => !/^fa-(solid|regular|brands)$/.test(c)).join(' ')}"></i>` : '';
+ return `<button class="${cls}" data-cs="stbtn" data-i="${i}" title="${csEsc(label)}" aria-label="${csEsc(label || 'ปุ่ม')}">${ic}${cls === 'cs-stchip' && (label && (!ic || el.classList.contains('qr--button'))) ? `<span>${csEsc(label)}</span>` : ''}</button>`;
+}
+function csStBtnsRender(host) {
+ if (!host) return;
+ const box = host.querySelector('.cs-stbtns');
+ if (!box) return;
+ csProxyTargets = csProxyTargets.filter(Boolean).length > 300 ? [] : csProxyTargets;
+ const { core, extras } = csStButtons();
+ box.innerHTML = core.map(el => csProxyBtn(el, 'cs-stbtn')).join('') + (extras.length ? `<button class="cs-stbtn cs-stmore" data-cs="sttray" title="ปุ่มอื่น ๆ" aria-label="ปุ่มอื่น ๆ"><i class="fa-solid fa-grip"></i></button>` : '');
+ let tray = host.querySelector('.cs-sttray');
+ if (!tray) { tray = document.createElement('div'); tray.className = 'cs-sttray'; host.querySelector('.cs-inputbar')?.before(tray); }
+ tray.innerHTML = extras.map(el => csProxyBtn(el, 'cs-stchip')).join('');
+ if (!extras.length) tray.classList.remove('open');
+}
+function csStBtnsAll() { [csReader && csReader.el, csNovel && csNovel.el].forEach(csStBtnsRender); }
+/** กดปุ่มของ SillyTavern แทนผู้ใช้: ส่งข้อความที่พิมพ์ในหน้าอ่านไปช่องพิมพ์จริงก่อน แล้วรับกลับถ้าปุ่มนั้นเขียนลงช่องพิมพ์ */
+function csStBtnClick(b) {
+ const el = csProxyTargets[+b.dataset.i];
+ if (!el || !el.isConnected) { csStBtnsAll(); return; }
+ const host = b.closest('#cs-reader, #cs-novel');
+ const ta = host && host.querySelector('.cs-input');
+ const st = document.getElementById('send_textarea');
+ if (ta && st && ta.value.trim() && st.value !== ta.value) { st.value = ta.value; st.dispatchEvent(new Event('input', { bubbles: true })); }
+ const before = st ? st.value : '';
+ // ☰ ของ SillyTavern ปิดตัวเองเมื่อคลิกไหลขึ้นไปถึงหน้าเว็บ → ส่งคลิกแบบไม่ไหลขึ้น · ปุ่มอื่นคลิกปกติ (ส่วนขยายบางตัวรอคลิกที่ไหลขึ้นมา)
+ if (el.id === 'options_button') el.dispatchEvent(new MouseEvent('click', { bubbles: false, cancelable: true }));
+ else el.click();
+ host && host.querySelector('.cs-sttray')?.classList.remove('open');
+ if (ta && st) { let n = 0; const t = setInterval(() => { n++; if (st.value !== before) { ta.value = st.value; ta.dispatchEvent(new Event('input', { bubbles: true })); clearInterval(t); } if (n > 120) clearInterval(t); }, 500); }
+}
 /** ★ 1.21 จำตำแหน่งในแชทนิยาย: แตะถึงฟองไหน (r) + ฟองที่อยู่บนสุดของจอตอนนี้ (a) ทุกโหมดการเปิด */
 function csReaderAnchorIdx() {
  if (!csReader) return -1;
@@ -2542,7 +2652,10 @@ function csEdgeBind(el) {
    s.edgeY = Math.round(parseFloat(el.style.top) / csViewH() * 1000) / 1000;
    csSave();
    csEdgePlace(el);
-  } else if (e.type === 'pointerup') csOpenLatest();
+  } else if (e.type === 'pointerup') {
+   if (csIsPinned() && (csReader || csNovel)) { csCloseReader(); csCloseNovel(); } // โหมดเปิดค้าง: ปุ่มข้างจอ = ซ่อน/แสดง
+   else { csAlwaysPaused = false; csOpenLatest(); }
+  }
  };
  el.addEventListener('pointerup', end);
  el.addEventListener('pointercancel', end);
@@ -3271,7 +3384,7 @@ function csInit() {
   if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => setTimeout(csAfterDelete, 0));
   if (T.MESSAGE_SWIPED) ev.on(T.MESSAGE_SWIPED, id => csOnSwiped(id));
   [T.MESSAGE_EDITED, T.MESSAGE_UPDATED, T.MESSAGE_SWIPED].filter(Boolean).forEach(t => ev.on(t, id => { csRerender(id); if (csNovel) setTimeout(() => csNovelRefresh(false), 0); }));
-  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csApplyPrompt(); setTimeout(() => { csAddAllButtons(); csInlineAll(); }, 50); });
+  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csAddAllButtons(); csInlineAll(); csPinOpen(); }, 60); });
   if (T.MORE_MESSAGES_LOADED) ev.on(T.MORE_MESSAGES_LOADED, () => { csAddAllButtons(); csInlineAll(); });
  }
  csAddAllButtons();
@@ -3287,9 +3400,20 @@ function csInit() {
   try { navigator.clipboard.writeText(code).then(done, () => csToast('คัดลอกไม่ได้')); } catch { csToast('คัดลอกไม่ได้'); }
  }, true);
  try { new MutationObserver(() => csHydrateHTML(document)).observe(document.body, { childList: true, subtree: true }); } catch {}
- const onResize = () => { const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); };
+ const onResize = () => { const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); };
  window.addEventListener('resize', onResize);
  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
+ document.body.classList.toggle('cs-always', csIsPinned());
+ setTimeout(csPinOpen, 300); // เปิดเว็บมาในแชท = เปิดหน้าอ่านเลย (โหมดเปิดค้าง)
+ try {
+  // หน้าอื่นของ SillyTavern เปิด/ปิด → หลบ/กลับมา
+  let tp = 0;
+  new MutationObserver(() => { clearTimeout(tp); tp = setTimeout(csSyncStPanels, 60); }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+  // ปุ่มท้ายช่องพิมพ์เปลี่ยน (ส่วนขยายเพิ่มปุ่ม / QR เปลี่ยน) → ดึงใหม่
+  const sf = document.getElementById('form_sheld');
+  let tb = 0;
+  if (sf) new MutationObserver(() => { clearTimeout(tb); tb = setTimeout(csStBtnsAll, 300); }).observe(sf, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+ } catch {}
  console.log(`[chat-story] ${CS_VERSION} พร้อม`);
 }
 

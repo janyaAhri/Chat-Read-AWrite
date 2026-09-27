@@ -896,6 +896,61 @@ const REPLY = `<think>วางแผน</think>
       G.ev('csCloseNovel(true)'); G.ev("csCfg().style = 'chat'");
       delete G.ctx.swipe;
     }
+    // ★ 1.23 เปิดค้างเป็นหน้าแชท (ทุกแชท) + ใต้แถบบน + หลบหน้าอื่นของ ST + ปุ่มของ ST
+    {
+      const tb = G.d.createElement('div'); tb.id = 'top-settings-holder'; G.d.body.prepend(tb);
+      tb.getBoundingClientRect = () => ({ top: 0, bottom: 44, height: 44, left: 0, right: 390, width: 390 });
+      // แถบพิมพ์จำลองของ SillyTavern: ☰ ไม้กายสิทธิ์ ปุ่มส่วนขยาย Quick Reply
+      const fs = G.d.createElement('div'); fs.id = 'form_sheld';
+      fs.innerHTML = '<div id="send_form"><div id="qr--bar"><div class="qr--button menu_button">สรุปฉาก</div></div><div id="nonQRFormItems"><div id="leftSendForm"><div id="options_button" class="fa-solid fa-bars interactable"></div><div id="extensionsMenuButton" class="fa-solid fa-magic-wand-sparkles interactable"></div><div id="gg-btn" class="fa-solid fa-compass interactable" title="Guided Response"></div></div><div id="rightSendForm"><div id="mes_continue" class="fa-solid fa-arrow-right interactable displayNone" title="Continue"></div></div></div></div>';
+      G.d.body.appendChild(fs);
+      const st = G.d.getElementById('send_textarea');
+      G.w.__gg = 0; G.d.getElementById('gg-btn').addEventListener('click', () => { G.w.__gg = st.value; st.value = 'ข้อความที่ส่วนขยายเขียนให้'; });
+      G.w.__opt = 0; G.d.getElementById('options_button').addEventListener('click', () => G.w.__opt++);
+      G.ctx.characterId = 0;
+      G.ev("csCfg().style = 'chat'; csCfg().alwaysOn = false; csCloseReader(true); csCloseNovel(true)");
+      G.ev('csOpenLatest()');
+      const R = () => G.d.getElementById('cs-reader');
+      ok(R().classList.contains('cs-under-bar') && R().style.getPropertyValue('--cs-topoff') === '44px', 'reader sits under the SillyTavern top bar');
+      const core = [...R().querySelectorAll('.cs-stbtns .cs-stbtn[data-cs="stbtn"] i')].map(i => i.className);
+      ok(core.length === 2 && /fa-bars/.test(core[0]) && /fa-magic-wand/.test(core[1]), '☰ and wand next to the input', core);
+      ok(R().querySelector('.cs-stmore') && !R().querySelector('.cs-sttray').classList.contains('open'), 'other buttons behind one small tray button (closed)');
+      R().querySelector('.cs-stmore').click();
+      const chips = [...R().querySelectorAll('.cs-sttray .cs-stchip')].map(c => c.textContent.trim() || c.title);
+      ok(R().querySelector('.cs-sttray').classList.contains('open') && chips.includes('สรุปฉาก') && chips.some(t => /Guided/.test(t)) && !chips.some(t => /Continue/.test(t)), 'tray: QR + extension buttons, hidden ones skipped', chips);
+      R().querySelector('.cs-stbtns [data-cs="stbtn"]').click();
+      ok(G.w.__opt === 1, 'proxy clicks the real ☰');
+      R().querySelector('.cs-input').value = 'ช่วยเขียนต่อ';
+      R().querySelector('.cs-stmore').click();
+      [...R().querySelectorAll('.cs-sttray .cs-stchip')].find(c => /Guided/.test(c.title)).click();
+      await sleep(600);
+      ok(G.w.__gg === 'ช่วยเขียนต่อ' && R().querySelector('.cs-input').value === 'ข้อความที่ส่วนขยายเขียนให้', 'text passes to the extension and its result comes back');
+      G.ev('csCloseReader(true)');
+      // เปิดค้าง
+      G.ev('csSetPinned(true)');
+      ok(G.d.body.classList.contains('cs-always'), 'always-on class');
+      let chatId = 'A'; G.ctx.getCurrentChatId = () => chatId;
+      G.fire('cc'); await sleep(120);
+      ok(!!R(), 'always-on: opens in a chat');
+      chatId = 'B'; G.fire('cc'); await sleep(120);
+      ok(!!R(), 'every chat, not just one');
+      const panel = G.d.createElement('div'); panel.id = 'right-nav-panel'; G.d.body.appendChild(panel);
+      panel.classList.add('openDrawer'); await sleep(150);
+      ok(G.d.body.classList.contains('cs-st-panel'), 'hides while character list / info is open');
+      panel.classList.remove('openDrawer'); await sleep(150);
+      ok(!G.d.body.classList.contains('cs-st-panel'), 'back when the panel closes');
+      G.ctx.characterId = undefined; G.fire('cc'); await sleep(120);
+      ok(!R(), 'no chat (character select) = not shown');
+      G.ctx.characterId = 0; G.fire('cc'); await sleep(120);
+      R().querySelector('[data-cs="close"]').click(); await sleep(260);
+      ok(!R() && G.ev('csAlwaysPaused') === true, 'back button hides it for now');
+      G.fire('cc'); await sleep(120);
+      ok(!!R(), 'next chat change shows it again');
+      G.ev('csSetPinned(false)'); G.ev('csCloseReader(true)');
+      delete G.ctx.getCurrentChatId; tb.remove(); fs.remove(); panel.remove();
+      // แผงในหน้า Extensions ปิดเป็นค่าเริ่มต้น
+      ok(/inline-drawer-content" style="display:none"/.test(G.ev('csDrawerHTML()')), 'extension settings drawer collapsed by default');
+    }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
     const pe = (type, x, y) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: x, clientY: y, pointerId: 1 }); G.d.getElementById('cs-edge').dispatchEvent(e); };
