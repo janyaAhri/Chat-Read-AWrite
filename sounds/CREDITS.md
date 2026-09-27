@@ -54,3 +54,36 @@
 | `vacuum` | vacuum.mp3 | [hoover.mp3](http://www.freesound.org/people/winsx87/sounds/152020/) | winsx87 | CC0 1.0 |
 | `washer` | washer.mp3 | [washing machine000.aif](http://www.freesound.org/people/FEAMEIS/sounds/182710/) | FEAMEIS | CC0 1.0 |
 | `waves` | waves.mp3 | [8am.wav](http://www.freesound.org/people/jareilly/sounds/204618/) | jareilly | CC0 1.0 |
+
+## เสียงจากเกมโอเพ่นซอร์ส
+
+ตัดความยาว ปรับความดัง และแปลงเป็น mp3 (`mgun` = เสียงปืนนัดเดียวเรียงซ้ำ) · ไฟล์ต้นฉบับดูได้ที่ลิงก์
+
+| เสียง | ต้นฉบับ | ผู้สร้าง | สัญญาอนุญาต |
+|---|---|---|---|
+| `arrow` | [bow.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/bow.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `boom` | [tnt_explode.ogg](https://github.com/minetest/minetest_game/blob/master/mods/tnt/sounds/tnt_explode.ogg) | Minetest Game tnt mod (TumeniNodes, steveygos93, theneedle.tv, frankelmedico) | CC0 1.0 |
+| `cannon` | [explosion.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/explosion.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `close` | [doors_door_close.ogg](https://github.com/minetest/minetest_game/blob/master/mods/doors/sounds/doors_door_close.ogg) | Minetest Game doors mod (Fernando Zapata, celeron55, PilzAdam, BlockMen, sofar, red-001, paramat) | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+| `coin` | [gold.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/gold.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `crash` | [cave-in.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/cave-in.ogg) | Richard Kettering (Jetrel), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `drum` | [wardrums.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/ambient/wardrums.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `ghost` | [wail.wav](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/wail.wav) | J.W. Bjerk (Eleazar), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `gun` | [gunshot.wav](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/gunshot.wav) | Battle for Wesnoth (unknown; Lari Nieminen) | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `horse` | [horse-canter.wav](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/horse-canter.wav) | Battle for Wesnoth (unknown) | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `laser` | [dsplasma.wav](https://github.com/freedoom/freedoom/blob/master/sounds/dsplasma.wav) | Contributors to the Freedoom project | [BSD 3-Clause](https://github.com/freedoom/freedoom/blob/master/COPYING.adoc) |
+| `magic` | [magic-faeriefire.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/magic-faeriefire.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `mgun` | [gunshot.wav (ยิงซ้ำ 7 นัด)](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/gunshot.wav) | Battle for Wesnoth (unknown; Lari Nieminen) | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `punch` | [fist.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/fist.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `quake` | [rumble.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/rumble.ogg) | Scott Klempner, Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `reload` | [dssgcock.wav](https://github.com/freedoom/freedoom/blob/master/sounds/dssgcock.wav) | Contributors to the Freedoom project | [BSD 3-Clause](https://github.com/freedoom/freedoom/blob/master/COPYING.adoc) |
+| `roar` | [troll-hit-1.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/troll-hit-1.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `scream` | [human-female-die-1.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/human-female-die-1.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `slam` | [doors_door_close.ogg](https://github.com/minetest/minetest_game/blob/master/mods/doors/sounds/doors_door_close.ogg) | Minetest Game doors mod (Fernando Zapata, celeron55, PilzAdam, BlockMen, sofar, red-001, paramat) | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/) |
+| `slash` | [knife.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/knife.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `snake` | [hiss.wav](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/hiss.wav) | J.W. Bjerk (Eleazar), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `swclash` | [sword-1.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/sword-1.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `warp` | [dstelept.wav](https://github.com/freedoom/freedoom/blob/master/sounds/dstelept.wav) | Contributors to the Freedoom project | [BSD 3-Clause](https://github.com/freedoom/freedoom/blob/master/COPYING.adoc) |
+| `whoosh` | [miss-1.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/miss-1.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `wings` | [bat-flapping.wav](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/bat-flapping.wav) | Richard Kettering (Jetrel), Lari Nieminen, Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
+| `zap` | [lightning.ogg](https://github.com/wesnoth/wesnoth/blob/master/data/core/sounds/lightning.ogg) | Lari Nieminen (zookeeper), Battle for Wesnoth | [GNU GPL v2+](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) |
