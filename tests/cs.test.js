@@ -1443,6 +1443,28 @@ const REPLY = `<think>วางแผน</think>
       ok(!!R(), 'broken backup: reader still opens');
       G.ev('csCloseReader(true)'); G.chat.splice(G.chat.length - 2, 2);
     }
+    // ★ 1.41.2 สลับแชท: ที่อ่านของแชทเดิมต้องบันทึกลงแชทเดิม ไม่ใช่แชทใหม่
+    {
+      const oldGet = G.ctx.getCurrentChatId;
+      let cid = 'chat-A'; G.ctx.getCurrentChatId = () => cid;
+      G.ev("csCfg().style = 'chat'; csCfg().alwaysOn = false; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csCfg().typingMs = 0; csCloseReader(true); csCloseNovel(true)");
+      G.ev('csOpenReadAll(); csReader.player.skipTo(3)');
+      const mA = G.ev('csReader.player.items[csReader.player.i - 1]._m'), kA = G.ev('csReader.player.items[csReader.player.i - 1]._k');
+      cid = 'chat-B';           // SillyTavern เปลี่ยนแชทก่อน แล้วค่อยส่งสัญญาณ
+      G.fire('cc'); await sleep(120);
+      const pa = G.ev("csCfg().readPos['chat-A']"), pb = G.ev("csCfg().readPos['chat-B']");
+      ok(pa && pa.chat && pa.chat.m === mA && pa.chat.k === kA, '1.41.2: switching chats saves the old chat under the old chat', [pa, mA, kA]);
+      ok(!pb || !pb.chat, '1.41.2: the new chat does not get the old chat\'s position', pb);
+      // ออกจากแอป (แท็บซ่อน) = บันทึกทันที ไม่ต้องรอ
+      G.ev("csCloseReader(true); csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS)"); cid = 'chat-A';
+      G.ev('csOpenReadAll(); csReader.player.skipTo(2); csReaderUpdate()');
+      Object.defineProperty(G.d, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      G.d.dispatchEvent(new G.w.Event('visibilitychange'));
+      ok(!!(G.ev("csCfg().readPos['chat-A']") || {}).chat, '1.41.2: app goes to background → position saved at once');
+      Object.defineProperty(G.d, 'visibilityState', { configurable: true, get: () => 'visible' });
+      G.ev('csCloseReader(true)');
+      G.ctx.getCurrentChatId = oldGet;
+    }
     // ★ 1.41 ป้ายชื่อคนพูด [ชื่อ] “คำพูด”
     {
       const P = t => JSON.parse(G.ev(`JSON.stringify(csParse(${JSON.stringify(t)}, { owner: 'พล' }).map(x => [x.k, x.who || '', x.text]))`));

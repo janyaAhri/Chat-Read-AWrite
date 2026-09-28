@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.41.1';
+const CS_VERSION = '1.41.2';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1222,7 +1222,7 @@ function csOpenReader(items, title, pre) {
  el.innerHTML = csReaderHTML(title);
  document.body.appendChild(el);
  const player = new CsPlayer(el.querySelector('.cs-list'), items || [], () => csReaderUpdate());
- csReader = { el, player, auto: null };
+ csReader = { el, player, auto: null, chatKey: csChatKey(), chatLen: (csCtx().chat || []).length };
  csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  if (pre && pre.length) player.preload(pre);
  el.addEventListener('click', csReaderClick);
@@ -1241,6 +1241,11 @@ function csOpenReader(items, title, pre) {
  return csReader;
 }
 let csReaderPosT = 0;
+/** บันทึกที่อ่านทันที (ออกจากแอป / สลับแท็บ / ปิดหน้า / ก่อนสลับแชท) */
+function csPosFlush() {
+ try { if (csReader) { clearTimeout(csReaderPosT); csReaderSavePos(); } } catch {}
+ try { if (csNovel) csNovelPosNow(); } catch {}
+}
 function csReaderUpdate() {
  if (!csReader) return;
  const { el, player } = csReader;
@@ -2314,7 +2319,7 @@ function csOpenNovel(mesId, all, resume) {
    ${s.showInput ? `${csToolsHTML(s)}<div class="cs-inputbar"><textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
   </div>`;
  document.body.appendChild(el);
- csNovel = { el };
+ csNovel = { el, chatKey: csChatKey() };
  csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  el.addEventListener('click', csNovelClick);
  csExtBind(el);
@@ -2356,7 +2361,7 @@ function csNovelPosNow() {
  const body = csNovel.el.querySelector('.cs-nbody');
  const chs = [...body.querySelectorAll('.cs-chapter')];
  const cur = chs.filter(c => c.offsetTop - body.scrollTop <= 4).pop() || chs[0];
- if (cur) csPosSave('novel', { mes: cur.dataset.mes === '' ? -1 : +cur.dataset.mes, ch: +cur.dataset.ch, off: Math.max(0, Math.round(body.scrollTop - cur.offsetTop)) });
+ if (cur) csPosSave('novel', { mes: cur.dataset.mes === '' ? -1 : +cur.dataset.mes, ch: +cur.dataset.ch, off: Math.max(0, Math.round(body.scrollTop - cur.offsetTop)) }, csNovel.chatKey);
 }
 /** เลื่อนกลับไปตำแหน่งที่อ่านค้าง · คืน true ถ้าเจอ */
 function csNovelResume(pos) {
@@ -2610,19 +2615,20 @@ function csPosLocalPut(k, v) {
   localStorage.setItem(CS_POS_LS, JSON.stringify(o));
  } catch {}
 }
-function csPos() {
+function csPos(key) {
  const s = csCfg();
  if (!s.readPos || typeof s.readPos !== 'object') s.readPos = {};
- const k = csChatKey();
+ const k = key || csChatKey();
  const a = s.readPos[k] || null, b = csPosLocal()[k] || null;
  if (b && typeof b === 'object' && (!a || (b.t || 0) > (a.t || 0))) { s.readPos[k] = b; return b; }
  return a;
 }
-function csPosSave(part, val) {
+/** key = แชทที่หน้าอ่านนั้นเปิดมา (★ 1.41.2 ตอนสลับแชท SillyTavern เปลี่ยนแชทไปก่อน ห้ามบันทึกลงแชทใหม่) */
+function csPosSave(part, val, key) {
  const s = csCfg();
  if (!s.readPos || typeof s.readPos !== 'object') s.readPos = {};
- const k = csChatKey();
- s.readPos[k] = { ...(csPos() || {}), [part]: val, t: Date.now() };
+ const k = key || csChatKey();
+ s.readPos[k] = { ...(csPos(k) || {}), [part]: val, t: Date.now() };
  csPosLocalPut(k, s.readPos[k]);
  const keys = Object.keys(s.readPos);
  if (keys.length > 60) keys.sort((a, b) => (s.readPos[a].t || 0) - (s.readPos[b].t || 0)).slice(0, keys.length - 60).forEach(x => delete s.readPos[x]);
@@ -4828,10 +4834,11 @@ function csReaderSavePos(anchorIdx) {
  const aIdx = anchorIdx !== undefined ? anchorIdx : csReaderAnchorIdx();
  const a = aIdx >= 0 ? p.items[aIdx] : null;
  if (!last || last._m === undefined) return;
- const old = (csPos() || {}).chat || {};
+ const key = csReader.chatKey;
+ const old = (csPos(key) || {}).chat || {};
  // เปิดดูข้อความเดียวแล้วยังไม่ได้อ่านเลย ไม่ทับตำแหน่งเดิมที่ไกลกว่า
  if (csReader.key !== 'all' && csReader.key !== 'win' && old.m !== undefined && (last._m < old.m || (last._m === old.m && last._k < (old.k || 0)))) return;
- csPosSave('chat', { m: last._m, k: last._k, am: a && a._m !== undefined ? a._m : last._m, ak: a && a._m !== undefined ? a._k : last._k });
+ csPosSave('chat', { m: last._m, k: last._k, am: a && a._m !== undefined ? a._m : last._m, ak: a && a._m !== undefined ? a._k : last._k }, key);
 }
 let csReaderScrollT = 0;
 function csReaderOnScroll() { clearTimeout(csReaderScrollT); csReaderScrollT = setTimeout(() => csReaderSavePos(), 300); }
@@ -5678,7 +5685,7 @@ function csInit() {
   if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => { if (!csDelBusy) setTimeout(() => { if (!csDelBusy) csAfterDelete(); }, 0); });
   if (T.MESSAGE_SWIPED) ev.on(T.MESSAGE_SWIPED, id => csOnSwiped(id));
   [T.MESSAGE_EDITED, T.MESSAGE_UPDATED, T.MESSAGE_SWIPED].filter(Boolean).forEach(t => ev.on(t, id => { csRerender(id); if (csNovel) setTimeout(() => csNovelRefresh(false), 0); }));
-  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csTtsStop(); csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csPinOpen(); csIdle(() => { csAddAllButtons(); csInlineAll(); }); }, 0); });
+  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csPosFlush(); csTtsStop(); csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csPinOpen(); csIdle(() => { csAddAllButtons(); csInlineAll(); }); }, 0); });
   if (T.MORE_MESSAGES_LOADED) ev.on(T.MORE_MESSAGES_LOADED, () => { csAddAllButtons(); csInlineAll(); });
  }
  csAddAllButtons();
@@ -5696,6 +5703,9 @@ function csInit() {
  try { new MutationObserver(() => csHydrateHTML(document)).observe(document.body, { childList: true, subtree: true }); } catch {}
  const onResize = () => { const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); };
  window.addEventListener('resize', onResize);
+ // ★ 1.41.2 มือถือ: สลับแอป / ปิดแท็บ = บันทึกที่อ่านทันที
+ document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') csPosFlush(); });
+ window.addEventListener('pagehide', csPosFlush);
  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
  document.body.classList.toggle('cs-always', csIsPinned());
  setTimeout(csPinOpen, 300); // เปิดเว็บมาในแชท = เปิดหน้าอ่านเลย (โหมดเปิดค้าง)
