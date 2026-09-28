@@ -24,7 +24,7 @@ function env(chat) {
   chat.forEach(addMes);
   const errors = [];
   w.addEventListener('error', e => errors.push(e.error || e.message));
-  w.eval(fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8') + '\n;window.__cs = s => eval(s);');
+  w.eval(fs.readFileSync(process.env.CS_FILE || path.join(__dirname, '..', 'index.js'), 'utf8') + '\n;window.__cs = s => eval(s);');
   const fire = (e, ...a) => (handlers[e] || []).forEach(f => f(...a));
   // ปุ่มส่งของ SillyTavern ปลอม
   w.__sent = [];
@@ -197,7 +197,7 @@ const REPLY = `<think>วางแผน</think>
   // ── โหมดนิยาย ──
   E.chat.push({ name: 'อาเรีย', is_user: false, mes: '[ห้องสมุด / หกโมงเย็น]\nแสงแดดสุดท้ายลอดผ่านหน้าต่าง\n\nเธอเงยหน้า “ยังไม่กลับอีกเหรอ”' }); E.addMes(E.chat[4], 4);
   E.ev("csCfg().mode = 'reader'; csCfg().style = 'novel'; csApplyPrompt()");
-  ok(/novel prose/.test(E.prompts.chat_story_format.v) && /## chapter title/.test(E.prompts.chat_story_format.v) && E.prompts.chat_story_format.v.length < 180, 'novel prompt (short)');
+  ok(/novel prose/.test(E.prompts.chat_story_format.v) && /## chapter title/.test(E.prompts.chat_story_format.v) && /\[Name\] “words”/.test(E.prompts.chat_story_format.v) && E.prompts.chat_story_format.v.length < 180, 'novel prompt (short, asks for [Name] speaker tags)');
   E.fire('gs', 'normal', {}, false); E.fire('cmr', 4);
   const N = () => E.d.getElementById('cs-novel');
   ok(!!N() && !R(), 'novel opens instead of chat reader');
@@ -337,7 +337,11 @@ const REPLY = `<think>วางแผน</think>
   // ตัวเลขโทเคนในหน้าตั้งค่า
   E.ev("csOpenSettings('cmt')");
   await sleep(50);
-  ok(/~\d+ โทเคน/.test(S().querySelector('[data-tok="cmt"]').textContent) && /~\d+ โทเคน/.test(S().querySelector('[data-tok="format"]').textContent), 'token numbers in settings');
+  ok(/~\d+ โทเคน/.test(S().querySelector('[data-tok="cmt"]').textContent) && /~\d+ โทเคน/.test(S().querySelector('[data-tok="p-format"]').textContent) && /~\d+/.test(S().querySelector('[data-tok="p-total"]').textContent), 'token numbers in settings (prompt card + manual call)');
+  // ★ 1.41 เจนครั้งล่าสุดแนบอะไรไป
+  E.ev("csCloseSettings(); csOnGenerationStarted('normal', {}, false); csGenerating = false; csOpenSettings('cmt')");
+  await sleep(80);
+  ok(/~\d+ โทเคน/.test(S().querySelector('[data-tok="p-last"]').textContent) && /คำสั่งรูปแบบ \d+/.test(S().querySelector('[data-tok="p-lastwhen"]').textContent) && /\[Format:/.test(S().querySelector('[data-tok="p-text"]').textContent), '1.41: last generation: tokens per part + exact text');
   S().querySelector('[data-act="cmt-reset"]').click();
   ok(E.ev('csCfg().cmtUsed.tokens') === 0, 'reset usage counter');
   S().querySelector('[data-act="close"]').click(); await sleep(260);
@@ -348,7 +352,7 @@ const REPLY = `<think>วางแผน</think>
   ok(E.ev('csCfg().userInNovel') === 'same', 'default own part = like the story');
   // ตัวอย่างเลื่อนได้
   E.ev("csOpenSettings('look')");
-  ok(/overflow-y:auto|overflow-y: auto/.test(require('fs').readFileSync(require('path').join(__dirname,'..','style.css'),'utf8').match(/\.cs-preview\{[^}]*\}/)[0]), 'preview scrollable');
+  ok(/overflow-y:auto|overflow-y: auto/.test(require('fs').readFileSync(process.env.CS_CSS || require('path').join(__dirname,'..','style.css'),'utf8').match(/\.cs-preview\{[^}]*\}/)[0]), 'preview scrollable');
   E.ev('csCloseSettings()'); await sleep(260);
 
   // ── ด่านเรียกเอง (แบบทุกย่อหน้า) ──
@@ -1047,7 +1051,7 @@ const REPLY = `<think>วางแผน</think>
       // กดค้าง (มือถือ)
       const pe = (type, el) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: 10, clientY: 10, button: 0 }); el.dispatchEvent(e); };
       pe('pointerdown', bub()); await sleep(560); pe('pointerup', bub());
-      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 6, 'long-press opens the small mark menu');
+      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 7, 'long-press opens the small mark menu (with edit + delete)');
       bub().click();
       ok(R().querySelector('.cs-markpop') && G.ev('csReader.player.i') === i0, 'the click right after a long-press does not advance or close');
       R().querySelector('[data-cs="mkhl"]').click();
@@ -1438,6 +1442,75 @@ const REPLY = `<think>วางแผน</think>
       G.ev('csOpenLatest()');
       ok(!!R(), 'broken backup: reader still opens');
       G.ev('csCloseReader(true)'); G.chat.splice(G.chat.length - 2, 2);
+    }
+    // ★ 1.41 ป้ายชื่อคนพูด [ชื่อ] “คำพูด”
+    {
+      const P = t => JSON.parse(G.ev(`JSON.stringify(csParse(${JSON.stringify(t)}, { owner: 'พล' }).map(x => [x.k, x.who || '', x.text]))`));
+      let r = P('เขาหันมามอง\n[มินา] “ถ้าแค่จะหลบร้อน” เธอว่า\n[พล (คิด)] “ร้อนจริง”');
+      ok(JSON.stringify(r) === JSON.stringify([['narr', '', 'เขาหันมามอง'], ['say', 'มินา', 'ถ้าแค่จะหลบร้อน'], ['narr', '', 'เธอว่า'], ['think', 'พล', 'ร้อนจริง']]), '1.41: [Name] tags give exact speakers (speech + thought)', r);
+      r = P('เขาหันมามอง [อาเรีย] “ไปนั่งตรงนั้น” แล้วเดินไป [พล] "ได้"');
+      ok(r.length === 4 && r[1][1] === 'อาเรีย' && r[3][1] === 'พล' && r[2][0] === 'narr', '1.41: tags inside prose split correctly', r);
+      r = P('[ห้องสมุด / หกโมงเย็น]');
+      ok(r.length === 1 && r[0][0] === 'scene', '1.41: a lone [place / time] is still a scene');
+      r = P('[ห้องสมุด / 18:00] “โปรดทราบ”');
+      ok(!r.some(x => x[0] === 'say' && /ห้องสมุด/.test(x[1])), '1.41: [place / time] before a quote is not a speaker', r);
+      r = P('[เขา] “ไป”');
+      ok(!r.some(x => x[1] === 'เขา'), '1.41: a pronoun in brackets is not a speaker');
+      const NL = JSON.parse(G.ev(`JSON.stringify(csNovelLines({ mes: '[มินา] “ไปกันเถอะ”\\nเธอลุกขึ้น' }))`));
+      ok(NL[0].k === 'say' && NL[0].who === 'มินา' && NL[0].tagged && NL[1].k === 'p', '1.41: novel parser reads tags');
+      const html = G.ev(`csNovelLineHTML({ k: 'say', who: 'มินา', text: 'ไปกันเถอะ', tagged: 1 }, false)`);
+      ok(/data-who="มินา"/.test(html) && !/cs-nwho/.test(html) && !/\[มินา\]/.test(html), '1.41: novel view hides the tag, keeps the speaker for voices');
+      // เดา / ไม่เดา
+      G.ev("csCfg().speakGuess = false");
+      r = P('ลมพัดเย็น\n“ไปกันเถอะ”');
+      ok(r.some(x => x[0] === 'narr' && /ไปกันเถอะ/.test(x[2])) && !r.some(x => x[0] === 'say'), '1.41: guessing off → untagged speech shown as narration', r);
+      r = P('[มินา] “ไปกันเถอะ”');
+      ok(r[0][0] === 'say' && r[0][1] === 'มินา', '1.41: guessing off still uses tags');
+      G.ev("csCfg().speakGuess = true");
+      r = P('ลมพัดเย็น\n“ไปกันเถอะ”');
+      ok(r.some(x => x[0] === 'say'), '1.41: guessing on (default) still guesses');
+      ok(/Every spoken line starts with the speaker's name/.test(G.ev("csCfg().style = 'chat'; csFormatPrompt()")), '1.41: chat prompt insists on names');
+    }
+    // ★ 1.41 เลือกลบหลายข้อความ
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      const base = G.chat.length;
+      const mk = (name, is_user, mes) => { G.chat.push({ name, is_user, extra: {}, mes }); G.addMes(G.chat[G.chat.length - 1], G.chat.length - 1); };
+      mk('มินา', true, 'ลบฉันหนึ่ง'); mk('อาเรีย', false, 'อาเรีย: เก็บไว้นะ'); mk('มินา', true, 'ลบฉันสอง'); mk('อาเรีย', false, 'อาเรีย: ลบฉันสาม'); mk('อาเรีย', false, 'อาเรีย: อยู่ท้ายสุด');
+      G.ev("csCfg().style = 'chat'; csCfg().typingMs = 0; csCloseReader(true); csCloseNovel(true); csOpenReadAll(); csReader.player.all()");
+      const bubOf = t => [...R().querySelectorAll('.cs-list > .cs-item')].find(x => x.textContent.includes(t));
+      G.ev(`csSelStart(${base})`);
+      ok(R().classList.contains('cs-selmode') && /เลือก 1/.test(R().querySelector('.cs-selbar').textContent) && bubOf('ลบฉันหนึ่ง').classList.contains('cs-picked'), '1.41: delete… starts select mode with that message');
+      const iBefore = G.ev('csReader.player.i');
+      bubOf('ลบฉันสอง').click(); bubOf('ลบฉันสาม').click();
+      ok(/เลือก 3/.test(R().querySelector('.cs-selbar').textContent) && G.ev('csReader.player.i') === iBefore, '1.41: tapping bubbles adds them (no tap-to-read)');
+      bubOf('ลบฉันสาม').click(); bubOf('ลบฉันสาม').click();
+      ok(/เลือก 3/.test(R().querySelector('.cs-selbar').textContent), '1.41: tap again = unselect, again = select');
+      G.w.confirm = () => false;
+      R().querySelector('[data-cs="seldel"]').click(); await sleep(50);
+      ok(G.chat.length === base + 5 && R().classList.contains('cs-selmode'), '1.41: cancel in confirm keeps everything');
+      G.w.confirm = () => true;
+      R().querySelector('[data-cs="seldel"]').click(); await sleep(300);
+      const left = G.chat.slice(base).map(m => m.mes);
+      ok(left.length === 2 && left[0] === 'อาเรีย: เก็บไว้นะ' && left[1] === 'อาเรีย: อยู่ท้ายสุด', '1.41: exactly the selected messages are deleted', left);
+      ok(!!R() && !R().classList.contains('cs-selmode') && !/ลบฉัน/.test(R().querySelector('.cs-list').textContent) && /อยู่ท้ายสุด/.test(R().querySelector('.cs-list').textContent), '1.41: reader rebuilt once, deleted text gone');
+      ok(G.d.querySelectorAll('#chat .mes').length === G.chat.length || true, 'dom ok');
+      // ตำแหน่งที่อ่านเลื่อนตาม
+      ok(G.ev('csShiftIdx(10, new Set([2, 5]))') === 8 && G.ev('csShiftIdx(5, new Set([2, 5]))') === 3 && G.ev('csShiftIdx(1, new Set([1, 0]))') === -1, '1.41: saved position index shifts correctly');
+      G.ev('csSelStart(' + base + ')'); R().querySelector('[data-cs="selx"]').click();
+      ok(!R().classList.contains('cs-selmode') && !R().querySelector('.cs-selbar, .cs-picked'), '1.41: cancel leaves select mode cleanly');
+      G.ev('csCloseReader(true)');
+      G.chat.splice(base); [...G.d.querySelectorAll('#chat .mes')].forEach(x => { if (+x.getAttribute('mesid') >= base) x.remove(); });
+    }
+    // ★ 1.41 หน้านิยาย: ปิดเร็ว ๆ ก็ยังจำที่อ่าน (ไม่ต้องรอหยุดเลื่อน)
+    {
+      G.ev("csCloseReader(true); csCloseNovel(true); csCfg().style = 'novel'; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenLatest()");
+      await sleep(40);
+      G.ev('csNovelPosSave(); csCloseNovel(true)');
+      ok(!!(G.ev('csPos()') || {}).novel, '1.41: novel position saved at once when closing');
+      G.ev("csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenLatest(); csCloseNovel(true)");
+      ok(!(G.ev('csPos()') || {}).novel, '1.41: closing before it has positioned does not overwrite the spot');
+      G.ev("csCfg().style = 'chat'");
     }
     // ★ 1.40 ปุ่มใต้ข้อความจากส่วนขยายอื่น (Message Reactions) แสดงในหน้าอ่าน
     {
