@@ -743,3 +743,31 @@ body.cs-open #extensionsMenu,body.cs-open #options{z-index:10080 !important;}
 .cs-speaking.cs-narr,.cs-speaking.cs-scene,.cs-speaking.cs-np,.cs-speaking.cs-nscene{background:color-mix(in srgb,var(--cs-ink) 10%,transparent) !important;border-radius:8px;box-shadow:0 0 0 6px color-mix(in srgb,var(--cs-ink) 10%,transparent) !important;transition:background .25s;}
 .cs-grouph{margin:18px 4px 8px !important;}
 #cs-settings.cs-nopreview .cs-preview{display:none !important;}
+
+/* ══ ★ 1.40 แถวเครื่องมือเหนือช่องพิมพ์ + ส่วนขยายอื่นในหน้าอ่าน ══ */
+.cs-tools{display:flex;align-items:center;gap:2px;padding:4px 8px 0;background:var(--cs-bar);min-height:36px;flex-wrap:wrap;position:relative;}
+#cs-reader .cs-tools{box-shadow:0 -.5px 0 color-mix(in srgb,var(--cs-ink) 16%,transparent);}
+#cs-reader .cs-tools + .cs-inputbar,#cs-novel .cs-tools + .cs-inputbar{box-shadow:none;border-top:0;padding-top:4px;}
+.cs-tools .cs-stbtns{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.cs-tools .cs-stbtns::-webkit-scrollbar{display:none;}
+.cs-tools .cs-stbtn{flex-shrink:0;}
+.cs-tools .cs-ttsbtn{width:32px;height:32px;margin:0 !important;font-size:15px;}
+.cs-extdock{flex:1 1 auto;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px;color:var(--cs-ink2);}
+.cs-extdock:empty,.cs-extstrip:empty{display:none;}
+.cs-extdock > *{width:auto !important;max-width:100%;margin:0 !important;flex:1 1 auto;min-width:0;}
+.cs-extdock .gg-action-buttons-container{padding:0 !important;gap:2px !important;justify-content:flex-end;}
+.cs-extdock .gg-menu-button,.cs-extdock .gg-action-button,.cs-extdock .gg-button,.cs-extdock .interactable{color:var(--cs-ink2);}
+.cs-extdock #qr--bar,.cs-extdock .qr--buttons{flex-wrap:wrap;}
+.cs-extstrip{background:var(--cs-bar);padding:0 8px;box-shadow:0 -.5px 0 color-mix(in srgb,var(--cs-ink) 16%,transparent);}
+.cs-extstrip > *{margin-left:0 !important;margin-right:0 !important;}
+.cs-extstrip + .cs-tools{box-shadow:none !important;}
+body.cs-open > #cum-alt-meter.cum-floating-meter,body.cs-open > #cum-panel.cum-floating-panel,body.cs-open > .gg-tools-menu,body.cs-open > #persistent-guides-menu,body.cs-open > .gg-popup{z-index:10085 !important;}
+/* ปุ่มใต้ข้อความจากส่วนขยายอื่น (Message Reactions ฯลฯ) */
+.cs-mesx{display:flex;gap:2px;justify-content:flex-start;padding:0 4px;margin:-2px 0 6px;opacity:.75;}
+#cs-novel .cs-mesx{justify-content:center;margin:10px 0 4px;}
+.cs-mesxb{width:30px;height:28px;border:0 !important;background:none !important;color:var(--cs-ink2);font-size:13px;border-radius:8px !important;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0 !important;box-shadow:none !important;}
+.cs-mesxb:active{background:color-mix(in srgb,var(--cs-ink) 8%,transparent) !important;}
+.cs-mesxb.on{opacity:1;}
+.cs-mesxb span{font-size:11px;}
+.cs-extdock .menu_button,.cs-extdock .interactable{border-color:transparent !important;background:color-mix(in srgb,var(--cs-ink) 7%,transparent) !important;color:var(--cs-ink2) !important;border-radius:10px !important;min-height:32px;height:32px;box-shadow:none !important;}
+.cs-extdock .menu_button:active,.cs-extdock .interactable:active{background:color-mix(in srgb,var(--cs-ink) 14%,transparent) !important;}

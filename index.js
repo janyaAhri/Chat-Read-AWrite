@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.39.0';
+const CS_VERSION = '1.40.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1158,7 +1158,7 @@ function csReaderHTML(title) {
    <div class="cs-hint">แตะเพื่ออ่านต่อ</div>
    <div class="cs-end"><span>อ่านถึงล่าสุดแล้ว</span></div>
   </div>
-  ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div>${s.ttsBtn !== false ? csTtsBtnHTML() : ''}
+  ${s.showInput ? `${csToolsHTML(s)}<div class="cs-inputbar">
    <textarea class="cs-input" rows="1" placeholder="พิมพ์ข้อความ… หรือกดส่งเลย" title="ช่องว่างแล้วกดส่ง = ให้บอทเขียนต่อ"></textarea>
    <button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button>
   </div>` : ''}`;
@@ -1177,6 +1177,7 @@ function csOpenReader(items, title, pre) {
  csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  if (pre && pre.length) player.preload(pre);
  el.addEventListener('click', csReaderClick);
+ csExtBind(el);
  csMarksBind(el);
  csSwipeChBind(el);
  csAmbKick();
@@ -1206,6 +1207,7 @@ function csReaderUpdate() {
  if (send) send.className = csGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-paper-plane';
  const sb = el.querySelector('.cs-send'); if (sb) { sb.title = csGenerating ? 'หยุด' : 'ส่ง'; sb.setAttribute('aria-label', sb.title); }
  if (player.done) csStopAuto();
+ csMesxSoon();
 }
 function csShowWaiting(on) {
  if (!csReader) return;
@@ -1239,6 +1241,7 @@ function csAutoStep() {
 function csReaderClick(e) {
  const b = e.target.closest('[data-cs]');
  if (csMarkClick(e, b)) return;
+ if (b && b.dataset.cs === 'mesx') { e.stopPropagation(); csMesxClick(b); return; }
  if (csTtsClick(e, b)) return;
  if (b && csNavClick(b.dataset.cs, b)) { e.stopPropagation(); csReader && csReader.el.querySelector('.cs-menu')?.classList.remove('open'); return; }
  if (csNavIsOpen()) { if (!e.target.closest('.cs-nav')) csNavClose(); return; }
@@ -1283,6 +1286,7 @@ function csCloseReader(instant) {
  csStopAuto();
  const el = csReader.el;
  if (csReader.player.typing) clearTimeout(csReader.player.typing.timer);
+ csExtReturn();
  csReader = null;
  if (instant) { el.remove(); return; }
  el.classList.remove('show');
@@ -2213,12 +2217,14 @@ function csOpenNovel(mesId, all, resume) {
   <div class="cs-nbody" data-cs="ntap"><article class="cs-page">${csNovelBodyHTML(all)}</article></div>
   <div class="cs-nbottom">
    <div class="cs-nnav"><button data-cs="nprev" aria-label="${csChWord()}ก่อนหน้า"><i class="fa-solid fa-arrow-up"></i></button><span class="cs-npct"></span><button data-cs="nnext" aria-label="${csChWord()}ถัดไป"><i class="fa-solid fa-arrow-down"></i></button></div>
-   ${s.showInput ? `<div class="cs-inputbar"><div class="cs-stbtns"></div>${s.ttsBtn !== false ? csTtsBtnHTML() : ''}<textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
+   ${s.showInput ? `${csToolsHTML(s)}<div class="cs-inputbar"><textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
   </div>`;
  document.body.appendChild(el);
  csNovel = { el };
  csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  el.addEventListener('click', csNovelClick);
+ csExtBind(el);
+ csMesxSoon(300);
  csMarksBind(el);
  csSwipeChBind(el);
  csAmbKick();
@@ -2306,6 +2312,7 @@ function csNovelRefresh(scrollToNew) {
  csApplyVars(csNovel.el);
  csApplyNovelVars(csNovel.el);
  body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(all);
+ csMesxSoon(200);
  csNovel.el.classList.toggle('writing', csGenerating);
  const chs = body.querySelectorAll('.cs-chapter');
  if (scrollToNew && chs.length) {
@@ -2388,6 +2395,7 @@ function csCloseNovel(instant) {
  setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
  if (csCmtOpen && csCmtOpen.host === csNovel.el) csCmtClose();
  const el = csNovel.el;
+ csExtReturn();
  csNovel = null;
  if (instant) { el.remove(); return; }
  el.classList.remove('show');
@@ -2563,7 +2571,14 @@ function csStPanelOpen() {
  // ★ 1.36 ☰ → ลบข้อความ (เลือกในแชทหลัก) · แก้ข้อความในแชทหลัก = หลบให้จนเสร็จ
  return csVisible(document.getElementById('dialogue_del_mes')) || !!document.getElementById('curEditTextarea');
 }
-function csSyncStPanels() { document.body.classList.toggle('cs-st-panel', csStPanelOpen()); }
+let csStPanelWas = false;
+function csSyncStPanels() {
+ const open = csStPanelOpen();
+ document.body.classList.toggle('cs-st-panel', open);
+ if (open === csStPanelWas) return;
+ csStPanelWas = open;
+ if (open) csExtReturn(); else csStBtnsAll();
+}
 // ══ ★ 1.23 ปุ่มท้ายช่องพิมพ์ของ SillyTavern (☰ ไม้กายสิทธิ์ ปุ่มส่วนขยายอื่น ๆ Quick Reply) ดึงมาไว้ในหน้าอ่าน ══
 let csProxyTargets = [];
 function csVisible(el) { try { if (!el || !el.isConnected) return false; const cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && !el.classList.contains('displayNone'); } catch { return false; } }
@@ -2592,11 +2607,8 @@ function csStBtnsRender(host) {
  if (!box) return;
  csProxyTargets = csProxyTargets.filter(Boolean).length > 300 ? [] : csProxyTargets;
  const { core, extras } = csStButtons();
- box.innerHTML = core.map(el => csProxyBtn(el, 'cs-stbtn')).join('') + (extras.length ? `<button class="cs-stbtn cs-stmore" data-cs="sttray" title="ปุ่มอื่น ๆ" aria-label="ปุ่มอื่น ๆ"><i class="fa-solid fa-grip"></i></button>` : '');
- let tray = host.querySelector('.cs-sttray');
- if (!tray) { tray = document.createElement('div'); tray.className = 'cs-sttray'; host.querySelector('.cs-inputbar')?.before(tray); }
- tray.innerHTML = extras.map(el => csProxyBtn(el, 'cs-stchip')).join('');
- if (!extras.length) tray.classList.remove('open');
+ box.innerHTML = core.concat(extras).map(el => csProxyBtn(el, 'cs-stbtn')).join('');
+ csExtBorrow(host);
 }
 function csStBtnsAll() { [csReader && csReader.el, csNovel && csNovel.el].forEach(csStBtnsRender); }
 /** กดปุ่มของ SillyTavern แทนผู้ใช้: ส่งข้อความที่พิมพ์ในหน้าอ่านไปช่องพิมพ์จริงก่อน แล้วรับกลับถ้าปุ่มนั้นเขียนลงช่องพิมพ์ */
@@ -2604,16 +2616,174 @@ function csStBtnClick(b) {
  const el = csProxyTargets[+b.dataset.i];
  if (!el || !el.isConnected) { csStBtnsAll(); return; }
  const host = b.closest('#cs-reader, #cs-novel');
- const ta = host && host.querySelector('.cs-input');
- const st = document.getElementById('send_textarea');
- if (ta && st && ta.value.trim() && st.value !== ta.value) { st.value = ta.value; st.dispatchEvent(new Event('input', { bubbles: true })); }
- const before = st ? st.value : '';
+ const done = csStInputPush(host);
+ const lift = csLiftWatch();
  // ☰ ของ SillyTavern ปิดตัวเองเมื่อคลิกไหลขึ้นไปถึงหน้าเว็บ → ส่งคลิกแบบไม่ไหลขึ้น · ปุ่มอื่นคลิกปกติ (ส่วนขยายบางตัวรอคลิกที่ไหลขึ้นมา)
  if (el.id === 'options_button') el.dispatchEvent(new MouseEvent('click', { bubbles: false, cancelable: true }));
  else el.click();
- host && host.querySelector('.cs-sttray')?.classList.remove('open');
- if (ta && st) { let n = 0; const t = setInterval(() => { n++; if (st.value !== before) { ta.value = st.value; ta.dispatchEvent(new Event('input', { bubbles: true })); clearInterval(t); } if (n > 120) clearInterval(t); }, 500); }
+ lift(); done();
 }
+/** ส่งข้อความในช่องพิมพ์ของหน้าอ่านไปช่องพิมพ์จริงของ ST · คืนฟังก์ชันที่คอยรับข้อความกลับ ถ้าปุ่มนั้นเขียน/ล้างช่องพิมพ์ */
+function csStInputPush(host) {
+ const ta = host && host.querySelector('.cs-input');
+ const st = document.getElementById('send_textarea');
+ if (!ta || !st) return () => {};
+ if (ta.value !== st.value && (ta.value.trim() || !st.value.trim())) { st.value = ta.value; st.dispatchEvent(new Event('input', { bubbles: true })); }
+ const before = st.value;
+ return () => {
+  clearInterval(csStInputT);
+  let n = 0;
+  csStInputT = setInterval(() => { n++; if (st.value !== before) { if (ta.isConnected) { ta.value = st.value; ta.dispatchEvent(new Event('input', { bubbles: true })); } clearInterval(csStInputT); } if (n > 120) clearInterval(csStInputT); }, 400);
+ };
+}
+let csStInputT = 0;
+// ══ ★ 1.40 ส่วนขยายอื่นใช้คู่ได้: ย้ายแถบของจริงมาไว้ในหน้าอ่าน (Guided Generations · Quick Reply · Context Usage Meter ฯลฯ) ══
+function csToolsHTML(s) {
+ return `<div class="cs-extstrip"></div><div class="cs-tools"><div class="cs-stbtns"></div>${s.ttsBtn !== false ? csTtsBtnHTML() : ''}<div class="cs-extdock"></div></div>`;
+}
+let csBorrowed = [];
+/** ของที่ส่วนขยายเสียบไว้รอบช่องพิมพ์ของ ST: ใต้/บน #send_form (แถบยาว) และใน #send_form (แถวปุ่ม) */
+function csExtCandidates() {
+ const out = [];
+ const ok = c => c && !/^(FORM|INPUT|SCRIPT|STYLE|TEMPLATE|TEXTAREA)$/.test(c.tagName) && !/^cs-/.test(c.id || '');
+ const fs = document.getElementById('form_sheld'), sf = document.getElementById('send_form');
+ if (fs) [...fs.children].forEach(c => { if (ok(c) && !['dialogue_del_mes', 'send_form', 'img_form'].includes(c.id)) out.push([c, 'strip']); });
+ if (sf) [...sf.children].forEach(c => { if (ok(c) && !['file_form', 'nonQRFormItems'].includes(c.id)) out.push([c, 'dock']); });
+ return out;
+}
+function csExtBorrow(host) {
+ if (!host || !host.isConnected || csStPanelOpen()) return;
+ const strip = host.querySelector('.cs-extstrip'), dock = host.querySelector('.cs-extdock');
+ if (!strip || !dock) return;
+ csExtCandidates().forEach(([el, where]) => {
+  const ph = document.createComment('cs-borrow');
+  const parent = el.parentNode;
+  el.before(ph);
+  (where === 'strip' ? strip : dock).appendChild(el);
+  csBorrowed.push({ el, ph, parent });
+ });
+ host.classList.toggle('cs-hasext', !!(strip.children.length || dock.children.length));
+}
+/** คืนทุกอย่างกลับที่เดิมของ ST (ปิดหน้าอ่าน / หน้าอื่นของ ST เปิด) */
+function csExtReturn() {
+ const list = csBorrowed; csBorrowed = [];
+ list.forEach(({ el, ph, parent }) => {
+  try {
+   if (ph.isConnected) ph.replaceWith(el);
+   else if (parent && parent.isConnected) parent.appendChild(el);
+   else (document.getElementById('send_form') || document.body).appendChild(el);
+  } catch {}
+  try { ph.remove(); } catch {}
+ });
+}
+/** เมนู/ป๊อปอัปที่ส่วนขยายเปิดจากการกดในหน้าอ่าน ให้ลอยเหนือหน้าอ่าน (ไม่งั้นไปโผล่ข้างหลัง) */
+function csLiftWatch() {
+ const vis = el => { try { const c = getComputedStyle(el); return c.display !== 'none' && c.visibility !== 'hidden' && (c.position === 'fixed' || c.position === 'absolute'); } catch { return false; } };
+ const before = new Set([...document.body.children].filter(vis));
+ return () => [60, 250, 700].forEach(ms => setTimeout(() => {
+  if (!csReader && !csNovel) return;
+  [...document.body.children].forEach(el => {
+   if (before.has(el) || /^cs-/.test(el.id || '') || el.tagName === 'DIALOG' || !vis(el)) return;
+   const z = parseInt(getComputedStyle(el).zIndex, 10);
+   if (!(z >= 10060)) el.style.setProperty('z-index', '10085', 'important');
+  });
+ }, ms));
+}
+/** กดของจริงที่ย้ายมา: ส่งข้อความในช่องพิมพ์ไปก่อน (Guided Generations ใช้ข้อความในช่อง) + ยกเมนูที่เด้ง */
+function csExtBind(host) {
+ let done = null, lift = null;
+ host.addEventListener('pointerdown', e => {
+  if (!e.target.closest || !e.target.closest('.cs-extdock, .cs-extstrip')) return;
+  done = csStInputPush(host); lift = csLiftWatch();
+ }, true);
+ host.addEventListener('click', e => {
+  if (!e.target.closest || !e.target.closest('.cs-extdock, .cs-extstrip')) return;
+  if (!done) { done = csStInputPush(host); lift = csLiftWatch(); }
+  e.stopPropagation(); // ไม่ให้ไปนับเป็นแตะอ่านต่อ
+  const d = done, l = lift; done = lift = null;
+  setTimeout(() => { d(); l(); }, 0);
+ });
+}
+// ══ ★ 1.40 ปุ่มที่ส่วนขยายใส่ไว้ใต้ข้อความ (เช่น Message Reactions ♥ 💬 📖) → แสดงในหน้าอ่านด้วย ══
+const CS_MES_NATIVE = /(^|\s)(ch_name|mes_text|mes_reasoning_details|mes_reasoning|mes_media_wrapper|mes_file_wrapper|mes_img_wrapper|mes_video_wrapper|mes_bias|mes_edit_buttons|mes_timer|mesIDDisplay|tokenCounterDisplay|swipe_left|swipe_right|swipeRightBlock|mes_buttons)(\s|$)/;
+function csMesxButtons(mesId) {
+ const mes = document.querySelector(`#chat .mes[mesid="${mesId}"]`);
+ const block = mes && mes.querySelector('.mes_block');
+ if (!block) return [];
+ const out = [];
+ [...block.children].forEach(w => {
+  const cls = typeof w.className === 'string' ? w.className : '';
+  if (CS_MES_NATIVE.test(cls) || /(^|\s)cs-/.test(cls) || /^cs-/.test(w.id || '') || !csVisible(w)) return;
+  const btns = [...w.querySelectorAll('button, .menu_button, [role="button"], .interactable')].filter(csVisible);
+  (btns.length ? btns : w.querySelector('[class*="fa-"]') ? [w] : []).forEach(b => out.push(b));
+ });
+ return out.slice(0, 8);
+}
+function csMesxHTML(mesId) {
+ const btns = csMesxButtons(mesId);
+ if (!btns.length) return '';
+ return btns.map((b, k) => {
+  const icon = [...(b.classList || [])].concat([...(b.querySelector('i[class*="fa-"]')?.classList || [])]).filter(c => /^fa-/.test(c) && !/^fa-(solid|regular|brands|fw)$/.test(c));
+  const label = (b.getAttribute('title') || b.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 20);
+  const on = /(^|\s|-)(active|selected|checked|on|toggled)(\s|-|$)/.test(typeof b.className === 'string' ? b.className : '');
+  let color = '';
+  if (on) { try { color = getComputedStyle(b.querySelector('i') || b).color; } catch {} }
+  return `<button class="cs-mesxb${on ? ' on' : ''}" data-cs="mesx" data-m="${mesId}" data-k="${k}" title="${csEsc(label)}" aria-label="${csEsc(label || 'ปุ่ม')}"${color ? ` style="color:${csEsc(color)}"` : ''}>${icon.length ? `<i class="fa-solid ${icon.join(' ')}"></i>` : `<span>${csEsc(label.slice(0, 6) || '•')}</span>`}</button>`;
+ }).join('');
+}
+function csMesxRow(mesId) {
+ const html = csMesxHTML(mesId);
+ if (!html) return null;
+ const row = document.createElement('div');
+ row.className = 'cs-mesx';
+ row.dataset.m = mesId;
+ row.innerHTML = html;
+ return row;
+}
+/** ใส่แถวปุ่มท้ายข้อความที่อ่านครบแล้ว (แชทนิยาย) / ท้ายบท (นิยาย) */
+function csMesxDecorate() {
+ try {
+  if (csReader) {
+   const p = csReader.player, list = csReader.el.querySelector('.cs-list');
+   const want = new Map();
+   list.querySelectorAll(':scope > .cs-item[data-i]').forEach(el => {
+    const i = +el.dataset.i, it = p.items[i];
+    if (!it || it._m === undefined || i >= p.i) return;
+    const nx = p.items[i + 1];
+    if (nx && nx._m === it._m) return;
+    want.set(it._m, el);
+   });
+   list.querySelectorAll(':scope > .cs-mesx').forEach(r => { const a = want.get(+r.dataset.m); if (!a || r.previousElementSibling !== a) r.remove(); });
+   want.forEach((el, m) => {
+    const old = el.nextElementSibling && el.nextElementSibling.classList.contains('cs-mesx') ? el.nextElementSibling : null;
+    const row = csMesxRow(m);
+    if (old) { if (row) { if (old.innerHTML !== row.innerHTML) old.innerHTML = row.innerHTML; } else old.remove(); }
+    else if (row) el.after(row);
+   });
+  }
+  if (csNovel) {
+   csNovel.el.querySelectorAll('.cs-chapter[data-mes]').forEach(ch => {
+    if (ch.dataset.mes === '') return;
+    const m = +ch.dataset.mes;
+    const old = ch.querySelector(':scope > .cs-mesx');
+    const row = csMesxRow(m);
+    if (old) { if (row) { if (old.innerHTML !== row.innerHTML) old.innerHTML = row.innerHTML; } else old.remove(); }
+    else if (row) ch.appendChild(row);
+   });
+  }
+ } catch {}
+}
+let csMesxT = 0;
+function csMesxSoon(ms) { clearTimeout(csMesxT); csMesxT = setTimeout(csMesxDecorate, ms || 80); }
+function csMesxClick(b) {
+ const btn = csMesxButtons(+b.dataset.m)[+b.dataset.k];
+ if (!btn) { csToast('ปุ่มนี้อยู่ในข้อความที่ SillyTavern ยังไม่ได้โหลด'); csMesxSoon(); return; }
+ const lift = csLiftWatch();
+ btn.click();
+ lift();
+ [60, 400, 1200].forEach(ms => setTimeout(csMesxDecorate, ms));
+}
+
 // ══ ★ 1.24 สารบัญ + ค้นหาในเรื่อง ══
 let csNavState = { tab: 'toc', q: '' };
 function csNavHost() { return csNovel ? csNovel.el : csReader ? csReader.el : null; }
@@ -5281,6 +5451,7 @@ function csInit() {
   if (T.GENERATION_STARTED) ev.on(T.GENERATION_STARTED, csOnGenerationStarted);
   [T.GENERATION_ENDED, T.GENERATION_STOPPED].filter(Boolean).forEach(t => ev.on(t, csOnGenerationDone));
   if (T.CHARACTER_MESSAGE_RENDERED) ev.on(T.CHARACTER_MESSAGE_RENDERED, csOnCharRendered);
+  [T.CHARACTER_MESSAGE_RENDERED, T.MESSAGE_UPDATED, T.MESSAGE_EDITED, T.MESSAGE_SWIPED, T.MORE_MESSAGES_LOADED].filter(Boolean).forEach(t => ev.on(t, () => { if (csReader || csNovel) csMesxSoon(500); }));
   if (T.USER_MESSAGE_RENDERED) ev.on(T.USER_MESSAGE_RENDERED, csOnUserRendered);
   if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => setTimeout(csAfterDelete, 0));
   if (T.MESSAGE_SWIPED) ev.on(T.MESSAGE_SWIPED, id => csOnSwiped(id));

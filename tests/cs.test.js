@@ -940,18 +940,44 @@ const REPLY = `<think>วางแผน</think>
       const R = () => G.d.getElementById('cs-reader');
       ok(R().classList.contains('cs-under-bar') && R().style.getPropertyValue('--cs-topoff') === '44px', 'reader sits under the SillyTavern top bar');
       const core = [...R().querySelectorAll('.cs-stbtns .cs-stbtn[data-cs="stbtn"] i')].map(i => i.className);
-      ok(core.length === 2 && /fa-bars/.test(core[0]) && /fa-magic-wand/.test(core[1]), '☰ and wand next to the input', core);
-      ok(R().querySelector('.cs-stmore') && !R().querySelector('.cs-sttray').classList.contains('open'), 'other buttons behind one small tray button (closed)');
-      R().querySelector('.cs-stmore').click();
-      const chips = [...R().querySelectorAll('.cs-sttray .cs-stchip')].map(c => c.textContent.trim() || c.title);
-      ok(R().querySelector('.cs-sttray').classList.contains('open') && chips.includes('สรุปฉาก') && chips.some(t => /Guided/.test(t)) && !chips.some(t => /Continue/.test(t)), 'tray: QR + extension buttons, hidden ones skipped', chips);
+      ok(core.length === 3 && /fa-bars/.test(core[0]) && /fa-magic-wand/.test(core[1]) && /fa-compass/.test(core[2]), '1.40: ☰ wand + extension buttons in one row, hidden ones skipped', core);
+      const tools = R().querySelector('.cs-tools'), ib = R().querySelector('.cs-inputbar');
+      ok(tools && tools.nextElementSibling === ib && !ib.querySelector('.cs-stbtn, .cs-ttsbtn') && ib.querySelectorAll('button').length === 1, '1.40: tool row sits above the input · input bar = text box + send only');
+      ok(!!tools.querySelector('.cs-ttsbtn') && !R().querySelector('.cs-stmore, .cs-sttray'), '1.40: 🔊 in the tool row, no hidden tray');
+      const qr = G.d.getElementById('qr--bar');
+      ok(qr && qr.closest('.cs-extdock') && !G.d.getElementById('send_form').contains(qr), '1.40: the real Quick Reply bar is moved into the reader');
       R().querySelector('.cs-stbtns [data-cs="stbtn"]').click();
       ok(G.w.__opt === 1, 'proxy clicks the real ☰');
       R().querySelector('.cs-input').value = 'ช่วยเขียนต่อ';
-      R().querySelector('.cs-stmore').click();
-      [...R().querySelectorAll('.cs-sttray .cs-stchip')].find(c => /Guided/.test(c.title)).click();
+      [...R().querySelectorAll('.cs-stbtns .cs-stbtn')].find(c => /Guided/.test(c.title)).click();
       await sleep(600);
       ok(G.w.__gg === 'ช่วยเขียนต่อ' && R().querySelector('.cs-input').value === 'ข้อความที่ส่วนขยายเขียนให้', 'text passes to the extension and its result comes back');
+      // ของจริงที่ย้ายมา: กดแล้วได้ข้อความในช่องพิมพ์ · เมนูที่เด้งลอยเหนือหน้าอ่าน · ไม่นับเป็นแตะอ่านต่อ
+      G.w.__qr = null;
+      const qb = qr.querySelector('.qr--button');
+      qb.addEventListener('click', () => { G.w.__qr = st.value; const m = G.d.createElement('div'); m.id = 'qr-popmenu'; m.style.position = 'absolute'; m.style.zIndex = '1050'; G.d.body.appendChild(m); });
+      R().querySelector('.cs-input').value = 'ฉากต่อไป';
+      const iBefore = G.ev('csReader.player.i');
+      qb.dispatchEvent(new G.w.Event('pointerdown', { bubbles: true })); qb.click();
+      await sleep(320);
+      ok(G.w.__qr === 'ฉากต่อไป', '1.40: moved extension button gets the reader text');
+      ok(G.d.getElementById('qr-popmenu').style.getPropertyValue('z-index') === '10085', '1.40: its popup is lifted above the reader');
+      ok(G.ev('csReader.player.i') === iBefore, '1.40: pressing it is not a tap-to-read');
+      // หน้าอื่นของ ST เปิด → คืนที่เดิม · ปิด → ย้ายกลับมา
+      const pn = G.d.createElement('div'); pn.id = 'left-nav-panel'; G.d.body.appendChild(pn);
+      pn.classList.add('openDrawer'); await sleep(150);
+      ok(G.d.getElementById('send_form').contains(qr) && qr.nextElementSibling && qr.nextElementSibling.id === 'nonQRFormItems', '1.40: ST panel open → bar goes back to its exact place');
+      pn.classList.remove('openDrawer'); await sleep(500);
+      ok(!!qr.closest('.cs-extdock'), '1.40: panel closed → bar comes back into the reader');
+      G.ev('csCloseReader(true)');
+      ok(G.d.getElementById('send_form').contains(qr) && qr.nextElementSibling.id === 'nonQRFormItems' && !G.d.querySelector('#send_form ~ *:not(script)')?.isEqualNode?.(qr), '1.40: closing the reader returns everything');
+      ok(!G.d.body.innerHTML.includes('cs-borrow'), '1.40: no leftover placeholders');
+      G.ev("csCfg().style = 'novel'; csOpenLatest()");
+      ok(!!qr.closest('#cs-novel .cs-extdock'), '1.40: novel view borrows it too');
+      G.ev("csCloseNovel(true); csCfg().style = 'chat'");
+      ok(G.d.getElementById('send_form').contains(qr), '1.40: and gives it back');
+      pn.remove(); G.d.getElementById('qr-popmenu').remove();
+      G.ev('csOpenLatest()');
       G.ev('csCloseReader(true)');
       // เปิดค้าง
       G.ev('csSetPinned(true)');
@@ -1155,8 +1181,8 @@ const REPLY = `<think>วางแผน</think>
         G.w.speechSynthesis = { speak(u) { spoken.push(u.text); }, cancel() {}, getVoices() { return []; } };
         ok(G.ev("csCfg().ttsEngine") === 'device', 'device voice is the default');
         G.ev("csCfg().ttsAuto = false; csCfg().showInput = true; csCloseReader(true); csOpenMessage(" + rid + "); csReader.player.all()");
-        const btn = () => R().querySelector('.cs-inputbar .cs-ttsbtn');
-        ok(btn(), 'read-aloud button next to the input');
+        const btn = () => R().querySelector('.cs-tools .cs-ttsbtn');
+        ok(btn(), 'read-aloud button in the tool row above the input');
         btn().click();
         ok(G.ev('!!csTts') && btn().classList.contains('on') && spoken.length === 1, 'button starts reading');
         const target = [...R().querySelectorAll('.cs-narr')].find(x => /ฝนตกหนัก/.test(x.textContent));
@@ -1412,6 +1438,44 @@ const REPLY = `<think>วางแผน</think>
       G.ev('csOpenLatest()');
       ok(!!R(), 'broken backup: reader still opens');
       G.ev('csCloseReader(true)'); G.chat.splice(G.chat.length - 2, 2);
+    }
+    // ★ 1.40 ปุ่มใต้ข้อความจากส่วนขยายอื่น (Message Reactions) แสดงในหน้าอ่าน
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'ลมพัดเบา ๆ\nอาเรีย: ตรงนั้นลมโกรกกว่านะ' });
+      const mid = G.chat.length - 1; G.addMes(G.chat[mid], mid);
+      const mes = G.d.querySelector(`#chat .mes[mesid="${mid}"]`);
+      mes.innerHTML = `<div class="mes_block"><div class="ch_name"><span class="name_text">อาเรีย</span></div><div class="mes_text">ลมพัด</div><div class="st-mm-button-container"><button class="st-mm-btn st-mm-heart" title="ถูกใจ"><i class="fa-solid fa-heart"></i></button><button class="st-mm-btn st-mm-comment" title="ความคิดเห็น"><i class="fa-solid fa-comment"></i></button></div><div class="mes_bias"></div></div>`;
+      let hearts = 0;
+      mes.querySelector('.st-mm-heart').addEventListener('click', function () { hearts++; this.classList.toggle('active-heart'); });
+      G.ev("csCfg().style = 'chat'; csCfg().typingMs = 0; csCloseReader(true); csCloseNovel(true); csOpenMessage(" + mid + "); csReader.player.all(); csMesxDecorate()");
+      const rows = R().querySelectorAll('.cs-list > .cs-mesx');
+      const row = rows[rows.length - 1];
+      ok(row && row.dataset.m === String(mid) && row.querySelectorAll('.cs-mesxb').length === 2 && row.querySelector('.fa-heart'), '1.40: ♥ 💬 under the message in the reader');
+      const prev = row.previousElementSibling;
+      ok(prev && prev.classList.contains('cs-item') && G.ev(`csReader.player.items[${prev.dataset.i}]._m`) === mid && G.ev(`csReader.player.items[${+prev.dataset.i + 1}]`) === undefined, '1.40: placed after the last bubble of that message');
+      ok(!row.innerHTML.includes('ch_name') && !R().querySelector('.cs-mesx .fa-comment ~ *'), '1.40: native ST parts are not copied');
+      const iBefore = G.ev('csReader.player.i');
+      row.querySelector('.cs-mesxb').click();
+      await sleep(120);
+      ok(hearts === 1 && G.ev('csReader.player.i') === iBefore, '1.40: pressing ♥ presses the real button (not tap-to-read)');
+      ok(R().querySelector(`.cs-mesx[data-m="${mid}"] .cs-mesxb`).classList.contains('on'), '1.40: state (liked) shows in the reader');
+      // ยังอ่านไม่ครบข้อความ = ยังไม่โชว์
+      G.ev("csCloseReader(true); csOpenMessage(" + mid + "); csMesxDecorate()");
+      if (!G.ev('csReader.player.done')) ok(!R().querySelector(`.cs-mesx[data-m="${mid}"]`), '1.40: hidden until the message is fully read');
+      G.ev('csReader.player.all(); csMesxDecorate()');
+      ok(R().querySelectorAll(`.cs-mesx[data-m="${mid}"]`).length === 1, '1.40: exactly one row (no duplicates)');
+      G.ev('csMesxDecorate(); csMesxDecorate()');
+      ok(R().querySelectorAll(`.cs-mesx[data-m="${mid}"]`).length === 1, '1.40: repeated updates stay single');
+      // นิยาย: ท้ายบท
+      G.ev("csCloseReader(true); csCfg().style = 'novel'; csOpenLatest(); csMesxDecorate()");
+      ok(!!G.d.querySelector(`#cs-novel .cs-chapter[data-mes="${mid}"] > .cs-mesx .fa-heart`), '1.40: novel view: buttons at the end of the chapter');
+      G.ev("csCloseNovel(true); csCfg().style = 'chat'");
+      // ข้อความที่ไม่มีปุ่มของส่วนขยาย = ไม่มีแถว
+      mes.querySelector('.st-mm-button-container').remove();
+      G.ev("csOpenMessage(" + mid + "); csReader.player.all(); csMesxDecorate()");
+      ok(!R().querySelector(`.cs-mesx[data-m="${mid}"]`), '1.40: no extension buttons = no row');
+      G.ev('csCloseReader(true)'); mes.remove(); G.chat.pop();
     }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');
