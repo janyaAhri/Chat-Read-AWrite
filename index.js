@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.41.2';
+const CS_VERSION = '1.41.3';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -130,11 +130,20 @@ const CS_DEFAULTS = {
  cast: {},              // ★ 1.8 { 'c:การ์ด' | 'g:กลุ่ม': { ชื่อ: { color, sound, img, aliases, me, auto, ignored } } } แยกตามการ์ด
 };
 
-function csCtx() { return SillyTavern.getContext(); }
+// ★ 1.41.3 ST สร้างก้อนข้อมูลใหม่ทุกครั้งที่ขอ (หนัก) → จำไว้ใช้ในรอบทำงานเดียวกัน ล้างเองเมื่อจบรอบ
+let csCtxC = null;
+function csCtx() {
+ if (csCtxC) return csCtxC;
+ csCtxC = SillyTavern.getContext();
+ Promise.resolve().then(() => { csCtxC = null; });
+ return csCtxC;
+}
+let csCfgOk = null;
 function csCfg() {
  const ctx = csCtx();
  if (!ctx.extensionSettings[CS_KEY]) ctx.extensionSettings[CS_KEY] = {};
  const s = ctx.extensionSettings[CS_KEY];
+ if (s === csCfgOk && s._v >= 25 && s.chars && s.readPos) return s; // เช็กค่าเริ่มต้นครบแล้ว ไม่ต้องไล่ใหม่ทุกครั้ง
  for (const k of Object.keys(CS_DEFAULTS)) if (s[k] === undefined) s[k] = (CS_DEFAULTS[k] && typeof CS_DEFAULTS[k] === 'object') ? JSON.parse(JSON.stringify(CS_DEFAULTS[k])) : CS_DEFAULTS[k];
  // ธีมเก่าจาก 1.0.0
  if (s.theme && !s._migrated) { if (CS_PRESETS[s.theme]) s.preset = s.theme; s._migrated = true; }
@@ -152,6 +161,7 @@ function csCfg() {
  if (s._v < 23) { if (s.preset === 'classic') s.preset = 'ink'; if (s.volume === 0.6) s.volume = 0.8; s._v = 23; } // ★ 1.21 ค่าเริ่มต้นดำขาว + เสียงดังขึ้น // ★ 1.20 ล้างชื่อที่เดาผิด (ความ คำ ปลาย น้ำเ …) // ★ 1.18 กลับมาเริ่มที่ขาวดำเรียบ (จันทร์นวลยังเลือกได้)
  if (s._v < 24) { if (s.sfx === 'auto') s.sfx = 'off'; s._v = 24; }
  if (s._v < 25) { if (s.ttsEngine === 'google') s.ttsEngine = 'device'; s._v = 25; } // ★ 1.38 เสียงในเครื่องเป็นค่าเริ่มต้น // ★ 1.32 เอฟเฟกต์ปิดเป็นค่าเริ่มต้น
+ csCfgOk = s;
  return s;
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
@@ -1223,7 +1233,7 @@ function csOpenReader(items, title, pre) {
  document.body.appendChild(el);
  const player = new CsPlayer(el.querySelector('.cs-list'), items || [], () => csReaderUpdate());
  csReader = { el, player, auto: null, chatKey: csChatKey(), chatLen: (csCtx().chat || []).length };
- csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
+ csApplyUnderBar(el); csPinSync(); csStBtnsSoon(el); document.body.classList.add('cs-open');
  if (pre && pre.length) player.preload(pre);
  el.addEventListener('click', csReaderClick);
  csExtBind(el);
@@ -1238,9 +1248,22 @@ function csOpenReader(items, title, pre) {
  requestAnimationFrame(() => el.classList.add('show'));
  if (csGenerating) csShowWaiting(true);
  if (player.items.length > player.i) player.next(); else csReaderUpdate();
+ csLoadingPill(el);
  return csReader;
 }
 let csReaderPosT = 0;
+let csChatSwitchAt = 0;
+/** ★ 1.41.3 เพิ่งสลับแชท = ST กับส่วนขยายอื่นยังโหลดอยู่ บอกให้รู้ (ไม่ใช่ค้าง) จนกว่าเครื่องจะว่าง */
+function csLoadingPill(host) {
+ if (!host || Date.now() - csChatSwitchAt > 1500) return;
+ const pill = document.createElement('div');
+ pill.className = 'cs-loadpill';
+ pill.innerHTML = '<span></span>กำลังโหลดแชท…';
+ host.appendChild(pill);
+ const done = () => { pill.classList.add('out'); setTimeout(() => pill.remove(), 300); };
+ try { if (window.requestIdleCallback) { requestIdleCallback(() => setTimeout(done, 200), { timeout: 15000 }); return; } } catch {}
+ setTimeout(done, 1500);
+}
 /** บันทึกที่อ่านทันที (ออกจากแอป / สลับแท็บ / ปิดหน้า / ก่อนสลับแชท) */
 function csPosFlush() {
  try { if (csReader) { clearTimeout(csReaderPosT); csReaderSavePos(); } } catch {}
@@ -1822,6 +1845,7 @@ function csOpenSettings(tab) {
   <div class="cs-sbody"></div>
  </div>`;
  document.body.appendChild(el);
+ document.body.classList.add('cs-setopen');
  el.addEventListener('click', csSettingsClick);
  el.addEventListener('input', csSettingsInput);
  el.addEventListener('change', csSettingsChange);
@@ -1977,6 +2001,7 @@ function csFillTokens(root) {
 function csCloseSettings() {
  const el = document.getElementById('cs-settings');
  if (!el) return;
+ document.body.classList.remove('cs-setopen');
  el.classList.remove('show');
  setTimeout(() => el.remove(), 220);
 }
@@ -2249,7 +2274,7 @@ function csNovelLineHTML(l, user, cmt) {
  if (l.k === 'title') return `<p class="cs-nscene"><b>${csNovelFmt(l.text)}</b></p>`;
  if (l.k === 'scene') return `<p class="cs-nscene">${csNovelFmt(l.text)}</p>`;
  if (l.k === 'say' && l.tagged) return `<p class="cs-np" data-who="${csEsc(l.who)}">“${csNovelFmt(l.text)}”${tail}</p>`; // ★ 1.41 ป้ายชื่อไม่โชว์ในหน้านิยาย ใช้บอกเสียงอ่าน
- if (l.k === 'say') return `<p class="cs-np"><span class="cs-nwho" data-cs="prof" data-who="${csEsc(l.who)}">${csEsc(l.who)}</span> “${csNovelFmt(l.text)}”${tail}</p>`;
+ if (l.k === 'say') return `<p class="cs-np cs-npwho"><span class="cs-nwho" data-cs="prof" data-who="${csEsc(l.who)}">${csEsc(l.who)}</span> “${csNovelFmt(l.text)}”${tail}</p>`;
  if (l.k === 'think') return `<p class="cs-np cs-nthink"${l.who ? ` data-who="${csEsc(l.who)}"` : ''}>${csNovelFmt(l.text)}${tail}</p>`;
  return `<p class="cs-np">${csNovelFmt(l.text)}${tail}</p>`;
 }
@@ -2320,7 +2345,7 @@ function csOpenNovel(mesId, all, resume) {
   </div>`;
  document.body.appendChild(el);
  csNovel = { el, chatKey: csChatKey() };
- csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
+ csApplyUnderBar(el); csPinSync(); csStBtnsSoon(el); document.body.classList.add('cs-open');
  el.addEventListener('click', csNovelClick);
  csExtBind(el);
  csMesxSoon(300);
@@ -2338,6 +2363,7 @@ function csOpenNovel(mesId, all, resume) {
  const saved = (csPos() || {}).novel;
  const want = saved && (mesId === undefined ? (resume || !all) : !all && saved.mes >= mesId) ? saved : null;
  requestAnimationFrame(() => { el.classList.add('show'); if (!(want && csNovelResume(want))) csNovelGoto(mesId !== undefined ? mesId : all ? 0 : undefined); if (csNovel && csNovel.el === el) csNovel.ready = true; });
+ csLoadingPill(el);
  return csNovel;
 }
 function csApplyNovelVars(el) {
@@ -2635,7 +2661,14 @@ function csPosSave(part, val, key) {
  csSave();
 }
 // ══ ★ 1.23 หน้าอ่านอยู่ใต้แถบบนของ SillyTavern + ปักไว้ในแชท ══
+let csTopBarC = null; // ★ 1.41.3 จำไว้ (วัดใหม่เมื่อหมุนจอ/เปลี่ยนขนาด) ไม่วัดทุกครั้งที่เปิดหน้าอ่าน
 function csTopBarBottom() {
+ if (csTopBarC !== null) return csTopBarC;
+ const v = csTopBarMeasure();
+ if (v > 0) csTopBarC = v;
+ return v;
+}
+function csTopBarMeasure() {
  try {
   const el = document.getElementById('top-settings-holder') || document.getElementById('top-bar');
   const r = el && el.getBoundingClientRect();
@@ -2644,9 +2677,10 @@ function csTopBarBottom() {
 }
 function csApplyUnderBar(el) {
  if (!el) return;
- const on = !csFull && !!csCfg().keepTopBar && csTopBarBottom() > 0;
+ const tb = !csFull && csCfg().keepTopBar ? csTopBarBottom() : 0;
+ const on = tb > 0;
  el.classList.toggle('cs-under-bar', on);
- el.style.setProperty('--cs-topoff', (on ? csTopBarBottom() : 0) + 'px');
+ el.style.setProperty('--cs-topoff', (on ? tb : 0) + 'px');
 }
 function csIsPinned() { return !!csCfg().alwaysOn; }
 let csAlwaysPaused = false; // ปิดชั่วคราว (กดย้อนกลับ/ปุ่มข้างจอ) จนกว่าจะสลับแชทหรือกดเปิดใหม่
@@ -2684,6 +2718,7 @@ let csStPanelWas = false;
 function csSyncStPanels() {
  const open = csStPanelOpen();
  document.body.classList.toggle('cs-st-panel', open);
+ if (document.body.classList.contains('cs-setopen') && !document.getElementById('cs-settings')) document.body.classList.remove('cs-setopen'); // หน้าตั้งค่าหายไปทางไหนก็ตาม ปุ่มข้างจอต้องกลับมา
  if (open === csStPanelWas) return;
  csStPanelWas = open;
  if (open) csExtReturn(); else csStBtnsAll();
@@ -2719,6 +2754,7 @@ function csStBtnsRender(host) {
  box.innerHTML = core.concat(extras).map(el => csProxyBtn(el, 'cs-stbtn')).join('');
  csExtBorrow(host);
 }
+function csStBtnsSoon(host) { requestAnimationFrame(() => setTimeout(() => { if (host.isConnected) csStBtnsRender(host); }, 0)); }
 function csStBtnsAll() { [csReader && csReader.el, csNovel && csNovel.el].forEach(csStBtnsRender); }
 /** กดปุ่มของ SillyTavern แทนผู้ใช้: ส่งข้อความที่พิมพ์ในหน้าอ่านไปช่องพิมพ์จริงก่อน แล้วรับกลับถ้าปุ่มนั้นเขียนลงช่องพิมพ์ */
 function csStBtnClick(b) {
@@ -4831,7 +4867,10 @@ function csReaderSavePos(anchorIdx) {
  if (!csReader) return;
  const p = csReader.player;
  const last = p.items[Math.min(p.i, p.items.length) - 1];
- const aIdx = anchorIdx !== undefined ? anchorIdx : csReaderAnchorIdx();
+ // ★ 1.41.3 แชทเปลี่ยนแล้ว / หน้าอ่านถูกซ่อน = ไม่วัดจอ (บังคับเบราว์เซอร์คำนวณหน้าใหม่ทั้งหน้าตอน ST กำลังวาด = ค้าง) ใช้ค่าที่วัดไว้ล่าสุด
+ const noMeasure = (csReader.chatKey && csReader.chatKey !== csChatKey()) || document.body.classList.contains('cs-st-panel') || document.visibilityState === 'hidden';
+ const aIdx = anchorIdx !== undefined ? anchorIdx : noMeasure ? (csReader.lastAnchor ?? -1) : csReaderAnchorIdx();
+ if (aIdx >= 0) csReader.lastAnchor = aIdx;
  const a = aIdx >= 0 ? p.items[aIdx] : null;
  if (!last || last._m === undefined) return;
  const key = csReader.chatKey;
@@ -5685,7 +5724,7 @@ function csInit() {
   if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => { if (!csDelBusy) setTimeout(() => { if (!csDelBusy) csAfterDelete(); }, 0); });
   if (T.MESSAGE_SWIPED) ev.on(T.MESSAGE_SWIPED, id => csOnSwiped(id));
   [T.MESSAGE_EDITED, T.MESSAGE_UPDATED, T.MESSAGE_SWIPED].filter(Boolean).forEach(t => ev.on(t, id => { csRerender(id); if (csNovel) setTimeout(() => csNovelRefresh(false), 0); }));
-  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csPosFlush(); csTtsStop(); csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csPinOpen(); csIdle(() => { csAddAllButtons(); csInlineAll(); }); }, 0); });
+  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csChatSwitchAt = Date.now(); csPosFlush(); csTtsStop(); csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csPinOpen(); csIdle(() => { csAddAllButtons(); csInlineAll(); }); }, 0); });
   if (T.MORE_MESSAGES_LOADED) ev.on(T.MORE_MESSAGES_LOADED, () => { csAddAllButtons(); csInlineAll(); });
  }
  csAddAllButtons();
@@ -5700,8 +5739,15 @@ function csInit() {
   const done = () => { b.textContent = 'คัดลอกแล้ว'; setTimeout(() => { b.textContent = 'คัดลอก'; }, 1400); };
   try { navigator.clipboard.writeText(code).then(done, () => csToast('คัดลอกไม่ได้')); } catch { csToast('คัดลอกไม่ได้'); }
  }, true);
- try { new MutationObserver(() => csHydrateHTML(document)).observe(document.body, { childList: true, subtree: true }); } catch {}
- const onResize = () => { const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); };
+ try {
+  // ★ 1.41.3 ดูเฉพาะของที่เพิ่งเพิ่ม และรวบเป็นครั้งเดียวต่อเฟรม (เดิมค้นทั้งหน้าทุกครั้งที่อะไรเปลี่ยน)
+  let hq = false;
+  new MutationObserver(ms => {
+   if (hq) return;
+   for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1 && (n.classList?.contains('cs-html') || n.querySelector?.('.cs-html[data-hk]:not([data-h])'))) { hq = true; requestAnimationFrame(() => { hq = false; csHydrateHTML(document); }); return; }
+  }).observe(document.body, { childList: true, subtree: true });
+ } catch {}
+ const onResize = () => { csTopBarC = null; const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); };
  window.addEventListener('resize', onResize);
  // ★ 1.41.2 มือถือ: สลับแอป / ปิดแท็บ = บันทึกที่อ่านทันที
  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') csPosFlush(); });
@@ -5716,7 +5762,8 @@ function csInit() {
   // ปุ่มท้ายช่องพิมพ์เปลี่ยน (ส่วนขยายเพิ่มปุ่ม / QR เปลี่ยน) → ดึงใหม่
   const sf = document.getElementById('form_sheld');
   let tb = 0;
-  if (sf) new MutationObserver(() => { clearTimeout(tb); tb = setTimeout(csStBtnsAll, 300); }).observe(sf, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+  const btnsLater = () => { clearTimeout(tb); tb = setTimeout(() => (Date.now() - csChatSwitchAt < 2500 ? btnsLater() : csStBtnsAll()), 400); };
+  if (sf) new MutationObserver(btnsLater).observe(sf, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
  } catch {}
  console.log(`[chat-story] ${CS_VERSION} พร้อม`);
 }

@@ -940,7 +940,7 @@ const REPLY = `<think>วางแผน</think>
       G.w.__opt = 0; G.d.getElementById('options_button').addEventListener('click', () => G.w.__opt++);
       G.ctx.characterId = 0;
       G.ev("csCfg().style = 'chat'; csCfg().alwaysOn = false; csCloseReader(true); csCloseNovel(true)");
-      G.ev('csOpenLatest()');
+      G.ev('csOpenLatest()'); await sleep(60);
       const R = () => G.d.getElementById('cs-reader');
       ok(R().classList.contains('cs-under-bar') && R().style.getPropertyValue('--cs-topoff') === '44px', 'reader sits under the SillyTavern top bar');
       const core = [...R().querySelectorAll('.cs-stbtns .cs-stbtn[data-cs="stbtn"] i')].map(i => i.className);
@@ -976,7 +976,7 @@ const REPLY = `<think>วางแผน</think>
       G.ev('csCloseReader(true)');
       ok(G.d.getElementById('send_form').contains(qr) && qr.nextElementSibling.id === 'nonQRFormItems' && !G.d.querySelector('#send_form ~ *:not(script)')?.isEqualNode?.(qr), '1.40: closing the reader returns everything');
       ok(!G.d.body.innerHTML.includes('cs-borrow'), '1.40: no leftover placeholders');
-      G.ev("csCfg().style = 'novel'; csOpenLatest()");
+      G.ev("csCfg().style = 'novel'; csOpenLatest()"); await sleep(60);
       ok(!!qr.closest('#cs-novel .cs-extdock'), '1.40: novel view borrows it too');
       G.ev("csCloseNovel(true); csCfg().style = 'chat'");
       ok(G.d.getElementById('send_form').contains(qr), '1.40: and gives it back');
@@ -1462,6 +1462,25 @@ const REPLY = `<think>วางแผน</think>
       G.d.dispatchEvent(new G.w.Event('visibilitychange'));
       ok(!!(G.ev("csCfg().readPos['chat-A']") || {}).chat, '1.41.2: app goes to background → position saved at once');
       Object.defineProperty(G.d, 'visibilityState', { configurable: true, get: () => 'visible' });
+      // ★ 1.41.3 ตอนแชทเปลี่ยน ไม่วัดจอ (ใช้ค่าที่จำไว้) — กันค้างบนมือถือ
+      G.ev('csReaderSavePos()');
+      G.ev('window.__am = csReaderAnchorIdx; csReaderAnchorIdx = () => { window.__measured = (window.__measured || 0) + 1; return window.__am(); }');
+      cid = 'chat-C'; G.ev('csReaderSavePos()');
+      ok(!G.w.__measured && !!(G.ev("csCfg().readPos['chat-A']") || {}).chat, '1.41.3: chat already switched → saves without measuring the screen');
+      cid = 'chat-A'; G.ev('csReaderSavePos()');
+      ok(G.w.__measured === 1, '1.41.3: normal save still measures');
+      G.ev('csReaderAnchorIdx = window.__am');
+      G.ev('csCloseReader(true); csChatSwitchAt = Date.now(); csOpenReadAll()');
+      ok(!!G.d.querySelector('#cs-reader .cs-loadpill'), '1.41.3: just switched chats → "loading chat…" pill');
+      G.ev('csCloseReader(true); csChatSwitchAt = 0; csOpenReadAll()');
+      ok(!G.d.querySelector('#cs-reader .cs-loadpill'), '1.41.3: normal open → no pill');
+      ok(/body\.cs-open:not\(\.cs-st-panel\) #chat\{content-visibility:hidden;?\}/.test(require('fs').readFileSync(process.env.CS_CSS || require('path').join(__dirname, '..', 'style.css'), 'utf8')), '1.41.3: ST chat under the reader is skipped by layout');
+      { const css = require('fs').readFileSync(process.env.CS_CSS || require('path').join(__dirname, '..', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+        ok(!/body:has\(/.test(css) && !/\.cs-np:has\(/.test(css), '1.41.3: no page-wide :has() selectors (they slow every DOM change on phones)'); }
+      G.ev('csOpenSettings()'); ok(G.d.body.classList.contains('cs-setopen'), '1.41.3: settings open → edge button hidden via class');
+      G.ev('csCloseSettings()'); ok(!G.d.body.classList.contains('cs-setopen'), '1.41.3: settings closed → class removed');
+      G.ev('csOpenSettings()'); G.d.getElementById('cs-settings').remove(); G.ev('csSyncStPanels()');
+      ok(!G.d.body.classList.contains('cs-setopen'), '1.41.3: settings removed any other way → edge button comes back');
       G.ev('csCloseReader(true)');
       G.ctx.getCurrentChatId = oldGet;
     }

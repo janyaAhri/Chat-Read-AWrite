@@ -244,7 +244,7 @@
 .cs-indent .cs-np{text-indent:2em;}
 .cs-justify .cs-np{text-align:justify;text-justify:inter-character;}
 .cs-nwho{font-weight:600;color:var(--cs-name);}
-.cs-indent .cs-np:has(.cs-nwho){text-indent:0;}
+.cs-indent .cs-np.cs-npwho{text-indent:0;}
 .cs-nthink{font-style:italic;color:var(--cs-ink2);}
 .cs-nscene{text-align:center;color:var(--cs-ink2);font-size:.85em;letter-spacing:.5px;margin:1.2em 0;}
 .cs-nbreak{text-align:center;color:var(--cs-ink2);letter-spacing:6px;margin:1.4em 0;}
@@ -429,7 +429,8 @@
 #cs-edge.left{border-radius:0 12px 12px 0;}
 #cs-edge:hover,#cs-edge.press{opacity:.95;}
 #cs-edge.press{width:30px;}
-body:has(#cs-reader.show) #cs-edge,body:has(#cs-novel.show) #cs-edge,body:has(#cs-settings) #cs-edge{display:none;}
+/* ★ 1.41.3 เดิมใช้ body:has(...) ซึ่งทำให้เบราว์เซอร์ตรวจทั้งหน้าใหม่ทุกครั้งที่ใครแก้ DOM (ช้ามากเมื่อมีส่วนขยายอื่น) → ใช้คลาสบน body แทน */
+body.cs-open #cs-edge,body.cs-setopen #cs-edge{display:none;}
 #chat .cs-mescmt{justify-content:flex-start;margin:4px 0 0;font-size:calc(var(--mainFontSize,15px) * 1);--cs-ink:var(--SmartThemeBodyColor,#ddd);--cs-ink2:var(--SmartThemeEmColor,#aaa);}
 
 /* ── ★ 1.16 แจ้งเตือนเล็ก ── */
@@ -792,3 +793,12 @@ body.cs-open > #cum-alt-meter.cum-floating-meter,body.cs-open > #cum-panel.cum-f
 .cs-selmode .cs-item.cs-picked{background:none !important;}
 .cs-selmode .cs-item.cs-picked .cs-bubble,.cs-selmode .cs-item.cs-picked .cs-narr,.cs-selmode .cs-item.cs-picked .cs-scene{box-shadow:0 0 0 2px #ff3b30 !important;border-radius:14px;}
 .cs-selmode .cs-item.cs-picked .cs-narr,.cs-selmode .cs-item.cs-picked .cs-scene{background:color-mix(in srgb,#ff3b30 10%,transparent);padding-left:6px;padding-right:6px;}
+
+/* ★ 1.41.3 หน้าอ่านเปิดอยู่ = แชทหลักของ ST ถูกบังทั้งหมด ไม่ต้องคำนวณ/วาด (แชทยาว + มือถือ = ค้าง) · ข้อมูลยังอยู่ ส่วนขยายอื่นยังใช้ได้ */
+body.cs-open:not(.cs-st-panel) #chat{content-visibility:hidden;}
+
+/* ★ 1.41.3 กำลังโหลดแชท (หลังสลับแชท) */
+.cs-loadpill{position:absolute;left:50%;top:calc(var(--cs-topoff,0px) + 64px);transform:translateX(-50%);z-index:8;display:flex;align-items:center;gap:8px;padding:7px 14px;border-radius:99px;background:var(--cs-bar);color:var(--cs-ink2);font:500 13px/1 -apple-system,system-ui,sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.18);pointer-events:none;transition:opacity .3s;}
+.cs-loadpill.out{opacity:0;}
+.cs-loadpill span{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:csSpin .8s linear infinite;}
+@keyframes csSpin{to{transform:rotate(360deg)}}
