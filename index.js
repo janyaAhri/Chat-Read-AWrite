@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.41.3';
+const CS_VERSION = '1.41.4';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -2313,12 +2313,54 @@ function csNovelChapterHTML(ch, n) {
   ${ch.bot && ch.botId === csLastCharMesId() && ch.botId === (csCtx().chat || []).length - 1 ? `<div class="cs-nacts">${csSwipeHTML(ch.botId)}<a data-cs="regen">เจนใหม่</a><span>·</span><a data-cs="dellast">ลบ${w}นี้</a></div>` : ''}
  </section>`;
 }
-function csNovelBodyHTML(all) {
+// ★ 1.41.4 หน้านิยายวาดทีละช่วง (ไม่เกิน CS_NOVEL_MAX บท) — เดิมอ่านต่อจากบทเก่าจะวาดทั้งเรื่องทีเดียว แชทยาว + มือถือ = ค้าง
+let csNovelWinLast = null;
+function csNovelWin(n, win) {
+ if (win === true) return { start: 0, end: n };
+ if (win && typeof win === 'object') { const st = Math.max(0, Math.min(win.start | 0, n)); const en = win.end === undefined || win.end >= n ? n : Math.max(st, win.end | 0); return { start: st, end: en }; }
+ return { start: Math.max(0, n - CS_NOVEL_MAX), end: n };
+}
+function csNovelChaptersHTML(chs, from, to) { return chs.slice(from, to).map((ch, k) => csNovelChapterHTML(ch, from + k + 1)).join(''); }
+function csNovelNextBtn(n, end) { return end < n ? `<button class="cs-nnextload" data-cs="nnextload">โหลด${csChWord()}ต่อไป (${n - end} ${csChWord()})</button>` : ''; }
+function csNovelBodyHTML(win) {
  const chs = csNovelChapters();
- const start = all ? 0 : Math.max(0, chs.length - CS_NOVEL_MAX);
- return (start > 0 ? `<button class="cs-nmore" data-cs="nmore">โหลด${csChWord()}ก่อนหน้า (${start} ${csChWord()})</button>` : '')
-  + chs.slice(start).map((ch, k) => csNovelChapterHTML(ch, start + k + 1)).join('')
+ const w = csNovelWin(chs.length, win);
+ csNovelWinLast = { ...w, n: chs.length };
+ if (csNovel) csNovel.win = csNovelWinLast;
+ return (w.start > 0 ? `<button class="cs-nmore" data-cs="nmore">โหลด${csChWord()}ก่อนหน้า (${w.start} ${csChWord()})</button>` : '')
+  + csNovelChaptersHTML(chs, w.start, w.end)
+  + csNovelNextBtn(chs.length, w.end)
   + `<div class="cs-nwriting"><span></span><span></span><span></span><em>กำลังเขียน${csChWord()}ต่อไป</em></div>`;
+}
+/** ลำดับบท (เริ่ม 0) ของข้อความนี้ · ไม่เจอ = -1 */
+function csNovelIdxOf(mesId, chNo) {
+ const chs = csNovelChapters();
+ if (mesId >= 0) { const i = chs.findIndex(ch => ch.botId === mesId || (ch.ids || []).includes(mesId)); if (i >= 0) return i; const j = chs.findIndex(ch => ch.botId !== undefined && ch.botId >= mesId); if (j >= 0) return j; }
+ if (chNo > 0 && chNo <= chs.length) return chNo - 1;
+ return -1;
+}
+/** วาดช่วงรอบบทนี้ (ถ้ายังไม่อยู่บนหน้า) */
+function csNovelShowIdx(idx) {
+ if (!csNovel || idx < 0) return;
+ const body = csNovel.el.querySelector('.cs-nbody');
+ const w = csNovel.win || { start: 0, end: 0 };
+ if (idx >= w.start && idx < w.end) return;
+ const st = Math.max(0, idx - 2);
+ body.querySelector('.cs-page').innerHTML = csNovelBodyHTML({ start: st, end: st + CS_NOVEL_MAX });
+ csMesxSoon(200);
+}
+/** เลื่อนใกล้ท้าย = โหลดบทต่อไปต่อท้าย (ไม่วาดใหม่ทั้งหน้า ตำแหน่งไม่กระโดด) */
+function csNovelLoadNext() {
+ if (!csNovel || !csNovel.win) return;
+ const chs = csNovelChapters(), w = csNovel.win, n = chs.length;
+ if (w.end >= n) return;
+ const body = csNovel.el.querySelector('.cs-nbody'), page = body.querySelector('.cs-page');
+ const to = Math.min(n, w.end + CS_NOVEL_MAX);
+ const btn = page.querySelector('.cs-nnextload');
+ const html = csNovelChaptersHTML(chs, w.end, to) + csNovelNextBtn(n, to);
+ if (btn) { btn.insertAdjacentHTML('beforebegin', html); btn.remove(); } else page.querySelector('.cs-nwriting')?.insertAdjacentHTML('beforebegin', html);
+ csNovel.win = { start: w.start, end: to, n };
+ csMesxSoon(200);
 }
 function csOpenNovel(mesId, all, resume) {
  csCloseReader(true);
@@ -2338,13 +2380,13 @@ function csOpenNovel(mesId, all, resume) {
    <div class="cs-aapanel"></div>
   </div>
   <div class="cs-nprog"><i></i></div>
-  <div class="cs-nbody" data-cs="ntap"><article class="cs-page">${csNovelBodyHTML(all)}</article></div>
+  <div class="cs-nbody" data-cs="ntap"><article class="cs-page">${csNovelBodyHTML(all ? { start: 0, end: CS_NOVEL_MAX } : undefined)}</article></div>
   <div class="cs-nbottom">
    <div class="cs-nnav"><button data-cs="nprev" aria-label="${csChWord()}ก่อนหน้า"><i class="fa-solid fa-arrow-up"></i></button><span class="cs-npct"></span><button data-cs="nnext" aria-label="${csChWord()}ถัดไป"><i class="fa-solid fa-arrow-down"></i></button></div>
    ${s.showInput ? `${csToolsHTML(s)}<div class="cs-inputbar"><textarea class="cs-input" rows="1" placeholder="เขียนเรื่องต่อ… บรรยายหรือพูดก็ได้"></textarea><button class="cs-send" data-cs="send" title="ส่ง"><i class="fa-solid fa-paper-plane"></i></button></div>` : ''}
   </div>`;
  document.body.appendChild(el);
- csNovel = { el, chatKey: csChatKey() };
+ csNovel = { el, chatKey: csChatKey(), win: csNovelWinLast };
  csApplyUnderBar(el); csPinSync(); csStBtnsSoon(el); document.body.classList.add('cs-open');
  el.addEventListener('click', csNovelClick);
  csExtBind(el);
@@ -2395,10 +2437,10 @@ function csNovelResume(pos) {
  const body = csNovel.el.querySelector('.cs-nbody');
  const find = () => [...body.querySelectorAll('.cs-chapter')].find(c => (pos.mes >= 0 ? c.dataset.mes !== '' && +c.dataset.mes === pos.mes : +c.dataset.ch === pos.ch));
  let c = find();
- if (!c && body.querySelector('.cs-nmore')) { body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(true); c = find(); }
+ if (!c) { csNovelShowIdx(csNovelIdxOf(pos.mes, pos.ch)); c = find(); }
  if (!c) return false;
  const chs = [...body.querySelectorAll('.cs-chapter')];
- if (c === chs[chs.length - 1] && pos.off < 40) return false; // ค้างที่ต้นบทล่าสุด = เปิดปกติ
+ if (c === chs[chs.length - 1] && (!csNovel.win || csNovel.win.end >= csNovel.win.n) && pos.off < 40) return false; // ค้างที่ต้นบทล่าสุด = เปิดปกติ
  body.scrollTop = c.offsetTop + (pos.off || 0);
  csNovelProgress();
  if (c !== chs[chs.length - 1]) csToast(`อ่านต่อจาก${csChWord()}ที่ ${c.dataset.ch}`);
@@ -2408,6 +2450,7 @@ function csNovelResume(pos) {
 function csNovelGoto(mesId) {
  if (!csNovel) return;
  const body = csNovel.el.querySelector('.cs-nbody');
+ if (mesId !== undefined && mesId !== null) csNovelShowIdx(csNovelIdxOf(mesId));
  const chs = [...body.querySelectorAll('.cs-chapter')];
  let target = chs[chs.length - 1];
  if (mesId !== undefined && mesId !== null) {
@@ -2422,6 +2465,7 @@ function csNovelProgress() {
  if (!csNovel) return;
  const body = csNovel.el.querySelector('.cs-nbody');
  const max = body.scrollHeight - body.clientHeight;
+ if (csNovel.win && csNovel.win.end < csNovel.win.n && body.clientHeight > 0 && max - body.scrollTop < 900) csNovelLoadNext();
  const pct = max > 0 ? Math.round(body.scrollTop / max * 100) : 100;
  csNovel.el.querySelector('.cs-nprog i').style.width = pct + '%';
  const p = csNovel.el.querySelector('.cs-npct');
@@ -2436,11 +2480,11 @@ function csNovelRefresh(scrollToNew) {
  const body = csNovel.el.querySelector('.cs-nbody');
  const atEnd = body.scrollHeight - body.scrollTop - body.clientHeight < 60;
  const top = body.scrollTop;
- const before = body.querySelectorAll('.cs-chapter').length;
- const all = !body.querySelector('.cs-nmore') && before > CS_NOVEL_MAX;
+ const w = csNovel.win;
+ const keep = w ? { start: w.start, end: w.end >= w.n ? undefined : w.end } : undefined;
  csApplyVars(csNovel.el);
  csApplyNovelVars(csNovel.el);
- body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(all);
+ body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(keep);
  csMesxSoon(200);
  csNovel.el.classList.toggle('writing', csGenerating);
  const chs = body.querySelectorAll('.cs-chapter');
@@ -2475,7 +2519,8 @@ function csNovelClick(e) {
  if (a === 'naa') { const p = csNovel.el.querySelector('.cs-aapanel'); p.innerHTML = csAaHTML(); p.classList.toggle('open'); return; }
  if (a === 'aa') return csAaAct(b);
  if (a === 'send') return csGenerating ? csStopGeneration() : csSend();
- if (a === 'nmore') { const h = body.scrollHeight; body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(true); body.scrollTop += body.scrollHeight - h; return; }
+ if (a === 'nmore') { const h = body.scrollHeight, w = csNovel.win || { start: 0, end: undefined }; body.querySelector('.cs-page').innerHTML = csNovelBodyHTML({ start: Math.max(0, w.start - CS_NOVEL_MAX), end: w.end }); body.scrollTop += body.scrollHeight - h; csMesxSoon(200); return; }
+ if (a === 'nnextload') { csNovelLoadNext(); return; }
  if (a === 'nprev' || a === 'nnext') { csNovelStep(a === 'nnext' ? 1 : -1); return; }
  if (a === 'ntap') {
   if (window.getSelection && String(window.getSelection()).length) return;
@@ -3070,7 +3115,7 @@ function csJumpTo(mesId, q) {
   const chapId = (() => { const chat = csCtx().chat || []; for (let i = mesId; i < chat.length; i++) if (chat[i] && !chat[i].is_user && !chat[i].is_system) return i; return mesId; })();
   const find = () => [...body.querySelectorAll('.cs-chapter')].find(c => c.dataset.mes !== '' && +c.dataset.mes === chapId);
   let c = find();
-  if (!c && body.querySelector('.cs-nmore')) { body.querySelector('.cs-page').innerHTML = csNovelBodyHTML(true); c = find(); }
+  if (!c) { csNovelShowIdx(csNovelIdxOf(chapId)); c = find(); }
   if (c) flash(c, body);
   csNovelProgress();
   return;
@@ -3700,6 +3745,7 @@ function csTtsClick(e, b) {
 function csNovelStep(dir) {
  if (!csNovel) return 0;
  const body = csNovel.el.querySelector('.cs-nbody');
+ if (dir > 0 && csNovel.win && csNovel.win.end < csNovel.win.n) { const all = body.querySelectorAll('.cs-chapter'); const last = all[all.length - 1]; if (last && last.offsetTop - body.scrollTop <= 20) csNovelLoadNext(); }
  const chs = [...body.querySelectorAll('.cs-chapter')];
  if (!chs.length) return 0;
  const idx = Math.max(0, chs.filter(c => c.offsetTop - body.scrollTop <= 20).length - 1);

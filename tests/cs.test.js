@@ -1443,6 +1443,32 @@ const REPLY = `<think>วางแผน</think>
       ok(!!R(), 'broken backup: reader still opens');
       G.ev('csCloseReader(true)'); G.chat.splice(G.chat.length - 2, 2);
     }
+    // ★ 1.41.4 หน้านิยายวาดทีละช่วง (แชทยาว)
+    {
+      const base = G.chat.length;
+      for (let k = 0; k < 80; k++) { G.chat.push({ name: 'มินา', is_user: true, extra: {}, mes: 'ต่อเลย ' + k }); G.chat.push({ name: 'อาเรีย', is_user: false, extra: {}, mes: 'บทยาว ' + k + '\nอาเรีย: ประโยคที่ ' + k }); }
+      G.ev("csCloseReader(true); csCloseNovel(true); csCfg().style = 'novel'; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenLatest()");
+      const NB = () => G.d.querySelectorAll('#cs-novel .cs-chapter');
+      const total = G.ev('csNovelChapters().length');
+      ok(NB().length <= 30 && !!G.d.querySelector('#cs-novel .cs-nmore') && NB()[NB().length - 1].dataset.ch === String(total), '1.41.4: opening draws only the last 30 chapters', [NB().length, total]);
+      // อ่านค้างที่บทที่ 2 → วาดแค่รอบ ๆ บทที่ 2
+      G.ev('csCloseNovel(true)');
+      const m2 = G.ev('csNovelChapters()[1].botId');
+      G.ev(`csPosSave('novel', { mes: ${m2}, ch: 2, off: 20 })`);
+      G.ev('csOpenLatest()'); await sleep(60);
+      const chNos = [...NB()].map(c => +c.dataset.ch);
+      ok(chNos.includes(2) && chNos.length <= 30 && !!G.d.querySelector('#cs-novel .cs-nnextload'), '1.41.4: resume at chapter 2 draws a window around it, not the whole story', [chNos.length, chNos[0], chNos[chNos.length - 1]]);
+      G.ev('csNovelLoadNext()');
+      const after = [...NB()].map(c => +c.dataset.ch);
+      ok(after.length > chNos.length && after.every((v, i) => i === 0 || v === after[i - 1] + 1), '1.41.4: load next appends the following chapters in order', [after.length, after[after.length - 1]]);
+      for (let k = 0; k < 10; k++) G.ev('csNovelLoadNext()');
+      ok(NB().length === total - (chNos[0] - 1) && !G.d.querySelector('#cs-novel .cs-nnextload'), '1.41.4: loads until the end, then the button is gone');
+      // เปิดจากสารบัญไปบทที่ 1 → วาดช่วงใหม่
+      G.ev('csCloseNovel(true); csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenLatest()');
+      G.ev(`csNovelShowIdx(0)`);
+      ok(G.d.querySelector('#cs-novel .cs-chapter').dataset.ch === '1' && NB().length <= 30, '1.41.4: jumping to chapter 1 draws a window from the start');
+      G.ev("csCloseNovel(true); csCfg().style = 'chat'"); G.chat.splice(base);
+    }
     // ★ 1.41.2 สลับแชท: ที่อ่านของแชทเดิมต้องบันทึกลงแชทเดิม ไม่ใช่แชทใหม่
     {
       const oldGet = G.ctx.getCurrentChatId;
