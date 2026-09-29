@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.41.4';
+const CS_VERSION = '1.42.0';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -130,20 +130,11 @@ const CS_DEFAULTS = {
  cast: {},              // ★ 1.8 { 'c:การ์ด' | 'g:กลุ่ม': { ชื่อ: { color, sound, img, aliases, me, auto, ignored } } } แยกตามการ์ด
 };
 
-// ★ 1.41.3 ST สร้างก้อนข้อมูลใหม่ทุกครั้งที่ขอ (หนัก) → จำไว้ใช้ในรอบทำงานเดียวกัน ล้างเองเมื่อจบรอบ
-let csCtxC = null;
-function csCtx() {
- if (csCtxC) return csCtxC;
- csCtxC = SillyTavern.getContext();
- Promise.resolve().then(() => { csCtxC = null; });
- return csCtxC;
-}
-let csCfgOk = null;
+function csCtx() { return SillyTavern.getContext(); }
 function csCfg() {
  const ctx = csCtx();
  if (!ctx.extensionSettings[CS_KEY]) ctx.extensionSettings[CS_KEY] = {};
  const s = ctx.extensionSettings[CS_KEY];
- if (s === csCfgOk && s._v >= 25 && s.chars && s.readPos) return s; // เช็กค่าเริ่มต้นครบแล้ว ไม่ต้องไล่ใหม่ทุกครั้ง
  for (const k of Object.keys(CS_DEFAULTS)) if (s[k] === undefined) s[k] = (CS_DEFAULTS[k] && typeof CS_DEFAULTS[k] === 'object') ? JSON.parse(JSON.stringify(CS_DEFAULTS[k])) : CS_DEFAULTS[k];
  // ธีมเก่าจาก 1.0.0
  if (s.theme && !s._migrated) { if (CS_PRESETS[s.theme]) s.preset = s.theme; s._migrated = true; }
@@ -161,8 +152,18 @@ function csCfg() {
  if (s._v < 23) { if (s.preset === 'classic') s.preset = 'ink'; if (s.volume === 0.6) s.volume = 0.8; s._v = 23; } // ★ 1.21 ค่าเริ่มต้นดำขาว + เสียงดังขึ้น // ★ 1.20 ล้างชื่อที่เดาผิด (ความ คำ ปลาย น้ำเ …) // ★ 1.18 กลับมาเริ่มที่ขาวดำเรียบ (จันทร์นวลยังเลือกได้)
  if (s._v < 24) { if (s.sfx === 'auto') s.sfx = 'off'; s._v = 24; }
  if (s._v < 25) { if (s.ttsEngine === 'google') s.ttsEngine = 'device'; s._v = 25; } // ★ 1.38 เสียงในเครื่องเป็นค่าเริ่มต้น // ★ 1.32 เอฟเฟกต์ปิดเป็นค่าเริ่มต้น
- csCfgOk = s;
  return s;
+}
+/** ★ 1.42 เบราว์เซอร์ยังใช้ไฟล์ตัวเก่าจากแคช (อัปเดตแล้วแต่ยังไม่ล้างแคช) = เตือน */
+async function csStaleCheck() {
+ try {
+  const src = [...document.querySelectorAll('script[src*="/scripts/extensions/"]')].map(x => x.getAttribute('src') || '').find(x => /\/index\.js(?:[?#].*)?$/.test(x) && /paper-whisper|chat-story|chatstory/i.test(x));
+  if (!src) return;
+  const r = await fetch(src.replace(/\/index\.js(?:[?#].*)?$/, '/manifest.json'), { cache: 'no-store' });
+  if (!r.ok) return;
+  const v = String((await r.json()).version || '');
+  if (v && v !== CS_VERSION) csToast(`Paper-Whisper ในเครื่องยังเป็นตัวเก่า (${CS_VERSION}) · ติดตั้งแล้วเป็น ${v} — ล้างแคชเบราว์เซอร์แล้วรีเฟรช`, 'err');
+ } catch {}
 }
 function csSave() { try { csCtx().saveSettingsDebounced(); } catch {} }
 function csEsc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
@@ -1233,7 +1234,7 @@ function csOpenReader(items, title, pre) {
  document.body.appendChild(el);
  const player = new CsPlayer(el.querySelector('.cs-list'), items || [], () => csReaderUpdate());
  csReader = { el, player, auto: null, chatKey: csChatKey(), chatLen: (csCtx().chat || []).length };
- csApplyUnderBar(el); csPinSync(); csStBtnsSoon(el); document.body.classList.add('cs-open');
+ csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  if (pre && pre.length) player.preload(pre);
  el.addEventListener('click', csReaderClick);
  csExtBind(el);
@@ -1248,22 +1249,10 @@ function csOpenReader(items, title, pre) {
  requestAnimationFrame(() => el.classList.add('show'));
  if (csGenerating) csShowWaiting(true);
  if (player.items.length > player.i) player.next(); else csReaderUpdate();
- csLoadingPill(el);
  return csReader;
 }
 let csReaderPosT = 0;
-let csChatSwitchAt = 0;
-/** ★ 1.41.3 เพิ่งสลับแชท = ST กับส่วนขยายอื่นยังโหลดอยู่ บอกให้รู้ (ไม่ใช่ค้าง) จนกว่าเครื่องจะว่าง */
-function csLoadingPill(host) {
- if (!host || Date.now() - csChatSwitchAt > 1500) return;
- const pill = document.createElement('div');
- pill.className = 'cs-loadpill';
- pill.innerHTML = '<span></span>กำลังโหลดแชท…';
- host.appendChild(pill);
- const done = () => { pill.classList.add('out'); setTimeout(() => pill.remove(), 300); };
- try { if (window.requestIdleCallback) { requestIdleCallback(() => setTimeout(done, 200), { timeout: 15000 }); return; } } catch {}
- setTimeout(done, 1500);
-}
+
 /** บันทึกที่อ่านทันที (ออกจากแอป / สลับแท็บ / ปิดหน้า / ก่อนสลับแชท) */
 function csPosFlush() {
  try { if (csReader) { clearTimeout(csReaderPosT); csReaderSavePos(); } } catch {}
@@ -1279,7 +1268,7 @@ function csReaderUpdate() {
  if (sub) sub.textContent = csGenerating ? 'กำลังพิมพ์…' : csCmtBusy.size ? 'คนอ่านกำลังเม้นท์…' : (total ? `${shown}/${total}` : '');
  el.classList.toggle('done', player.done);
  el.classList.toggle('generating', csGenerating);
- clearTimeout(csReaderPosT); csReaderPosT = setTimeout(() => csReaderSavePos(), 250);
+ csReaderSavePos();
  csAmbAutoSoon();
  const send = el.querySelector('.cs-send i');
  if (send) send.className = csGenerating ? 'fa-solid fa-stop' : 'fa-solid fa-paper-plane';
@@ -1367,7 +1356,7 @@ function csCloseReader(instant) {
  if (csReader.player.typing) clearTimeout(csReader.player.typing.timer);
  csExtReturn();
  csReader = null;
- if (instant) { el.remove(); return; }
+ if (instant) { if (el !== csKeepEl) el.remove(); return; }
  el.classList.remove('show');
  setTimeout(() => el.remove(), 220);
 }
@@ -1618,8 +1607,11 @@ function csMesCmt(mesId) {
  if (old) old.outerHTML = html; else box.insertAdjacentHTML('afterend', html);
 }
 function csMesCmtAll() { document.querySelectorAll('#chat .mes').forEach(m => csMesCmt(m.getAttribute('mesid'))); }
+/** ★ 1.41.5 เมนูในไม้กายสิทธิ์: มีปุ่มลอยอยู่แล้ว = ไม่ต้องมี · ปิดปุ่มลอย = เมนูกลับมา (ไม่งั้นเปิดหน้าอ่านไม่ได้) */
 function csWandMenu() {
  const menu = document.getElementById('extensionsMenu');
+ const want = !(csCfg().enabled && csCfg().edgeBtn);
+ if (!want) { ['cs-wand', 'cs-wand-novel', 'cs-wand-all', 'cs-wand-set'].forEach(id => document.getElementById(id)?.remove()); return; }
  if (!menu || document.getElementById('cs-wand')) return;
  const mk = (id, icon, label, fn) => {
   const a = document.createElement('div');
@@ -2013,7 +2005,7 @@ function csAfterChange(full) {
  if (csNovel) { csApplyVars(csNovel.el); csApplyNovelVars(csNovel.el); if (full) csNovelRefresh(false); }
  csRenderPreview();
  clearTimeout(csRefreshTimer);
- csRefreshTimer = setTimeout(() => { csApplyPrompt(); csInlineAll(); csSyncDrawer(); csEdgeRender(); }, 120);
+ csRefreshTimer = setTimeout(() => { csApplyPrompt(); csInlineAll(); csSyncDrawer(); csEdgeRender(); csWandMenu(); }, 120);
 }
 /** วาดฟองในหน้าอ่านใหม่ (เปลี่ยนฝั่ง ชื่อ รูป) โดยคงตำแหน่งที่อ่านถึง */
 function csRerenderReader() {
@@ -2209,6 +2201,7 @@ function csDrawerHTML() {
    <label class="cs-dl">แบบการอ่าน <select id="cs-style" class="text_pole"><option value="chat"${s.style === 'chat' ? ' selected' : ''}>แชทนิยาย (ฟองแชท แตะทีละฟอง)</option><option value="novel"${s.style === 'novel' ? ' selected' : ''}>นิยาย (อ่านแบบหนังสือ)</option></select></label>
    <label class="cs-dl">แสดงที่ <select id="cs-mode" class="text_pole"><option value="reader"${s.mode === 'reader' ? ' selected' : ''}>หน้าอ่านเปิดทับแชท</option><option value="inline"${s.mode === 'inline' ? ' selected' : ''}>ในแชทหลัก</option></select></label>
    <label class="checkbox_label"><input type="checkbox" id="cs-force"${s.forceFormat ? ' checked' : ''}><span>สั่งบอทเขียนแบบนิยายแชท</span></label>
+   <label class="checkbox_label"><input type="checkbox" id="cs-edge-on"${s.edgeBtn ? ' checked' : ''}><span>ปุ่มลอยข้างจอ (ปิด = เปิดหน้าอ่านจากเมนูไม้กายสิทธิ์แทน)</span></label>
    <div class="cs-drawer-btns">
     <div class="menu_button" id="cs-open-settings"><i class="fa-solid fa-sliders"></i> ปรับแต่งทั้งหมด</div>
     <div class="menu_button" id="cs-read-last"><i class="fa-solid fa-book-open"></i> เปิดหน้าอ่าน</div>
@@ -2223,6 +2216,7 @@ function csBindDrawer(root) {
  on('cs-mode', 'change', e => { s.mode = e.target.value; csAfterChange(true); });
  on('cs-style', 'change', e => { s.style = e.target.value; csAfterChange(true); csApplyPrompt(); });
  on('cs-force', 'change', e => { s.forceFormat = e.target.checked; csAfterChange(); csApplyPrompt(); });
+ on('cs-edge-on', 'change', e => { s.edgeBtn = e.target.checked; csSave(); csEdgeRender(); csWandMenu(); });
  on('cs-open-settings', 'click', () => csOpenSettings());
  on('cs-read-last', 'click', () => csOpenLatest());
  on('cs-read-all', 'click', () => csOpenReadAll());
@@ -2234,6 +2228,7 @@ function csSyncDrawer() {
  if (q('cs-mode')) q('cs-mode').value = s.mode;
  if (q('cs-style')) q('cs-style').value = s.style;
  if (q('cs-force')) q('cs-force').checked = !!s.forceFormat;
+ if (q('cs-edge-on')) q('cs-edge-on').checked = !!s.edgeBtn;
 }
 
 // ══ โหมดนิยาย (อ่านแบบหนังสือ) ══
@@ -2387,7 +2382,7 @@ function csOpenNovel(mesId, all, resume) {
   </div>`;
  document.body.appendChild(el);
  csNovel = { el, chatKey: csChatKey(), win: csNovelWinLast };
- csApplyUnderBar(el); csPinSync(); csStBtnsSoon(el); document.body.classList.add('cs-open');
+ csApplyUnderBar(el); csPinSync(); csStBtnsRender(el); document.body.classList.add('cs-open');
  el.addEventListener('click', csNovelClick);
  csExtBind(el);
  csMesxSoon(300);
@@ -2405,7 +2400,6 @@ function csOpenNovel(mesId, all, resume) {
  const saved = (csPos() || {}).novel;
  const want = saved && (mesId === undefined ? (resume || !all) : !all && saved.mes >= mesId) ? saved : null;
  requestAnimationFrame(() => { el.classList.add('show'); if (!(want && csNovelResume(want))) csNovelGoto(mesId !== undefined ? mesId : all ? 0 : undefined); if (csNovel && csNovel.el === el) csNovel.ready = true; });
- csLoadingPill(el);
  return csNovel;
 }
 function csApplyNovelVars(el) {
@@ -2573,7 +2567,7 @@ function csCloseNovel(instant) {
  csNovelPosNow();
  csExtReturn();
  csNovel = null;
- if (instant) { el.remove(); return; }
+ if (instant) { if (el !== csKeepEl) el.remove(); return; }
  el.classList.remove('show');
  setTimeout(() => el.remove(), 220);
 }
@@ -2656,16 +2650,22 @@ function csBindInput(el) {
  });
 }
 /** ★ 1.8 สลับนิยาย ↔ แชทนิยายได้ทันทีจากหน้าอ่าน · บทเก่าแยกคนพูดให้ ส่วนบทต่อไปบอทเขียนตามแบบใหม่ */
+let csKeepEl = null; // ★ 1.41.5 หน้าเดิมค้างไว้ให้หน้าใหม่จางขึ้นมาทับ (ไม่วาป)
 function csSwitchStyle(style) {
  const s = csCfg();
  if (style !== 'novel' && style !== 'chat') return;
  s.style = style;
  csSave();
  csApplyPrompt();
+ const oldEl = (csReader && csReader.el) || (csNovel && csNovel.el) || null;
+ csKeepEl = oldEl;
  csCloseReader(true);
  csCloseNovel(true);
+ csKeepEl = null;
+ if (oldEl) { oldEl.classList.add('cs-leaving'); oldEl.style.pointerEvents = 'none'; }
  if (s.mode === 'inline') csInlineAll();
  csOpenLatest();
+ if (oldEl) setTimeout(() => oldEl.remove(), 320);
  try { csSyncDrawer(); } catch {}
  csToast(style === 'novel' ? 'แบบนิยาย' : 'แบบแชทนิยาย', 'ok');
 }
@@ -2706,14 +2706,7 @@ function csPosSave(part, val, key) {
  csSave();
 }
 // ══ ★ 1.23 หน้าอ่านอยู่ใต้แถบบนของ SillyTavern + ปักไว้ในแชท ══
-let csTopBarC = null; // ★ 1.41.3 จำไว้ (วัดใหม่เมื่อหมุนจอ/เปลี่ยนขนาด) ไม่วัดทุกครั้งที่เปิดหน้าอ่าน
 function csTopBarBottom() {
- if (csTopBarC !== null) return csTopBarC;
- const v = csTopBarMeasure();
- if (v > 0) csTopBarC = v;
- return v;
-}
-function csTopBarMeasure() {
  try {
   const el = document.getElementById('top-settings-holder') || document.getElementById('top-bar');
   const r = el && el.getBoundingClientRect();
@@ -2749,15 +2742,12 @@ function csPinSync() {
 /** มีแชทเปิดอยู่ไหม (ไม่ใช่หน้าเลือกตัวละคร) */
 function csHasChat() { try { const c = csCtx(); return (c.characterId !== undefined && c.characterId !== null && c.characterId !== '') || !!c.groupId; } catch { return false; } }
 /** โหมดเปิดค้าง: เข้าแชทไหนก็เปิดหน้าอ่านให้เอง */
-/** ทำตอนเครื่องว่าง (หน้าอ่านขึ้นก่อน งานที่มองไม่เห็นค่อยตามมา) */
-function csIdle(fn) { try { if (window.requestIdleCallback) return requestIdleCallback(() => fn(), { timeout: 800 }); } catch {} return setTimeout(fn, 120); }
 function csPinOpen() { if (csCfg().enabled && csIsPinned() && !csAlwaysPaused && csHasChat() && !csReader && !csNovel) csOpenLatest(); }
 /** หน้าอื่นของ SillyTavern (เลือกตัวละคร ข้อมูลตัวละคร แผงตั้งค่า) เปิดอยู่ = หลบให้ */
 function csStPanelOpen() {
  if (document.querySelector('#right-nav-panel.openDrawer, #left-nav-panel.openDrawer, .drawer-content.openDrawer:not(.pinnedOpen), #character_popup[style*="flex"], #character_popup[style*="block"]')) return true;
  // ★ 1.36 ☰ → ลบข้อความ (เลือกในแชทหลัก) · แก้ข้อความในแชทหลัก = หลบให้จนเสร็จ
- const dm = document.getElementById('dialogue_del_mes');
- return !!(dm && dm.style.display && dm.style.display !== 'none') || !!document.getElementById('curEditTextarea');
+ return csVisible(document.getElementById('dialogue_del_mes')) || !!document.getElementById('curEditTextarea');
 }
 let csStPanelWas = false;
 function csSyncStPanels() {
@@ -2799,7 +2789,6 @@ function csStBtnsRender(host) {
  box.innerHTML = core.concat(extras).map(el => csProxyBtn(el, 'cs-stbtn')).join('');
  csExtBorrow(host);
 }
-function csStBtnsSoon(host) { requestAnimationFrame(() => setTimeout(() => { if (host.isConnected) csStBtnsRender(host); }, 0)); }
 function csStBtnsAll() { [csReader && csReader.el, csNovel && csNovel.el].forEach(csStBtnsRender); }
 /** กดปุ่มของ SillyTavern แทนผู้ใช้: ส่งข้อความที่พิมพ์ในหน้าอ่านไปช่องพิมพ์จริงก่อน แล้วรับกลับถ้าปุ่มนั้นเขียนลงช่องพิมพ์ */
 function csStBtnClick(b) {
@@ -4913,10 +4902,7 @@ function csReaderSavePos(anchorIdx) {
  if (!csReader) return;
  const p = csReader.player;
  const last = p.items[Math.min(p.i, p.items.length) - 1];
- // ★ 1.41.3 แชทเปลี่ยนแล้ว / หน้าอ่านถูกซ่อน = ไม่วัดจอ (บังคับเบราว์เซอร์คำนวณหน้าใหม่ทั้งหน้าตอน ST กำลังวาด = ค้าง) ใช้ค่าที่วัดไว้ล่าสุด
- const noMeasure = (csReader.chatKey && csReader.chatKey !== csChatKey()) || document.body.classList.contains('cs-st-panel') || document.visibilityState === 'hidden';
- const aIdx = anchorIdx !== undefined ? anchorIdx : noMeasure ? (csReader.lastAnchor ?? -1) : csReaderAnchorIdx();
- if (aIdx >= 0) csReader.lastAnchor = aIdx;
+ const aIdx = anchorIdx !== undefined ? anchorIdx : csReaderAnchorIdx();
  const a = aIdx >= 0 ? p.items[aIdx] : null;
  if (!last || last._m === undefined) return;
  const key = csReader.chatKey;
@@ -5770,7 +5756,7 @@ function csInit() {
   if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => { if (!csDelBusy) setTimeout(() => { if (!csDelBusy) csAfterDelete(); }, 0); });
   if (T.MESSAGE_SWIPED) ev.on(T.MESSAGE_SWIPED, id => csOnSwiped(id));
   [T.MESSAGE_EDITED, T.MESSAGE_UPDATED, T.MESSAGE_SWIPED].filter(Boolean).forEach(t => ev.on(t, id => { csRerender(id); if (csNovel) setTimeout(() => csNovelRefresh(false), 0); }));
-  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csChatSwitchAt = Date.now(); csPosFlush(); csTtsStop(); csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csPinOpen(); csIdle(() => { csAddAllButtons(); csInlineAll(); }); }, 0); });
+  if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csPosFlush(); csTtsStop(); csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csAddAllButtons(); csInlineAll(); csPinOpen(); }, 60); });
   if (T.MORE_MESSAGES_LOADED) ev.on(T.MORE_MESSAGES_LOADED, () => { csAddAllButtons(); csInlineAll(); });
  }
  csAddAllButtons();
@@ -5785,15 +5771,8 @@ function csInit() {
   const done = () => { b.textContent = 'คัดลอกแล้ว'; setTimeout(() => { b.textContent = 'คัดลอก'; }, 1400); };
   try { navigator.clipboard.writeText(code).then(done, () => csToast('คัดลอกไม่ได้')); } catch { csToast('คัดลอกไม่ได้'); }
  }, true);
- try {
-  // ★ 1.41.3 ดูเฉพาะของที่เพิ่งเพิ่ม และรวบเป็นครั้งเดียวต่อเฟรม (เดิมค้นทั้งหน้าทุกครั้งที่อะไรเปลี่ยน)
-  let hq = false;
-  new MutationObserver(ms => {
-   if (hq) return;
-   for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1 && (n.classList?.contains('cs-html') || n.querySelector?.('.cs-html[data-hk]:not([data-h])'))) { hq = true; requestAnimationFrame(() => { hq = false; csHydrateHTML(document); }); return; }
-  }).observe(document.body, { childList: true, subtree: true });
- } catch {}
- const onResize = () => { csTopBarC = null; const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); };
+ try { new MutationObserver(() => csHydrateHTML(document)).observe(document.body, { childList: true, subtree: true }); } catch {}
+ const onResize = () => { const el = document.getElementById('cs-edge'); if (el) csEdgePlace(el); csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); };
  window.addEventListener('resize', onResize);
  // ★ 1.41.2 มือถือ: สลับแอป / ปิดแท็บ = บันทึกที่อ่านทันที
  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') csPosFlush(); });
@@ -5808,10 +5787,10 @@ function csInit() {
   // ปุ่มท้ายช่องพิมพ์เปลี่ยน (ส่วนขยายเพิ่มปุ่ม / QR เปลี่ยน) → ดึงใหม่
   const sf = document.getElementById('form_sheld');
   let tb = 0;
-  const btnsLater = () => { clearTimeout(tb); tb = setTimeout(() => (Date.now() - csChatSwitchAt < 2500 ? btnsLater() : csStBtnsAll()), 400); };
-  if (sf) new MutationObserver(btnsLater).observe(sf, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+  if (sf) new MutationObserver(() => { clearTimeout(tb); tb = setTimeout(csStBtnsAll, 300); }).observe(sf, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
  } catch {}
  console.log(`[chat-story] ${CS_VERSION} พร้อม`);
+ setTimeout(csStaleCheck, 6000);
 }
 
 if (typeof jQuery === 'function') jQuery(csInit);

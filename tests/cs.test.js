@@ -69,7 +69,11 @@ const REPLY = `<think>วางแผน</think>
   ok(E.ev('csCfg().preset') === 'ink' && E.ev("csVars()['--cs-bg']") === '#0e0e0e', 'default dark (ดำขาว)');
   ok(!/ต้นฉบับ/.test(E.ev('JSON.stringify(CS_PRESETS)')) && E.ev("CS_PRESETS.classic.name") === 'ขาวดำเรียบ', 'black & white still available, no "original" label');
   ok(E.prompts.chat_story_format && /Format: chat novel/.test(E.prompts.chat_story_format.v) && /Never write มินา's words/.test(E.prompts.chat_story_format.v) && E.prompts.chat_story_format.v.length < 260, 'format prompt (short)', E.prompts.chat_story_format.v.length);
-  ok(!!E.d.querySelector('.chat-story-settings #cs-open-settings') && !!E.d.getElementById('cs-wand-set'), 'drawer + wand');
+  ok(!!E.d.querySelector('.chat-story-settings #cs-open-settings') && !!E.d.querySelector('.chat-story-settings #cs-edge-on') && !E.d.getElementById('cs-wand-set'), '1.41.5: drawer has floating-button switch · no wand items while the floating button is on');
+  { const cb = E.d.getElementById('cs-edge-on'); cb.checked = false; cb.dispatchEvent(new E.w.Event('change'));
+    ok(!E.d.getElementById('cs-edge') && !!E.d.getElementById('cs-wand-set') && !!E.d.getElementById('cs-wand'), '1.41.5: floating button off → hidden, wand items come back');
+    cb.checked = true; cb.dispatchEvent(new E.w.Event('change'));
+    ok(!!E.d.getElementById('cs-edge') && !E.d.getElementById('cs-wand'), '1.41.5: floating button on again → wand items removed'); }
   // ── หน้าอ่าน + ประวัติก่อนหน้า ──
   E.ev('csCfg().typingMs = 0');
   E.fire('gs', 'normal', {}, false); E.fire('cmr', 1);
@@ -582,8 +586,10 @@ const REPLY = `<think>วางแผน</think>
     F.ev('csOpenNovel()');
     ok(!!F.d.querySelector('#cs-novel [data-cs="toChat"]'), 'novel has switch-to-chat button');
     F.d.querySelector('#cs-novel [data-cs="toChat"]').click();
+    ok(!!F.d.querySelector('#cs-novel.cs-leaving') && !!F.d.getElementById('cs-reader'), '1.41.5: switching crossfades (old view fades under the new one)');
+    await sleep(400);
     ok(F.ev("csCfg().style") === 'chat' && !F.d.getElementById('cs-novel') && !!F.d.getElementById('cs-reader') && /chat novel/.test(F.prompts[Object.keys(F.prompts)[0]].v), 'switch to chat: reader opens, prompt follows');
-    F.d.querySelector('#cs-reader [data-cs="toNovel"]').click();
+    F.d.querySelector('#cs-reader [data-cs="toNovel"]').click(); await sleep(400);
     ok(F.ev("csCfg().style") === 'novel' && !F.d.getElementById('cs-reader') && !!F.d.getElementById('cs-novel') && /novel prose/.test(F.prompts[Object.keys(F.prompts)[0]].v), 'switch back to novel');
     F.ev('csCloseNovel(true)');
     // ในแชทหลักก็แยกคนพูด
@@ -1488,19 +1494,6 @@ const REPLY = `<think>วางแผน</think>
       G.d.dispatchEvent(new G.w.Event('visibilitychange'));
       ok(!!(G.ev("csCfg().readPos['chat-A']") || {}).chat, '1.41.2: app goes to background → position saved at once');
       Object.defineProperty(G.d, 'visibilityState', { configurable: true, get: () => 'visible' });
-      // ★ 1.41.3 ตอนแชทเปลี่ยน ไม่วัดจอ (ใช้ค่าที่จำไว้) — กันค้างบนมือถือ
-      G.ev('csReaderSavePos()');
-      G.ev('window.__am = csReaderAnchorIdx; csReaderAnchorIdx = () => { window.__measured = (window.__measured || 0) + 1; return window.__am(); }');
-      cid = 'chat-C'; G.ev('csReaderSavePos()');
-      ok(!G.w.__measured && !!(G.ev("csCfg().readPos['chat-A']") || {}).chat, '1.41.3: chat already switched → saves without measuring the screen');
-      cid = 'chat-A'; G.ev('csReaderSavePos()');
-      ok(G.w.__measured === 1, '1.41.3: normal save still measures');
-      G.ev('csReaderAnchorIdx = window.__am');
-      G.ev('csCloseReader(true); csChatSwitchAt = Date.now(); csOpenReadAll()');
-      ok(!!G.d.querySelector('#cs-reader .cs-loadpill'), '1.41.3: just switched chats → "loading chat…" pill');
-      G.ev('csCloseReader(true); csChatSwitchAt = 0; csOpenReadAll()');
-      ok(!G.d.querySelector('#cs-reader .cs-loadpill'), '1.41.3: normal open → no pill');
-      ok(/body\.cs-open:not\(\.cs-st-panel\) #chat\{content-visibility:hidden;?\}/.test(require('fs').readFileSync(process.env.CS_CSS || require('path').join(__dirname, '..', 'style.css'), 'utf8')), '1.41.3: ST chat under the reader is skipped by layout');
       { const css = require('fs').readFileSync(process.env.CS_CSS || require('path').join(__dirname, '..', 'style.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
         ok(!/body:has\(/.test(css) && !/\.cs-np:has\(/.test(css), '1.41.3: no page-wide :has() selectors (they slow every DOM change on phones)'); }
       G.ev('csOpenSettings()'); ok(G.d.body.classList.contains('cs-setopen'), '1.41.3: settings open → edge button hidden via class');
