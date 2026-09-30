@@ -790,3 +790,6 @@ body.cs-open > #cum-alt-meter.cum-floating-meter,body.cs-open > #cum-panel.cum-f
 .cs-selbar button{border:0 !important;background:color-mix(in srgb,var(--cs-ink) 8%,transparent) !important;color:var(--cs-ink) !important;border-radius:99px !important;padding:9px 16px !important;font:600 14px/1 -apple-system,system-ui,sans-serif !important;cursor:pointer;display:flex;align-items:center;gap:6px;margin:0 !important;}
 .cs-selbar button.del{background:#ff3b30 !important;color:#fff !important;}
 .cs-selbar button[disabled]{opacity:.4;}
+
+/* ★ 1.41.4 โหลดบทต่อไป */
+#cs-novel .cs-nnextload{display:block;margin:18px auto 8px;border:none;background:color-mix(in srgb,var(--cs-ink) 7%,transparent);color:var(--cs-ink2);font:500 13px/1 -apple-system,system-ui,sans-serif;padding:10px 16px;border-radius:99px;cursor:pointer;}
