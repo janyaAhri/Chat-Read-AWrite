@@ -1244,6 +1244,9 @@ const REPLY = `<think>วางแผน</think>
         // ★ 1.40.4 เสียง Edge: ต่อ WebSocket ตรงจากเบราว์เซอร์ (จำลองเซิร์ฟเวอร์)
         {
           const socks = []; G.w.__edgeMode = 'ok';
+          const fetch0 = G.w.fetch; G.w.__plug = false;
+          G.w.fetch = async (url, o) => { if (String(url).includes('/api/plugins/edge-tts/')) { calls.push({ url, b: o && o.body ? JSON.parse(o.body) : {} }); if (!G.w.__plug) return { ok: false, status: 404 }; return { ok: true, blob: async () => new G.w.Blob(['mp3'], { type: 'audio/mpeg' }) }; } return fetch0(url, o); };
+          G.ev('csEdgePlug = null');
           G.w.WebSocket = function (url) {
             const s = this; s.url = url; s.sent = []; socks.push(s);
             s.send = m => { s.sent.push(m); if (!/Path:ssml/.test(m)) return;
@@ -1274,7 +1277,7 @@ const REPLY = `<think>วางแผน</think>
           const s0 = socks[0] || { url: '', sent: [] };
           ok(socks.length >= 2 && /^wss:\/\/speech\.platform\.bing\.com\/consumer\/speech\/synthesize\/readaloud\/edge\/v1\?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&Sec-MS-GEC=[0-9A-F]{64}&Sec-MS-GEC-Version=1-[\d.]+&ConnectionId=[0-9a-f]{32}$/.test(s0.url), '1.40.4: Edge connects with token + time hash + connection id', s0.url);
           ok(/Path:speech\.config/.test(s0.sent[0] || '') && /audio-24khz-48kbitrate-mono-mp3/.test(s0.sent[0] || '') && /Path:ssml\r\n\r\n<speak /.test(s0.sent[1] || '') && /<voice name='th-TH-PremwadeeNeural'>/.test(s0.sent[1] || ''), '1.40.4: sends config then SSML with the narrator voice', s0.sent.map(x => x.slice(0, 80)));
-          ok(socks.some(s => /<voice name='th-TH-(Achara|Niwat)Neural'>/.test(s.sent[1] || '')) && played.length >= 2 && calls.length === 0 && socks.every(s => s.closed), '1.40.4: characters get their own voice · audio played · socket closed · no server calls', [played.length, calls.length]);
+          ok(socks.some(s => /<voice name='th-TH-(Achara|Niwat)Neural'>/.test(s.sent[1] || '')) && played.length >= 2 && calls.filter(c => !/probe/.test(c.url)).length === 0 && socks.every(s => s.closed), '1.40.4: characters get their own voice · audio played · socket closed · no server calls', [played.length, calls.length]);
           ok(G.ev("csEdgeSsml('a<b & \"c\"', 'v', -4)").includes("a&lt;b &amp; &quot;c&quot;") && G.ev("csEdgeSsml('x', 'v', -4)").includes("pitch='-4%'"), '1.40.4: SSML escapes text and carries the pitch');
           const blobSize = await G.ev("csTtsCache.clear(), csEdgeFetch('ทดสอบ', 'th-TH-NiwatNeural', 0).then(b => b.size + '|' + b.type)");
           ok(blobSize === '500|audio/mpeg', '1.40.4: audio frames are joined (header stripped) into one mp3', blobSize);
@@ -1291,7 +1294,21 @@ const REPLY = `<think>วางแผน</think>
           G.ev("csCfg().ttsEngine = 'edge'; csOpenMessage(" + rid + "); csReader.player.all()");
           [...R().querySelectorAll('.cs-name[data-cs="prof"]')].find(x => x.dataset.who === 'อาเรีย').click();
           ok(R().querySelectorAll('.cs-prof [data-pf="evoice"] option').length === G.ev('CS_EVOICES.length') + 1, '1.40.4: profile: pick an Edge voice per character');
-          G.ev("csNavClose(); csCloseReader(true); csCfg().ttsEngine = 'device'; csTtsFail = ''"); G.w.__edgeMode = 'ok';
+          G.ev("csNavClose(); csCloseReader(true)");
+          // ★ 1.40.5 มีปลั๊กอิน Edge TTS ใน SillyTavern → ผ่านเซิร์ฟเวอร์ ไม่ต่อตรง
+          G.w.__plug = true; calls.length = 0; played.length = 0; socks.length = 0;
+          G.ev("csTtsStop(); csTtsCache.clear(); csTtsFail = ''; csEdgePlug = null; csCfg().ttsEngine = 'edge'; csOpenMessage(" + rid + ")");
+          R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(500);
+          const gen = calls.filter(c => /edge-tts\/generate/.test(c.url));
+          ok(gen.length >= 2 && gen[0].b.voice === 'th-TH-PremwadeeNeural' && gen.some(c => /th-TH-(Achara|Niwat)Neural/.test(c.b.voice)) && socks.length === 0 && played.length >= 2 && G.ev('csTtsFail') === '', '1.40.5: SillyTavern Edge TTS plugin installed → voices come through the server, no direct socket', [gen.length, socks.length, played.length]);
+          G.ev("csTtsStop(); csCloseReader(true); csOpenSettings('sound')");
+          ok(/ปลั๊กอิน Edge TTS/.test(G.d.getElementById('cs-settings').textContent), '1.40.5: settings say the plugin is being used');
+          G.ev("csCloseSettings(); csEdgePlug = null"); G.w.__plug = false;
+          G.ev("csOpenSettings('sound')"); await sleep(20);
+          ok(/SillyTavern-EdgeTTS-Plugin/.test(G.d.getElementById('cs-settings').textContent), '1.40.5: no plugin → settings explain how to install it');
+          G.ev("csCloseSettings()");
+          G.w.fetch = fetch0;
+          G.ev("csCfg().ttsEngine = 'device'; csTtsFail = ''"); G.w.__edgeMode = 'ok';
         }
         delete G.w.speechSynthesis;
       }

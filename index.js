@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.40.4';
+const CS_VERSION = '1.40.5';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -1779,9 +1779,10 @@ function csTabHTML(tab) {
  }
  if (tab === 'sound') {
   const eng = s.ttsEngine || 'device';
+  if (eng === 'edge' && csEdgePlug === null) csEdgePlugProbe().then(ok => { if (ok && csSetTab === 'sound' && document.getElementById('cs-settings')) csRenderSettingsBody(); });
   return `<div class="cs-card"><div class="cs-cardh">อ่านออกเสียง<small>ปุ่ม 🔊 ข้างช่องพิมพ์ · แตะบรรทัดไหนระหว่างอ่าน = อ่านบรรทัดนั้น · กดค้าง → อ่านตรงนี้</small></div>
     ${csToggle('ttsAuto', 'อ่านคำตอบใหม่ให้ฟังเอง', 'บอทตอบเสร็จแล้วเริ่มอ่านทันที')}${csToggle('ttsBtn', 'ปุ่ม 🔊 ข้างช่องพิมพ์')}${csToggle('ttsNarr', 'อ่านบรรยายด้วย', 'ปิด = อ่านเฉพาะบทพูด')}${csRange('ttsRate', 'ความเร็ว', .6, 1.8, .1, 'x')}
-    ${csSelect('ttsEngine', 'เสียงจาก', [['device', 'เสียงในเครื่อง'], ['edge', 'Edge · เสียงไทยธรรมชาติ ฟรี'], ['google', 'Google · ฟรี'], ['gemini', 'Gemini · 30 เสียง']], eng === 'edge' ? 'เสียงนิวรัลของ Microsoft ไม่ต้องใช้คีย์ · ตัวละครได้เสียงตามเพศ + ระดับเสียงต่างกัน · ต่อไม่ได้จะสลับเป็นเสียงเครื่องเอง' : eng === 'gemini' ? 'ตัวละครได้เสียงของตัวเอง · ใช้คีย์ Google AI Studio ใน SillyTavern · โควตาเต็มสลับเป็น Google เอง' : eng === 'google' ? 'ผ่านเซิร์ฟเวอร์ SillyTavern ไม่ต้องใช้คีย์ · ตัวละครต่างกันที่ระดับเสียง' : 'ตัวละครได้เสียงและระดับเสียงต่างกันตามเพศ')}
+    ${csSelect('ttsEngine', 'เสียงจาก', [['device', 'เสียงในเครื่อง'], ['edge', 'Edge · เสียงไทยธรรมชาติ ฟรี'], ['google', 'Google · ฟรี'], ['gemini', 'Gemini · 30 เสียง']], eng === 'edge' ? (csEdgePlug ? '✓ ใช้ผ่านปลั๊กอิน Edge TTS ของ SillyTavern · ตัวละครได้เสียงตามเพศ' : 'เสียงนิวรัลของ Microsoft ฟรี · ถ้าขึ้นว่าต่อไม่ได้ ให้ลงปลั๊กอิน SillyTavern-EdgeTTS-Plugin (ตั้ง enableServerPlugins: true ใน config.yaml แล้วรีสตาร์ท) · ระหว่างนั้นใช้เสียงเครื่องแทนให้เอง') : eng === 'gemini' ? 'ตัวละครได้เสียงของตัวเอง · ใช้คีย์ Google AI Studio ใน SillyTavern · โควตาเต็มสลับเป็น Google เอง' : eng === 'google' ? 'ผ่านเซิร์ฟเวอร์ SillyTavern ไม่ต้องใช้คีย์ · ตัวละครต่างกันที่ระดับเสียง' : 'ตัวละครได้เสียงและระดับเสียงต่างกันตามเพศ')}
     ${eng === 'edge' ? csSelect('ttsEVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ (เปรมวดี)'], ...CS_EVOICES.map(v => [v.id, csEVoiceLabel(v)])]) : eng === 'gemini' ? csSelect('ttsGVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ (Charon)'], ...CS_GVOICES.map(v => [v.id, `${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}`])]) : eng === 'device' ? csSelect('ttsVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...csVoicesTh().map(v => [v.name, csEsc(v.name)])]) : ''}
     ${csToggle('ttsWord', 'ไฮไลต์ทีละคำด้วย', 'ปิดไว้ = คลุมทั้งบรรทัดสีเทาอ่อน')}</div>
    <div class="cs-card"><div class="cs-cardh">เอฟเฟกต์และบรรยากาศ<small>ตั้งละเอียดได้ที่เมนู → เสียงบรรยากาศ · เอฟเฟกต์</small></div>${csSeg('sfx', [['off', 'ปิดเอฟเฟกต์'], ['tap', 'แตะคำเพื่อฟัง'], ['auto', 'อัตโนมัติ']])}${csRange('sfxVol', 'ความดังเอฟเฟกต์', 0, 1, .05, '')}${csSelect('ambient', 'เสียงบรรยากาศ', [['off', 'ปิด'], ['auto', 'อัตโนมัติตามฉาก'], ...CS_AMB.map(a => [a.id, a.name])])}${csRange('ambVol', 'ความดังบรรยากาศ', 0, 1, .05, '')}</div>
@@ -2105,7 +2106,7 @@ function csSettingsChange(e) {
  const s = csCfg();
  if (el.dataset.k === 'alwaysOn') { csSetPinned(el.checked); if (el.checked) csPinOpen(); return; }
  if (el.dataset.k && el.type === 'checkbox') { csSet(el.dataset.k, el.checked); if (el.dataset.k === 'keepTopBar') { csApplyUnderBar(csReader && csReader.el); csApplyUnderBar(csNovel && csNovel.el); } if (el.dataset.k === 'cmtAuto' && el.checked) csCfg().cmtOn = true; csAfterChange(true); if (el.dataset.k === 'cmtAuto' || el.dataset.k === 'cmtOn') csRenderSettingsBody(); return; }
- if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); if (el.dataset.k === 'ttsEngine') { csTtsFail = ''; csTtsFail2 = false; csTtsCache.clear(); csRenderSettingsBody(); } if (el.dataset.k === 'ambient') { csAmbStop(); csAmbSet(el.value); } csAfterChange(true); return; }
+ if (el.dataset.k && el.tagName === 'SELECT') { csSet(el.dataset.k, el.value); if (el.dataset.k === 'ttsEngine') { csTtsFail = ''; csTtsFail2 = false; csTtsCache.clear(); csEdgePlug = null; csRenderSettingsBody(); } if (el.dataset.k === 'ambient') { csAmbStop(); csAmbSet(el.value); } csAfterChange(true); return; }
  if (el.dataset.k && el.classList.contains('cs-text')) {
   csSet(el.dataset.k, el.value.trim());
   csAfterChange();
@@ -4761,7 +4762,7 @@ function csTtsFetch(text, who) {
  const key = csTtsKey(eng, voice + (ep ? '@' + ep : ''), clean);
  if (csTtsCache.has(key)) return csTtsCache.get(key);
  if (eng === 'edge') {
-  const pe = csEdgeFetch(clean, voice, ep).catch(e => { csTtsCache.delete(key); throw Object.assign(e, { eng: 'edge' }); });
+  const pe = csEdgeGet(clean, voice, ep).catch(e => { csTtsCache.delete(key); throw Object.assign(e, { eng: 'edge' }); });
   csTtsCache.set(key, pe);
   if (csTtsCache.size > 40) csTtsCache.delete(csTtsCache.keys().next().value);
   return pe;
@@ -4859,6 +4860,25 @@ function csEdgeSsml(text, voice, pitch) {
  const p = (pitch >= 0 ? '+' : '') + (pitch | 0) + '%';
  return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voice}'><prosody pitch='${p}' rate='+0%' volume='+0%'>${x}</prosody></voice></speak>`;
 }
+/** ★ 1.40.5 ปลั๊กอิน Edge TTS ของ SillyTavern (เซิร์ฟเวอร์ต่อ Microsoft ให้) — มือถือหลายเครื่องต่อตรงจากเบราว์เซอร์ไม่ได้ */
+let csEdgePlug = null; // null = ยังไม่รู้ · true/false
+function csEdgePlugProbe() {
+ if (csEdgePlug !== null) return Promise.resolve(csEdgePlug);
+ const ctx = csCtx();
+ const headers = typeof ctx.getRequestHeaders === 'function' ? ctx.getRequestHeaders() : {};
+ return fetch('/api/plugins/edge-tts/probe', { method: 'POST', headers })
+  .then(r => (csEdgePlug = !!r.ok), () => (csEdgePlug = false));
+}
+function csEdgeViaPlugin(text, voice) {
+ const ctx = csCtx();
+ const headers = typeof ctx.getRequestHeaders === 'function' ? ctx.getRequestHeaders() : { 'Content-Type': 'application/json' };
+ return fetch('/api/plugins/edge-tts/generate', { method: 'POST', headers, body: JSON.stringify({ text, voice, rate: 0 }) })
+  .then(r => { if (!r.ok) throw Object.assign(new Error('plugin HTTP ' + r.status), { eng: 'edge', plugin: true }); return r.blob(); });
+}
+/** เสียง Edge: มีปลั๊กอิน = ผ่านเซิร์ฟเวอร์ · ไม่มี = ต่อตรง */
+function csEdgeGet(text, voice, pitch) {
+ return csEdgePlugProbe().then(ok => ok ? csEdgeViaPlugin(text, voice) : csEdgeFetch(text, voice, pitch));
+}
 /** ขอเสียงหนึ่งท่อน → Blob mp3 · ต่อไม่ได้ / ช้าเกิน = reject (แล้วสลับเป็นเสียงเครื่องเอง) */
 function csEdgeFetch(text, voice, pitch) {
  return new Promise((resolve, reject) => {
@@ -4919,7 +4939,7 @@ function csSpeakAudio(text, who, map, done) {
   if (!alive()) return;
   const was = e && e.eng || eng;
   if (csTtsFail === 'gemini' && was === 'google') csTtsFail2 = true; else csTtsFail = was;
-  csToast(was === 'gemini' ? `Gemini ใช้ไม่ได้${e && e.status === 429 ? ' (โควตาเต็ม)' : ''} · ใช้ Google แทน` : was === 'edge' ? 'ต่อเสียง Edge ไม่ได้ · ใช้เสียงเครื่องแทน (เลือกเสียง Edge ใหม่เพื่อลองอีกครั้ง)' : 'เสียง Google ใช้ไม่ได้ · ใช้เสียงเครื่องแทน', 'err');
+  csToast(was === 'gemini' ? `Gemini ใช้ไม่ได้${e && e.status === 429 ? ' (โควตาเต็ม)' : ''} · ใช้ Google แทน` : was === 'edge' ? (e && e.plugin ? 'ปลั๊กอิน Edge TTS ตอบไม่ได้ · ใช้เสียงเครื่องแทน' : 'Microsoft ไม่รับการต่อตรงจากเบราว์เซอร์นี้ · ใช้เสียงเครื่องแทน · ดูวิธีแก้ที่ ตั้งค่า → เสียง') : 'เสียง Google ใช้ไม่ได้ · ใช้เสียงเครื่องแทน', 'err');
   if (map) csSpeakMap(map, who, done); else csSpeak(text, who, done);
  };
  csTtsFetch(clean, who).then(blob => {
