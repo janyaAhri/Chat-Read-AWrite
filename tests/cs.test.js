@@ -24,7 +24,7 @@ function env(chat) {
   chat.forEach(addMes);
   const errors = [];
   w.addEventListener('error', e => errors.push(e.error || e.message));
-  w.eval(fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8') + '\n;window.__cs = s => eval(s);');
+  w.eval(fs.readFileSync(process.env.CS_FILE || path.join(__dirname, '..', 'index.js'), 'utf8') + '\n;window.__cs = s => eval(s);');
   const fire = (e, ...a) => (handlers[e] || []).forEach(f => f(...a));
   // ปุ่มส่งของ SillyTavern ปลอม
   w.__sent = [];
@@ -1485,6 +1485,38 @@ const REPLY = `<think>วางแผน</think>
       G.ev("csOpenMessage(" + mid + "); csReader.player.all(); csMesxDecorate()");
       ok(!R().querySelector(`.cs-mesx[data-m="${mid}"]`), '1.40: no extension buttons = no row');
       G.ev('csCloseReader(true)'); mes.remove(); G.chat.pop();
+    }
+    // ★ 1.41.2 สลับแชท: ที่อ่านของแชทเดิมต้องบันทึกลงแชทเดิม ไม่ใช่แชทใหม่
+    {
+      const oldGet = G.ctx.getCurrentChatId;
+      let cid = 'chat-A'; G.ctx.getCurrentChatId = () => cid;
+      G.ev("csCfg().style = 'chat'; csCfg().alwaysOn = false; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csCfg().typingMs = 0; csCloseReader(true); csCloseNovel(true)");
+      G.ev('csOpenReadAll(); csReader.player.skipTo(3)');
+      const mA = G.ev('csReader.player.items[csReader.player.i - 1]._m'), kA = G.ev('csReader.player.items[csReader.player.i - 1]._k');
+      cid = 'chat-B';           // SillyTavern เปลี่ยนแชทก่อน แล้วค่อยส่งสัญญาณ
+      G.fire('cc'); await sleep(120);
+      const pa = G.ev("csCfg().readPos['chat-A']"), pb = G.ev("csCfg().readPos['chat-B']");
+      ok(pa && pa.chat && pa.chat.m === mA && pa.chat.k === kA, '1.41.2: switching chats saves the old chat under the old chat', [pa, mA, kA]);
+      ok(!pb || !pb.chat, '1.41.2: the new chat does not get the old chat\'s position', pb);
+      // ออกจากแอป (แท็บซ่อน) = บันทึกทันที ไม่ต้องรอ
+      G.ev("csCloseReader(true); csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS)"); cid = 'chat-A';
+      G.ev('csOpenReadAll(); csReader.player.skipTo(2); csReaderUpdate()');
+      Object.defineProperty(G.d, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      G.d.dispatchEvent(new G.w.Event('visibilitychange'));
+      ok(!!(G.ev("csCfg().readPos['chat-A']") || {}).chat, '1.41.2: app goes to background → position saved at once');
+      Object.defineProperty(G.d, 'visibilityState', { configurable: true, get: () => 'visible' });
+      G.ev('csCloseReader(true)');
+      G.ctx.getCurrentChatId = oldGet;
+    }
+    // ★ 1.41 หน้านิยาย: ปิดเร็ว ๆ ก็ยังจำที่อ่าน (ไม่ต้องรอหยุดเลื่อน)
+    {
+      G.ev("csCloseReader(true); csCloseNovel(true); csCfg().style = 'novel'; csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenLatest()");
+      await sleep(40);
+      G.ev('csNovelPosSave(); csCloseNovel(true)');
+      ok(!!(G.ev('csPos()') || {}).novel, '1.41: novel position saved at once when closing');
+      G.ev("csCfg().readPos = {}; localStorage.removeItem(CS_POS_LS); csOpenLatest(); csCloseNovel(true)");
+      ok(!(G.ev('csPos()') || {}).novel, '1.41: closing before it has positioned does not overwrite the spot');
+      G.ev("csCfg().style = 'chat'");
     }
     // ★ 1.41 เลือกลบหลายข้อความ
     {
