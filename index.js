@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.40.3';
+const CS_VERSION = '1.40.4';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -60,7 +60,7 @@ const CS_SOUNDS = [
 const CS_DEFAULTS = {
  enabled: true,
  ttsRate: 1, ttsNarr: true, ttsVoice: '', // ★ 1.27 อ่านออกเสียง
- ttsEngine: 'device', ttsGVoice: '', ttsAuto: false, ttsBtn: true, ttsWord: false, // ★ 1.37 google (ฟรี) | gemini (30 เสียง) | device
+ ttsEngine: 'device', ttsGVoice: '', ttsEVoice: '', ttsAuto: false, ttsBtn: true, ttsWord: false, // ★ 1.37 google (ฟรี) | gemini (30 เสียง) | device
  cmtWith: 'reply', // ★ 1.36 คอมเมนต์มากับคำตอบหลัก (ขอครั้งเดียว) | separate
  sfx: 'off', sfxVol: .7, // ★ 1.31 เสียงเอฟเฟกต์: off | tap | auto
  ambient: 'off', ambVol: .35, // ★ 1.29 เสียงบรรยากาศ: off | auto | rain | sea | cafe | night | fire
@@ -1781,8 +1781,8 @@ function csTabHTML(tab) {
   const eng = s.ttsEngine || 'device';
   return `<div class="cs-card"><div class="cs-cardh">อ่านออกเสียง<small>ปุ่ม 🔊 ข้างช่องพิมพ์ · แตะบรรทัดไหนระหว่างอ่าน = อ่านบรรทัดนั้น · กดค้าง → อ่านตรงนี้</small></div>
     ${csToggle('ttsAuto', 'อ่านคำตอบใหม่ให้ฟังเอง', 'บอทตอบเสร็จแล้วเริ่มอ่านทันที')}${csToggle('ttsBtn', 'ปุ่ม 🔊 ข้างช่องพิมพ์')}${csToggle('ttsNarr', 'อ่านบรรยายด้วย', 'ปิด = อ่านเฉพาะบทพูด')}${csRange('ttsRate', 'ความเร็ว', .6, 1.8, .1, 'x')}
-    ${csSelect('ttsEngine', 'เสียงจาก', [['device', 'เสียงในเครื่อง'], ['google', 'Google · ฟรี'], ['gemini', 'Gemini · 30 เสียง']], eng === 'gemini' ? 'ตัวละครได้เสียงของตัวเอง · ใช้คีย์ Google AI Studio ใน SillyTavern · โควตาเต็มสลับเป็น Google เอง' : eng === 'google' ? 'ผ่านเซิร์ฟเวอร์ SillyTavern ไม่ต้องใช้คีย์ · ตัวละครต่างกันที่ระดับเสียง' : 'ตัวละครได้เสียงและระดับเสียงต่างกันตามเพศ')}
-    ${eng === 'gemini' ? csSelect('ttsGVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ (Charon)'], ...CS_GVOICES.map(v => [v.id, `${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}`])]) : eng === 'device' ? csSelect('ttsVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...csVoicesTh().map(v => [v.name, csEsc(v.name)])]) : ''}
+    ${csSelect('ttsEngine', 'เสียงจาก', [['device', 'เสียงในเครื่อง'], ['edge', 'Edge · เสียงไทยธรรมชาติ ฟรี'], ['google', 'Google · ฟรี'], ['gemini', 'Gemini · 30 เสียง']], eng === 'edge' ? 'เสียงนิวรัลของ Microsoft ไม่ต้องใช้คีย์ · ตัวละครได้เสียงตามเพศ + ระดับเสียงต่างกัน · ต่อไม่ได้จะสลับเป็นเสียงเครื่องเอง' : eng === 'gemini' ? 'ตัวละครได้เสียงของตัวเอง · ใช้คีย์ Google AI Studio ใน SillyTavern · โควตาเต็มสลับเป็น Google เอง' : eng === 'google' ? 'ผ่านเซิร์ฟเวอร์ SillyTavern ไม่ต้องใช้คีย์ · ตัวละครต่างกันที่ระดับเสียง' : 'ตัวละครได้เสียงและระดับเสียงต่างกันตามเพศ')}
+    ${eng === 'edge' ? csSelect('ttsEVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ (เปรมวดี)'], ...CS_EVOICES.map(v => [v.id, csEVoiceLabel(v)])]) : eng === 'gemini' ? csSelect('ttsGVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ (Charon)'], ...CS_GVOICES.map(v => [v.id, `${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}`])]) : eng === 'device' ? csSelect('ttsVoice', 'เสียงผู้บรรยาย', [['', 'อัตโนมัติ'], ...csVoicesTh().map(v => [v.name, csEsc(v.name)])]) : ''}
     ${csToggle('ttsWord', 'ไฮไลต์ทีละคำด้วย', 'ปิดไว้ = คลุมทั้งบรรทัดสีเทาอ่อน')}</div>
    <div class="cs-card"><div class="cs-cardh">เอฟเฟกต์และบรรยากาศ<small>ตั้งละเอียดได้ที่เมนู → เสียงบรรยากาศ · เอฟเฟกต์</small></div>${csSeg('sfx', [['off', 'ปิดเอฟเฟกต์'], ['tap', 'แตะคำเพื่อฟัง'], ['auto', 'อัตโนมัติ']])}${csRange('sfxVol', 'ความดังเอฟเฟกต์', 0, 1, .05, '')}${csSelect('ambient', 'เสียงบรรยากาศ', [['off', 'ปิด'], ['auto', 'อัตโนมัติตามฉาก'], ...CS_AMB.map(a => [a.id, a.name])])}${csRange('ambVol', 'ความดังบรรยากาศ', 0, 1, .05, '')}</div>
    <div class="cs-cardh cs-grouph">เสียงฟองเด้ง</div><div class="cs-card"><div class="cs-cardh">เสียงฟองเด้ง <small>แตะเพื่อเลือกและฟัง</small></div><div class="cs-sounds">${CS_SOUNDS.map(x => `<button class="cs-sound${s.sound === x.id ? ' on' : ''}" data-sound="${x.id}"><i class="fa-solid ${x.id === 'none' ? 'fa-volume-xmark' : x.id === 'custom' ? 'fa-file-audio' : 'fa-music'}"></i><span>${x.name}</span></button>`).join('')}</div>
@@ -3492,7 +3492,7 @@ function csProfHTML() {
   ${st.lastLine ? `<blockquote class="cs-profq">“${csEsc(st.lastLine.slice(0, 160))}”</blockquote>` : ''}
   <div class="cs-proff">
    <label class="cs-profrow"><span>เพศ</span><select class="cs-sel" data-pf="g">${[['', 'อัตโนมัติ'], ['m', 'ชาย'], ['f', 'หญิง']].map(([v, l]) => `<option value="${v}"${g === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-   ${csTtsEngine() === 'gemini' ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="gvoice"><option value="">อัตโนมัติ (${csEsc(csGVoiceFor(who))})</option>${CS_GVOICES.map(v => `<option value="${v.id}"${o.gvoice === v.id ? ' selected' : ''}>${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}</option>`).join('')}</select></label>` : csTtsEngine() === 'device' && csTtsOk() ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="voice"><option value="">อัตโนมัติ</option>${csVoicesTh().map(v => `<option value="${csEsc(v.name)}"${o.voice === v.name ? ' selected' : ''}>${csEsc(v.name)}</option>`).join('')}</select></label>` : ''}
+   ${csTtsEngine() === 'edge' ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="evoice"><option value="">อัตโนมัติ (${csEsc(csEVoiceLabel(CS_EVOICES.find(v => v.id === csEVoiceFor(who)) || CS_EVOICES[0]))})</option>${CS_EVOICES.map(v => `<option value="${v.id}"${o.evoice === v.id ? ' selected' : ''}>${csEVoiceLabel(v)}</option>`).join('')}</select></label>` : csTtsEngine() === 'gemini' ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="gvoice"><option value="">อัตโนมัติ (${csEsc(csGVoiceFor(who))})</option>${CS_GVOICES.map(v => `<option value="${v.id}"${o.gvoice === v.id ? ' selected' : ''}>${v.id} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}</option>`).join('')}</select></label>` : csTtsEngine() === 'device' && csTtsOk() ? `<label class="cs-profrow"><span>เสียงอ่าน</span><select class="cs-sel" data-pf="voice"><option value="">อัตโนมัติ</option>${csVoicesTh().map(v => `<option value="${csEsc(v.name)}"${o.voice === v.name ? ' selected' : ''}>${csEsc(v.name)}</option>`).join('')}</select></label>` : ''}
    ${true ? `
    <label class="cs-profrow"><span>ระดับเสียง</span><select class="cs-sel" data-pf="pitch">${[['', 'อัตโนมัติ'], ['0.75', 'ต่ำ'], ['1', 'กลาง'], ['1.25', 'สูง']].map(([v, l]) => `<option value="${v}"${String(o.pitch || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select><button class="cs-proftry" data-cs="ttstry" aria-label="ลองฟัง"><i class="fa-solid fa-play"></i></button></label>` : ''}
    ${card ? '' : `<label class="cs-profrow"><span>ชื่อเรียกอื่น</span><input class="cs-text" data-pf="aliases" value="${csEsc(o.aliases || '')}" placeholder="เช่น พี่มิ, คุณหนู" maxlength="200"></label>
@@ -3507,8 +3507,8 @@ function csProfChange(el) {
  const who = csNavState.who, key = csNavState.ck || who;
  const v = f === 'me' ? !!el.checked : String(el.value || '').trim();
  csCastEdit(key, who, { [f]: v === false ? '' : v });
- csToast(f === 'voice' || f === 'pitch' || f === 'gvoice' ? 'บันทึกแล้ว' : 'บันทึกแล้ว · มีผลตอนเปิดอ่านใหม่', 'ok');
- if (f === 'voice' || f === 'pitch' || f === 'gvoice') csTtsTry();
+ csToast(f === 'voice' || f === 'pitch' || f === 'gvoice' || f === 'evoice' ? 'บันทึกแล้ว' : 'บันทึกแล้ว · มีผลตอนเปิดอ่านใหม่', 'ok');
+ if (f === 'voice' || f === 'pitch' || f === 'gvoice' || f === 'evoice') csTtsTry();
  if (f !== 'aliases') csNavRefresh();
 }
 // ══ ★ 1.27 อ่านออกเสียง (เสียงของเบราว์เซอร์ · ไม่ใช้โทเคน) ══
@@ -3682,7 +3682,7 @@ function csTtsBar(who) {
 }
 /** ลองฟังเสียงตัวละครในการ์ด */
 function csTtsTry() {
- if (!csTtsOk()) return;
+ if (!csTtsOk() && csTtsEngine() === 'device') return;
  const who = csNavState.who;
  if (!who) return;
  try { window.speechSynthesis.cancel(); } catch {}
@@ -4739,7 +4739,7 @@ const CS_GVOICES = [
 ].map(([id, g, d]) => ({ id, g, d }));
 let csTtsEl = null, csTtsLoop = 0, csTtsFail = '';
 const csTtsCache = new Map();
-function csTtsEngine() { const e = csCfg().ttsEngine; if (e === 'gemini') return csTtsFail === 'gemini' ? (csTtsFail2 ? 'device' : 'google') : 'gemini'; if (e === 'google') return csTtsFail === 'google' ? 'device' : 'google'; return 'device'; }
+function csTtsEngine() { const e = csCfg().ttsEngine; if (e === 'edge') return csTtsFail === 'edge' ? 'device' : 'edge'; if (e === 'gemini') return csTtsFail === 'gemini' ? (csTtsFail2 ? 'device' : 'google') : 'gemini'; if (e === 'google') return csTtsFail === 'google' ? 'device' : 'google'; return 'device'; }
 let csTtsFail2 = false;
 /** เสียง Gemini ของแต่ละคน: ตั้งเอง > ตามเพศ ไม่ซ้ำกันตามชื่อ · ผู้บรรยายใช้เสียงที่ตั้งไว้ */
 function csGVoiceFor(who) {
@@ -4756,9 +4756,16 @@ function csGRateFor(who) { if (!who) return 1; return Math.max(.8, Math.min(1.2,
 function csTtsKey(eng, voice, text) { return eng + '|' + voice + '|' + String(text).replace(/[^\p{L}\p{N}]+/gu, ''); }
 function csTtsFetch(text, who) {
  const eng = csTtsEngine(), clean = csTtsClean(text).slice(0, 900);
- const voice = eng === 'gemini' ? csGVoiceFor(who) : 'th';
- const key = csTtsKey(eng, voice, clean);
+ const voice = eng === 'gemini' ? csGVoiceFor(who) : eng === 'edge' ? csEVoiceFor(who) : 'th';
+ const ep = eng === 'edge' ? csEPitchFor(who) : 0;
+ const key = csTtsKey(eng, voice + (ep ? '@' + ep : ''), clean);
  if (csTtsCache.has(key)) return csTtsCache.get(key);
+ if (eng === 'edge') {
+  const pe = csEdgeFetch(clean, voice, ep).catch(e => { csTtsCache.delete(key); throw Object.assign(e, { eng: 'edge' }); });
+  csTtsCache.set(key, pe);
+  if (csTtsCache.size > 40) csTtsCache.delete(csTtsCache.keys().next().value);
+  return pe;
+ }
  const ctx = csCtx();
  const headers = (typeof ctx.getRequestHeaders === 'function' ? ctx.getRequestHeaders() : { 'Content-Type': 'application/json' });
  const body = eng === 'gemini'
@@ -4770,6 +4777,125 @@ function csTtsFetch(text, who) {
  csTtsCache.set(key, pr);
  if (csTtsCache.size > 40) csTtsCache.delete(csTtsCache.keys().next().value);
  return pr;
+}
+// ══ ★ 1.40.4 เสียง Edge (Microsoft) — เสียงนิวรัลไทยฟรี ต่อตรงจากเบราว์เซอร์ ไม่ต้องใช้คีย์ / ปลั๊กอินเซิร์ฟเวอร์ ══
+const CS_EVOICES = [
+ ['th-TH-PremwadeeNeural', 'f', 'เปรมวดี', 'ไทย · นุ่ม'], ['th-TH-AcharaNeural', 'f', 'อัจฉรา', 'ไทย · สดใส'], ['th-TH-NiwatNeural', 'm', 'นิวัฒน์', 'ไทย · ชาย'],
+ ['en-US-AvaMultilingualNeural', 'f', 'Ava', 'หลายภาษา'], ['en-US-EmmaMultilingualNeural', 'f', 'Emma', 'หลายภาษา'], ['fr-FR-VivienneMultilingualNeural', 'f', 'Vivienne', 'หลายภาษา'], ['de-DE-SeraphinaMultilingualNeural', 'f', 'Seraphina', 'หลายภาษา'],
+ ['en-US-AndrewMultilingualNeural', 'm', 'Andrew', 'หลายภาษา'], ['en-US-BrianMultilingualNeural', 'm', 'Brian', 'หลายภาษา'], ['fr-FR-RemyMultilingualNeural', 'm', 'Remy', 'หลายภาษา'], ['de-DE-FlorianMultilingualNeural', 'm', 'Florian', 'หลายภาษา']
+].map(([id, g, n, d]) => ({ id, g, n, d, th: id.startsWith('th-') }));
+const CS_EDGE_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4';
+const CS_EDGE_VER = '1-143.0.3650.75';
+const CS_EDGE_WSS = 'wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1';
+function csEVoiceLabel(v) { return `${v.n} · ${v.g === 'f' ? 'หญิง' : 'ชาย'} · ${v.d}`; }
+/** เสียง Edge ของแต่ละคน: ตั้งเอง > เสียงไทยตามเพศ (ไม่ชนกับผู้บรรยายถ้ามีให้เลือก) */
+function csEVoiceFor(who) {
+ const s = csCfg(), narr = s.ttsEVoice || 'th-TH-PremwadeeNeural';
+ if (!who) return narr;
+ const o = csCastGet(who) || {};
+ if (o.evoice) return o.evoice;
+ const g = csGenderOf(who), th = CS_EVOICES.filter(v => v.th);
+ let pool = th.filter(v => !g || v.g === g);
+ if (pool.length > 1) pool = pool.filter(v => v.id !== narr);
+ return (pool.length ? pool : th)[csHash(who) % (pool.length || th.length)].id;
+}
+/** เสียงเดียวกันหลายคน = ต่างกันที่ระดับเสียง (%) · ตั้งระดับเสียงเองในโปรไฟล์ได้ */
+function csEPitchFor(who) {
+ if (!who) return 0;
+ const o = csCastGet(who) || {};
+ if (+o.pitch) return Math.max(-30, Math.min(30, Math.round((+o.pitch - 1) * 50)));
+ return ((csHash(who) % 9) - 4) * 2;
+}
+/** SHA-256 (ข้อความ ASCII) → hex · เขียนเองเพราะ crypto.subtle ใช้ได้แค่ https/localhost */
+const csShaKH = (() => {
+ const k = [], h = [], frac = x => ((x - Math.floor(x)) * 4294967296) >>> 0;
+ for (let n = 2; k.length < 64; n++) {
+  let prime = true;
+  for (let d = 2; d * d <= n; d++) if (n % d === 0) { prime = false; break; }
+  if (!prime) continue;
+  if (h.length < 8) h.push(frac(Math.sqrt(n)));
+  k.push(frac(Math.cbrt(n)));
+ }
+ return { k, h };
+})();
+function csSha256Hex(str) {
+ const bytes = Array.from(unescape(encodeURIComponent(str)), c => c.charCodeAt(0));
+ const bitLen = bytes.length * 8;
+ bytes.push(0x80);
+ while (bytes.length % 64 !== 56) bytes.push(0);
+ for (let i = 7; i >= 0; i--) bytes.push(i >= 4 ? 0 : (bitLen >>> (i * 8)) & 255);
+ const H = csShaKH.h.slice(), K = csShaKH.k, W = new Array(64);
+ const rot = (x, n) => (x >>> n) | (x << (32 - n));
+ for (let o = 0; o < bytes.length; o += 64) {
+  for (let i = 0; i < 16; i++) W[i] = (bytes[o + i * 4] << 24) | (bytes[o + i * 4 + 1] << 16) | (bytes[o + i * 4 + 2] << 8) | bytes[o + i * 4 + 3];
+  for (let i = 16; i < 64; i++) {
+   const s0 = rot(W[i - 15], 7) ^ rot(W[i - 15], 18) ^ (W[i - 15] >>> 3), s1 = rot(W[i - 2], 17) ^ rot(W[i - 2], 19) ^ (W[i - 2] >>> 10);
+   W[i] = (W[i - 16] + s0 + W[i - 7] + s1) | 0;
+  }
+  let [a, b, c, d, e, f, g, h] = H;
+  for (let i = 0; i < 64; i++) {
+   const t1 = (h + (rot(e, 6) ^ rot(e, 11) ^ rot(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + W[i]) | 0;
+   const t2 = ((rot(a, 2) ^ rot(a, 13) ^ rot(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) | 0;
+   h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+  }
+  [a, b, c, d, e, f, g, h].forEach((x, i) => { H[i] = (H[i] + x) | 0; });
+ }
+ return H.map(x => (x >>> 0).toString(16).padStart(8, '0')).join('');
+}
+/** โทเคนที่บริการขอ: เวลา (Windows ticks ปัดลงทีละ 5 นาที) + รหัสไคลเอนต์ → SHA-256 ตัวพิมพ์ใหญ่ */
+function csEdgeGec(nowMs) {
+ const B = BigInt; // ไม่ใช้ 123n ตรง ๆ — เบราว์เซอร์เก่าจะอ่านไฟล์ไม่ได้ทั้งไฟล์
+ let t = B(Math.floor((nowMs || Date.now()) / 1000)) + B(11644473600);
+ t -= t % B(300);
+ return csSha256Hex((t * B(10000000)).toString() + CS_EDGE_TOKEN).toUpperCase();
+}
+function csEdgeId() { return Array.from({ length: 32 }, () => '0123456789abcdef'[Math.random() * 16 | 0]).join(''); }
+function csEdgeTime() {
+ const d = new Date(), D = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], z = n => String(n).padStart(2, '0');
+ return `${D[d.getUTCDay()]} ${M[d.getUTCMonth()]} ${z(d.getUTCDate())} ${d.getUTCFullYear()} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())}:${z(d.getUTCSeconds())} GMT+0000 (Coordinated Universal Time)`;
+}
+function csEdgeSsml(text, voice, pitch) {
+ const x = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;').replace(/"/g, '&quot;');
+ const p = (pitch >= 0 ? '+' : '') + (pitch | 0) + '%';
+ return `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='${voice}'><prosody pitch='${p}' rate='+0%' volume='+0%'>${x}</prosody></voice></speak>`;
+}
+/** ขอเสียงหนึ่งท่อน → Blob mp3 · ต่อไม่ได้ / ช้าเกิน = reject (แล้วสลับเป็นเสียงเครื่องเอง) */
+function csEdgeFetch(text, voice, pitch) {
+ return new Promise((resolve, reject) => {
+  let ws = null, over = false;
+  const chunks = [];
+  const finish = err => {
+   if (over) return;
+   over = true; clearTimeout(timer);
+   try { if (ws) { ws.onmessage = ws.onerror = ws.onclose = null; ws.close(); } } catch {}
+   if (err || !chunks.length) reject(Object.assign(new Error(err || 'no audio'), { eng: 'edge' }));
+   else resolve(new Blob(chunks, { type: 'audio/mpeg' }));
+  };
+  const timer = setTimeout(() => finish('timeout'), 20000);
+  try { ws = new WebSocket(`${CS_EDGE_WSS}?TrustedClientToken=${CS_EDGE_TOKEN}&Sec-MS-GEC=${csEdgeGec()}&Sec-MS-GEC-Version=${CS_EDGE_VER}&ConnectionId=${csEdgeId()}`); }
+  catch (e) { return finish('connect'); }
+  ws.binaryType = 'arraybuffer';
+  ws.onopen = () => {
+   const ts = csEdgeTime();
+   try {
+    ws.send(`X-Timestamp:${ts}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}`);
+    ws.send(`X-RequestId:${csEdgeId()}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${ts}Z\r\nPath:ssml\r\n\r\n${csEdgeSsml(text, voice, pitch)}`);
+   } catch { finish('send'); }
+  };
+  ws.onmessage = e => {
+   try {
+    const d = e.data;
+    if (typeof d === 'string') { if (/Path:\s*turn\.end/i.test(d)) finish(); return; }
+    if (!d || typeof d.byteLength !== 'number' || typeof d.slice !== 'function' || d.byteLength < 2) return;
+    const u = new Uint8Array(d), n = (u[0] << 8) | u[1]; // 2 ไบต์แรก = ความยาวหัวข้อความ แล้วตามด้วยเสียง mp3
+    if (2 + n > u.length) return;
+    const head = String.fromCharCode.apply(null, u.subarray(2, 2 + n));
+    if (/Path:\s*audio\s*(\r|\n|$)/i.test(head) && u.length > 2 + n) chunks.push(d.slice(2 + n));
+   } catch { finish('bad data'); }
+  };
+  ws.onerror = () => finish('network');
+  ws.onclose = () => finish(chunks.length ? 'closed early' : 'closed');
+ });
 }
 /** ตัวเล่นเสียงตัวเดียวใช้ทั้งเรื่อง · ปลดล็อกตอนแตะเริ่มอ่าน (มือถือไม่ยอมเล่นเสียงที่ไม่ได้มาจากการแตะ) */
 function csTtsUnlock() {
@@ -4793,7 +4919,7 @@ function csSpeakAudio(text, who, map, done) {
   if (!alive()) return;
   const was = e && e.eng || eng;
   if (csTtsFail === 'gemini' && was === 'google') csTtsFail2 = true; else csTtsFail = was;
-  csToast(was === 'gemini' ? `Gemini ใช้ไม่ได้${e && e.status === 429 ? ' (โควตาเต็ม)' : ''} · ใช้ Google แทน` : 'เสียง Google ใช้ไม่ได้ · ใช้เสียงเครื่องแทน', 'err');
+  csToast(was === 'gemini' ? `Gemini ใช้ไม่ได้${e && e.status === 429 ? ' (โควตาเต็ม)' : ''} · ใช้ Google แทน` : was === 'edge' ? 'ต่อเสียง Edge ไม่ได้ · ใช้เสียงเครื่องแทน (เลือกเสียง Edge ใหม่เพื่อลองอีกครั้ง)' : 'เสียง Google ใช้ไม่ได้ · ใช้เสียงเครื่องแทน', 'err');
   if (map) csSpeakMap(map, who, done); else csSpeak(text, who, done);
  };
  csTtsFetch(clean, who).then(blob => {
@@ -4828,7 +4954,7 @@ function csTtsPrefetch(t) {
    if (it) csTtsFetch(it.text, it.k === 'say' || it.k === 'think' ? it.who : '').catch(() => {});
   } else if (t.kind === 'novel') {
    const el = csTtsNovelEls()[t.idx + 1];
-   if (el) csTtsFetch(csTtsTextMap(el).full, ((el.querySelector('.cs-nwho') || {}).textContent || '').trim()).catch(() => {});
+   if (el) csTtsFetch(csTtsTextMap(el).full, ((el.querySelector('.cs-nwho') || {}).textContent || el.dataset.who || '').trim()).catch(() => {});
   }
  } catch {}
 }

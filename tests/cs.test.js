@@ -1241,6 +1241,58 @@ const REPLY = `<think>วางแผน</think>
         [...R().querySelectorAll('.cs-name[data-cs="prof"]')].find(x => x.dataset.who === 'อาเรีย').click();
         ok(R().querySelectorAll('.cs-prof [data-pf="gvoice"] option').length === 31, 'profile: pick any of the 30 Gemini voices');
         G.ev("csNavClose(); csCloseReader(true); csCfg().ttsEngine = 'device'");
+        // ★ 1.40.4 เสียง Edge: ต่อ WebSocket ตรงจากเบราว์เซอร์ (จำลองเซิร์ฟเวอร์)
+        {
+          const socks = []; G.w.__edgeMode = 'ok';
+          G.w.WebSocket = function (url) {
+            const s = this; s.url = url; s.sent = []; socks.push(s);
+            s.send = m => { s.sent.push(m); if (!/Path:ssml/.test(m)) return;
+              setTimeout(() => {
+                if (G.w.__edgeMode === 'ok') {
+                  const frame = (path, bytes) => { const h = Buffer.from(`X-RequestId:abc\r\nContent-Type:audio/mpeg\r\nX-StreamId:1\r\nPath:${path}\r\n`); const b = new Uint8Array(2 + h.length + bytes.length); b[0] = h.length >> 8; b[1] = h.length & 255; b.set(h, 2); b.set(bytes, 2 + h.length); return b.buffer; };
+                  s.onmessage && s.onmessage({ data: 'X-RequestId:abc\r\nContent-Type:application/json\r\nPath:turn.start\r\n\r\n{}' });
+                  s.onmessage && s.onmessage({ data: frame('audio', new Uint8Array(300).fill(7)) });
+                  s.onmessage && s.onmessage({ data: frame('audio', new Uint8Array(200).fill(9)) });
+                  s.onmessage && s.onmessage({ data: 'X-RequestId:abc\r\nPath:turn.end\r\n\r\n{}' });
+                } else { s.onerror && s.onerror({}); s.onclose && s.onclose({}); }
+              }, 5); };
+            s.close = () => { s.closed = true; };
+            setTimeout(() => s.onopen && s.onopen(), 2);
+          };
+          // โทเคนเวลา = SHA-256 ตามสูตร (เทียบกับ crypto ของ node)
+          const nowMs = Date.UTC(2026, 8, 30, 10, 7, 33); let tk = BigInt(Math.floor(nowMs / 1000)) + 11644473600n; tk -= tk % 300n;
+          ok(G.ev(`csEdgeGec(${nowMs})`) === require('crypto').createHash('sha256').update((tk * 10000000n).toString() + '6A5AA1D4EAFF4E9FB37E23D68491D6F4').digest('hex').toUpperCase(), '1.40.4: Edge time token = SHA-256 of rounded Windows ticks + client token');
+          ok(['', 'abc', 'ไทย', 'x'.repeat(120)].every(t => G.ev(`csSha256Hex(${JSON.stringify(t)})`) === require('crypto').createHash('sha256').update(t).digest('hex')), '1.40.4: own SHA-256 matches node crypto');
+          G.ev("csCfg().ttsEVoice = ''");
+          ok(G.ev("csEVoiceFor('')") === 'th-TH-PremwadeeNeural' && G.ev("CS_EVOICES.find(v => v.id === csEVoiceFor('อาเรีย')).th") && G.ev("csEVoiceFor('อาเรีย')") !== 'th-TH-PremwadeeNeural', '1.40.4: narrator Premwadee · a character gets another Thai voice');
+          { G.ev("window.__g = csGenderOf; csGenderOf = n => n === 'หญิงเอ' ? 'f' : n === 'ชายบี' ? 'm' : window.__g(n)");
+            ok(G.ev("csEVoiceFor('หญิงเอ')") === 'th-TH-AcharaNeural' && G.ev("csEVoiceFor('ชายบี')") === 'th-TH-NiwatNeural' && G.ev("csEPitchFor('ชายบี')") !== undefined, '1.40.4: female → Achara (not the narrator), male → Niwat');
+            G.ev("csGenderOf = window.__g"); }
+          calls.length = 0; played.length = 0; socks.length = 0;
+          G.ev("csTtsEl = null; csTtsCache.clear(); csTtsFail = ''; csCfg().ttsEngine = 'edge'; csCloseReader(true); csOpenMessage(" + rid + ")");
+          R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(500);
+          const s0 = socks[0] || { url: '', sent: [] };
+          ok(socks.length >= 2 && /^wss:\/\/speech\.platform\.bing\.com\/consumer\/speech\/synthesize\/readaloud\/edge\/v1\?TrustedClientToken=6A5AA1D4EAFF4E9FB37E23D68491D6F4&Sec-MS-GEC=[0-9A-F]{64}&Sec-MS-GEC-Version=1-[\d.]+&ConnectionId=[0-9a-f]{32}$/.test(s0.url), '1.40.4: Edge connects with token + time hash + connection id', s0.url);
+          ok(/Path:speech\.config/.test(s0.sent[0] || '') && /audio-24khz-48kbitrate-mono-mp3/.test(s0.sent[0] || '') && /Path:ssml\r\n\r\n<speak /.test(s0.sent[1] || '') && /<voice name='th-TH-PremwadeeNeural'>/.test(s0.sent[1] || ''), '1.40.4: sends config then SSML with the narrator voice', s0.sent.map(x => x.slice(0, 80)));
+          ok(socks.some(s => /<voice name='th-TH-(Achara|Niwat)Neural'>/.test(s.sent[1] || '')) && played.length >= 2 && calls.length === 0 && socks.every(s => s.closed), '1.40.4: characters get their own voice · audio played · socket closed · no server calls', [played.length, calls.length]);
+          ok(G.ev("csEdgeSsml('a<b & \"c\"', 'v', -4)").includes("a&lt;b &amp; &quot;c&quot;") && G.ev("csEdgeSsml('x', 'v', -4)").includes("pitch='-4%'"), '1.40.4: SSML escapes text and carries the pitch');
+          const blobSize = await G.ev("csTtsCache.clear(), csEdgeFetch('ทดสอบ', 'th-TH-NiwatNeural', 0).then(b => b.size + '|' + b.type)");
+          ok(blobSize === '500|audio/mpeg', '1.40.4: audio frames are joined (header stripped) into one mp3', blobSize);
+          // ต่อไม่ได้ → เสียงเครื่องแทน ไม่ค้าง
+          G.w.__edgeMode = 'fail'; played.length = 0;
+          G.ev("csTtsStop(); csTtsCache.clear(); csTtsFail = ''; csCloseReader(true); csOpenMessage(" + rid + ")");
+          R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(600);
+          ok(G.ev('csTtsFail') === 'edge' && G.ev('csTtsEngine()') === 'device' && !G.ev('!!csTts'), '1.40.4: Edge unreachable → falls back to the device voice and finishes', [G.ev('csTtsFail'), G.ev('!!csTts')]);
+          G.ev("csTtsStop(); csCloseReader(true)");
+          // ตั้งค่า + การ์ดตัวละคร
+          G.ev("csTtsFail = ''; csCfg().ttsEngine = 'edge'; csOpenSettings('sound')");
+          { const st = G.d.getElementById('cs-settings'); ok(!!st && !!st.querySelector('select[data-k="ttsEngine"] option[value="edge"]') && st.querySelectorAll('select[data-k="ttsEVoice"] option').length === G.ev('CS_EVOICES.length') + 1, '1.40.4: settings: engine "Edge" + narrator voice list'); }
+          G.ev("csCloseSettings()");
+          G.ev("csCfg().ttsEngine = 'edge'; csOpenMessage(" + rid + "); csReader.player.all()");
+          [...R().querySelectorAll('.cs-name[data-cs="prof"]')].find(x => x.dataset.who === 'อาเรีย').click();
+          ok(R().querySelectorAll('.cs-prof [data-pf="evoice"] option').length === G.ev('CS_EVOICES.length') + 1, '1.40.4: profile: pick an Edge voice per character');
+          G.ev("csNavClose(); csCloseReader(true); csCfg().ttsEngine = 'device'; csTtsFail = ''"); G.w.__edgeMode = 'ok';
+        }
         delete G.w.speechSynthesis;
       }
       ok(G.ev("csWrapCanvas({ measureText: t => ({ width: [...t].length * 10 }) }, 'สวัสดีครับวันนี้อากาศดีมาก', 60).every(l => [...l].length <= 6 && !/^[\\u0E31\\u0E34-\\u0E3A\\u0E47-\\u0E4E]/.test(l))"), 'Thai wrap never starts a line with a vowel/tone mark');
