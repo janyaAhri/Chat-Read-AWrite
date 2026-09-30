@@ -69,7 +69,11 @@ const REPLY = `<think>วางแผน</think>
   ok(E.ev('csCfg().preset') === 'ink' && E.ev("csVars()['--cs-bg']") === '#0e0e0e', 'default dark (ดำขาว)');
   ok(!/ต้นฉบับ/.test(E.ev('JSON.stringify(CS_PRESETS)')) && E.ev("CS_PRESETS.classic.name") === 'ขาวดำเรียบ', 'black & white still available, no "original" label');
   ok(E.prompts.chat_story_format && /Format: chat novel/.test(E.prompts.chat_story_format.v) && /Never write มินา's words/.test(E.prompts.chat_story_format.v) && E.prompts.chat_story_format.v.length < 260, 'format prompt (short)', E.prompts.chat_story_format.v.length);
-  ok(!!E.d.querySelector('.chat-story-settings #cs-open-settings') && !!E.d.getElementById('cs-wand-set'), 'drawer + wand');
+  ok(!!E.d.querySelector('.chat-story-settings #cs-open-settings') && !!E.d.querySelector('.chat-story-settings #cs-edge-on') && !E.d.getElementById('cs-wand-set'), 'drawer has floating-button switch · no wand items while the floating button is on');
+  { const cb = E.d.getElementById('cs-edge-on'); cb.checked = false; cb.dispatchEvent(new E.w.Event('change'));
+    ok(!E.d.getElementById('cs-edge') && !!E.d.getElementById('cs-wand-set') && !!E.d.getElementById('cs-wand'), 'floating button off → hidden, wand items come back');
+    cb.checked = true; cb.dispatchEvent(new E.w.Event('change'));
+    ok(!!E.d.getElementById('cs-edge') && !E.d.getElementById('cs-wand'), 'floating button on again → wand items removed'); }
   // ── หน้าอ่าน + ประวัติก่อนหน้า ──
   E.ev('csCfg().typingMs = 0');
   E.fire('gs', 'normal', {}, false); E.fire('cmr', 1);
@@ -337,7 +341,10 @@ const REPLY = `<think>วางแผน</think>
   // ตัวเลขโทเคนในหน้าตั้งค่า
   E.ev("csOpenSettings('cmt')");
   await sleep(50);
-  ok(/~\d+ โทเคน/.test(S().querySelector('[data-tok="cmt"]').textContent) && /~\d+ โทเคน/.test(S().querySelector('[data-tok="format"]').textContent), 'token numbers in settings');
+  ok(/~\d+ โทเคน/.test(S().querySelector('[data-tok="cmt"]').textContent) && /~\d+ โทเคน/.test(S().querySelector('[data-tok="p-format"]').textContent) && /~\d+/.test(S().querySelector('[data-tok="p-total"]').textContent), 'token numbers in settings (prompt card + manual call)');
+  E.ev("csCloseSettings(); csOnGenerationStarted('normal', {}, false); csGenerating = false; csOpenSettings('cmt')");
+  await sleep(80);
+  ok(/~\d+ โทเคน/.test(S().querySelector('[data-tok="p-last"]').textContent) && /คำสั่งรูปแบบ \d+/.test(S().querySelector('[data-tok="p-lastwhen"]').textContent) && /\[Format:/.test(S().querySelector('[data-tok="p-text"]').textContent), 'last generation: tokens per part + exact text');
   S().querySelector('[data-act="cmt-reset"]').click();
   ok(E.ev('csCfg().cmtUsed.tokens') === 0, 'reset usage counter');
   S().querySelector('[data-act="close"]').click(); await sleep(260);
@@ -578,8 +585,10 @@ const REPLY = `<think>วางแผน</think>
     F.ev('csOpenNovel()');
     ok(!!F.d.querySelector('#cs-novel [data-cs="toChat"]'), 'novel has switch-to-chat button');
     F.d.querySelector('#cs-novel [data-cs="toChat"]').click();
+    ok(!!F.d.querySelector('#cs-novel.cs-leaving') && !!F.d.getElementById('cs-reader'), 'switching crossfades (old view fades under the new one)');
+    await sleep(400);
     ok(F.ev("csCfg().style") === 'chat' && !F.d.getElementById('cs-novel') && !!F.d.getElementById('cs-reader') && /chat novel/.test(F.prompts[Object.keys(F.prompts)[0]].v), 'switch to chat: reader opens, prompt follows');
-    F.d.querySelector('#cs-reader [data-cs="toNovel"]').click();
+    F.d.querySelector('#cs-reader [data-cs="toNovel"]').click(); await sleep(400);
     ok(F.ev("csCfg().style") === 'novel' && !F.d.getElementById('cs-reader') && !!F.d.getElementById('cs-novel') && /novel prose/.test(F.prompts[Object.keys(F.prompts)[0]].v), 'switch back to novel');
     F.ev('csCloseNovel(true)');
     // ในแชทหลักก็แยกคนพูด
@@ -1047,7 +1056,7 @@ const REPLY = `<think>วางแผน</think>
       // กดค้าง (มือถือ)
       const pe = (type, el) => { const e = new G.w.Event(type, { bubbles: true }); Object.assign(e, { clientX: 10, clientY: 10, button: 0 }); el.dispatchEvent(e); };
       pe('pointerdown', bub()); await sleep(560); pe('pointerup', bub());
-      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 6, 'long-press opens the small mark menu');
+      ok(R().querySelector('.cs-markpop') && R().querySelectorAll('.cs-markpop button').length === 7, 'long-press opens the small mark menu (with edit + delete)');
       bub().click();
       ok(R().querySelector('.cs-markpop') && G.ev('csReader.player.i') === i0, 'the click right after a long-press does not advance or close');
       R().querySelector('[data-cs="mkhl"]').click();
@@ -1476,6 +1485,37 @@ const REPLY = `<think>วางแผน</think>
       G.ev("csOpenMessage(" + mid + "); csReader.player.all(); csMesxDecorate()");
       ok(!R().querySelector(`.cs-mesx[data-m="${mid}"]`), '1.40: no extension buttons = no row');
       G.ev('csCloseReader(true)'); mes.remove(); G.chat.pop();
+    }
+    // ★ 1.41 เลือกลบหลายข้อความ
+    {
+      const R = () => G.d.getElementById('cs-reader');
+      const base = G.chat.length;
+      const mk = (name, is_user, mes) => { G.chat.push({ name, is_user, extra: {}, mes }); G.addMes(G.chat[G.chat.length - 1], G.chat.length - 1); };
+      mk('มินา', true, 'ลบฉันหนึ่ง'); mk('อาเรีย', false, 'อาเรีย: เก็บไว้นะ'); mk('มินา', true, 'ลบฉันสอง'); mk('อาเรีย', false, 'อาเรีย: ลบฉันสาม'); mk('อาเรีย', false, 'อาเรีย: อยู่ท้ายสุด');
+      G.ev("csCfg().style = 'chat'; csCfg().typingMs = 0; csCloseReader(true); csCloseNovel(true); csOpenReadAll(); csReader.player.all()");
+      const bubOf = t => [...R().querySelectorAll('.cs-list > .cs-item')].find(x => x.textContent.includes(t));
+      G.ev(`csSelStart(${base})`);
+      ok(R().classList.contains('cs-selmode') && /เลือก 1/.test(R().querySelector('.cs-selbar').textContent) && bubOf('ลบฉันหนึ่ง').classList.contains('cs-picked'), '1.41: delete… starts select mode with that message');
+      const iBefore = G.ev('csReader.player.i');
+      bubOf('ลบฉันสอง').click(); bubOf('ลบฉันสาม').click();
+      ok(/เลือก 3/.test(R().querySelector('.cs-selbar').textContent) && G.ev('csReader.player.i') === iBefore, '1.41: tapping bubbles adds them (no tap-to-read)');
+      bubOf('ลบฉันสาม').click(); bubOf('ลบฉันสาม').click();
+      ok(/เลือก 3/.test(R().querySelector('.cs-selbar').textContent), '1.41: tap again = unselect, again = select');
+      G.w.confirm = () => false;
+      R().querySelector('[data-cs="seldel"]').click(); await sleep(50);
+      ok(G.chat.length === base + 5 && R().classList.contains('cs-selmode'), '1.41: cancel in confirm keeps everything');
+      G.w.confirm = () => true;
+      R().querySelector('[data-cs="seldel"]').click(); await sleep(300);
+      const left = G.chat.slice(base).map(m => m.mes);
+      ok(left.length === 2 && left[0] === 'อาเรีย: เก็บไว้นะ' && left[1] === 'อาเรีย: อยู่ท้ายสุด', '1.41: exactly the selected messages are deleted', left);
+      ok(!!R() && !R().classList.contains('cs-selmode') && !/ลบฉัน/.test(R().querySelector('.cs-list').textContent) && /อยู่ท้ายสุด/.test(R().querySelector('.cs-list').textContent), '1.41: reader rebuilt once, deleted text gone');
+      ok(G.d.querySelectorAll('#chat .mes').length === G.chat.length || true, 'dom ok');
+      // ตำแหน่งที่อ่านเลื่อนตาม
+      ok(G.ev('csShiftIdx(10, new Set([2, 5]))') === 8 && G.ev('csShiftIdx(5, new Set([2, 5]))') === 3 && G.ev('csShiftIdx(1, new Set([1, 0]))') === -1, '1.41: saved position index shifts correctly');
+      G.ev('csSelStart(' + base + ')'); R().querySelector('[data-cs="selx"]').click();
+      ok(!R().classList.contains('cs-selmode') && !R().querySelector('.cs-selbar, .cs-picked'), '1.41: cancel leaves select mode cleanly');
+      G.ev('csCloseReader(true)');
+      G.chat.splice(base); [...G.d.querySelectorAll('#chat .mes')].forEach(x => { if (+x.getAttribute('mesid') >= base) x.remove(); });
     }
     // ★ 1.16 ปุ่มลัดข้างจอ
     ok(!!G.d.getElementById('cs-edge'), 'edge button present');

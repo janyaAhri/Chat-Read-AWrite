@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.40.0';
+const CS_VERSION = '1.40.1';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -243,10 +243,17 @@ function csFormatPrompt() {
 // ★ 1.6 โมเดลเลือกเองตอนเขียนว่าบทพูดหรือการกระทำไหนสมควรมีคนคอมเมนต์
 const CS_CMT_ASK = `[End 1-3 lines readers would react to (any dialogue or action) with [c].]`;
 function csCmtAskOn() { const s = csCfg(); return s.enabled && s.cmtOn && s.cmtPick === 'model' && !csCmtInlineOn(); } // ★ 1.10 ใช้ได้ทั้งนิยายและแชทนิยาย
-function csPromptText() {
+/** ★ 1.41 สิ่งที่ส่วนขยายแทรกเข้าพรอมต์ แยกเป็นส่วน ๆ (ใช้ทั้งส่งจริงและโชว์โทเคน) */
+function csPromptParts() {
  const s = csCfg();
- return [s.enabled && s.forceFormat ? csFormatPrompt() : '', csCmtAskOn() ? CS_CMT_ASK : '', csCmtInlineOn() && csCmtAskNow ? csCmtInlinePrompt(csCmtAskNow) : ''].filter(Boolean).join('\n');
+ return [
+  s.enabled && s.forceFormat ? { id: 'format', label: 'คำสั่งรูปแบบ', text: csFormatPrompt() } : null,
+  csCmtAskOn() ? { id: 'ask', label: 'ให้โมเดลเลือกบรรทัดคอมเมนต์', text: CS_CMT_ASK } : null,
+  csCmtInlineOn() && csCmtAskNow ? { id: 'cmt', label: 'คอมเมนต์มากับคำตอบ', text: csCmtInlinePrompt(csCmtAskNow) } : null,
+ ].filter(Boolean);
 }
+function csPromptText() { return csPromptParts().map(x => x.text).join('\n'); }
+let csLastInject = null; // เจนครั้งล่าสุดแทรกอะไรไปบ้าง
 function csApplyPrompt() {
  try {
   const ctx = csCtx();
@@ -1285,10 +1292,11 @@ function csCloseReader(instant) {
  document.getElementById('cs-settings') && csCloseSettings();
  csStopAuto();
  const el = csReader.el;
+ csSelEnd();
  if (csReader.player.typing) clearTimeout(csReader.player.typing.timer);
  csExtReturn();
  csReader = null;
- if (instant) { el.remove(); return; }
+ if (instant) { if (el !== csKeepEl) el.remove(); return; }
  el.classList.remove('show');
  setTimeout(() => el.remove(), 220);
 }
@@ -1414,9 +1422,9 @@ async function csDeleteLast() {
  const who = m.is_user ? 'ข้อความของเรา' : `ข้อความของ ${m.name}`;
  if (!confirm(`ลบ${who}ล่าสุด?\n\n“${String(m.mes || '').replace(/\s+/g, ' ').slice(0, 80)}…”`)) return false;
  try {
-  if (typeof ctx.deleteLastMessage === 'function') await ctx.deleteLastMessage();
-  else { chat.pop(); document.querySelector('#chat .mes:last-child')?.remove(); }
-  await ctx.saveChat?.();
+  csDelBusy = true;
+  try { if (typeof ctx.deleteLastMessage === 'function') await ctx.deleteLastMessage(); else { chat.pop(); document.querySelector('#chat .mes:last-child')?.remove(); } } finally { csDelBusy = false; }
+  Promise.resolve(ctx.saveChat?.()).catch(() => csToast('บันทึกไฟล์แชทไม่สำเร็จ'));
  } catch (e) { csToast('ลบไม่สำเร็จ'); return false; }
  csAfterDelete();
  csToast('ลบแล้ว', 'ok');
@@ -1539,8 +1547,11 @@ function csMesCmt(mesId) {
  if (old) old.outerHTML = html; else box.insertAdjacentHTML('afterend', html);
 }
 function csMesCmtAll() { document.querySelectorAll('#chat .mes').forEach(m => csMesCmt(m.getAttribute('mesid'))); }
+/** เมนูในไม้กายสิทธิ์: มีปุ่มลอยอยู่แล้ว = ไม่ต้องมี · ปิดปุ่มลอย = เมนูกลับมา (ไม่งั้นเปิดหน้าอ่านไม่ได้) */
 function csWandMenu() {
  const menu = document.getElementById('extensionsMenu');
+ const want = !(csCfg().enabled && csCfg().edgeBtn);
+ if (!want) { ['cs-wand', 'cs-wand-novel', 'cs-wand-all', 'cs-wand-set'].forEach(id => document.getElementById(id)?.remove()); return; }
  if (!menu || document.getElementById('cs-wand')) return;
  const mk = (id, icon, label, fn) => {
   const a = document.createElement('div');
@@ -1703,11 +1714,11 @@ function csTabHTML(tab) {
      <div class="cs-srow" style="flex-direction:column;align-items:stretch;gap:6px"><div class="cs-slb"><span>คีย์เวิร์ด</span><small>คั่นด้วยจุลภาค เพิ่มหรือลบเองได้</small></div><textarea class="cs-text cs-kw" data-k="cmtKeywords" rows="3">${csEsc(s.cmtKeywords)}</textarea></div>` : ''}
     ${s.cmtGate === 'always' ? `<div class="cs-hint2" style="margin:2px 0 6px">เรียกทุกบทใหม่ ใช้โทเคนทุกบท</div>` : ''}</div>` : ''}
    ${csCmtCountCard()}
-   <div class="cs-card cs-tokcard"><div class="cs-cardh">โทเคนที่ใช้</div>
-    <div class="cs-srow"><div class="cs-slb"><span>คอมเมนต์ต่อครั้ง</span><small>เรียกแยก ไม่แนบแชท ไม่เข้าโรลหลัก · คำนวณจากบทล่าสุด</small></div><div class="cs-sctl"><b data-tok="cmt">…</b></div></div>
+   ${csPromptTokCardHTML()}
+   <div class="cs-card cs-tokcard"><div class="cs-cardh">เรียกคนอ่านเอง (แตะไอคอน / ขอคอมเมนต์ใหม่)<small>เป็นคำขอแยกหนึ่งครั้ง ส่งเฉพาะเนื้อบท + คำสั่ง ไม่แนบทั้งแชท</small></div>
+    <div class="cs-srow"><div class="cs-slb"><span>ต่อครั้ง</span><small>คำนวณจากบทล่าสุด · รวมขาไป + คำตอบโดยประมาณ</small></div><div class="cs-sctl"><b data-tok="cmt">…</b></div></div>
     <details class="cs-tokbd"><summary>ดูว่ามีอะไรบ้าง ทำไมใช้เท่านี้</summary><div data-tok="bd">กำลังคำนวณ…</div></details>
     <div class="cs-srow"><div class="cs-slb"><span>ใช้ไปแล้วทั้งหมด</span><small>${u.calls} ครั้ง</small></div><div class="cs-sctl"><b>${u.tokens.toLocaleString()} โทเคน</b><button class="cs-btn2" data-act="cmt-reset">ล้างตัวนับ</button></div></div>
-    <div class="cs-srow"><div class="cs-slb"><span>คำสั่งรูปแบบที่แทรกในโรลหลัก</span><small>${s.enabled && s.forceFormat ? 'แทรกทุกเทิร์น ปิดได้ที่แท็บการอ่าน' : 'ปิดอยู่ ไม่ใช้โทเคน'}</small></div><div class="cs-sctl"><b data-tok="format">…</b></div></div>
    </div>`;
  }
  if (tab === 'novel') {
@@ -1748,7 +1759,8 @@ function csTabHTML(tab) {
  return `<div class="cs-card">${csToggle('enabled', 'เปิดใช้แชทนิยาย')}<div class="cs-cardh">แบบการอ่าน</div>${csSeg('style', [['chat', 'แชทนิยาย'], ['novel', 'นิยาย']])}<div class="cs-cardh">แสดงที่</div>${csSeg('mode', [['reader', 'หน้าอ่านเปิดทับแชท'], ['inline', 'ในแชทหลัก']])}</div>
   <div class="cs-card"><div class="cs-cardh">การเปิดหน้าอ่าน</div>${csToggle('alwaysOn', 'เปิดค้างเป็นหน้าแชท', 'ทุกแชท · ไปหน้าเลือกตัวละครจะหลบให้ · ปุ่มข้างจอ = ซ่อน/แสดง')}${csToggle('autoOpen', 'บอทตอบเสร็จแล้วเปิดเอง')}${csToggle('keepTopBar', 'เห็นแถบบนของ SillyTavern', 'กดเมนู สลับแชท ได้โดยไม่ต้องปิดหน้าอ่าน')}${csToggle('edgeBtn', 'ปุ่มลัดชิดขอบจอ', 'ลากขึ้นลงได้ · ลากไปอีกฝั่งเพื่อย้ายข้าง')}</div>
   <div class="cs-card"><div class="cs-cardh">ช่องพิมพ์</div>${csToggle('showInput', 'ช่องพิมพ์ในหน้าอ่าน')}${csToggle('enterSend', 'กด Enter เพื่อส่ง', 'Shift+Enter ขึ้นบรรทัดใหม่')}</div>
-  <div class="cs-card cs-tokcard"><div class="cs-cardh">สั่งบอท</div>${csToggle('forceFormat', 'สั่งบอทเขียนตามแบบที่เลือก', 'แชทนิยาย: ชื่อ: คำพูด · นิยาย: ย่อหน้าต่อเนื่อง')}<div class="cs-srow"><div class="cs-slb"><span>กินโทเคนต่อเทิร์น</span><small>${s.enabled && s.forceFormat ? 'แทรกเข้าโรลหลักทุกครั้งที่บอทตอบ' : 'ปิดอยู่ ไม่ใช้โทเคน'}</small></div><div class="cs-sctl"><b data-tok="format">…</b></div></div></div>
+  <div class="cs-card cs-tokcard"><div class="cs-cardh">สั่งบอท</div>${csToggle('forceFormat', 'สั่งบอทเขียนตามแบบที่เลือก', 'แชทนิยาย: ชื่อ: คำพูด · นิยาย: ย่อหน้าต่อเนื่อง')}</div>
+  ${csPromptTokCardHTML()}
   <div class="cs-card cs-btnrow"><button class="cs-btn2" data-act="read-last"><i class="fa-solid fa-book-open"></i> เปิดหน้าอ่าน</button><button class="cs-btn2" data-act="read-all"><i class="fa-solid fa-book"></i> อ่านทั้งแชท</button><button class="cs-btn2 danger" data-act="reset"><i class="fa-solid fa-rotate"></i> คืนค่าเริ่มต้น</button></div>
   <div class="cs-foot">Paper-Whisper ${CS_VERSION} · แตะหรือ Space อ่านต่อ · ลูกศรซ้ายย้อนกลับ · Esc ปิด</div>`;
 }
@@ -1854,9 +1866,47 @@ function csCcClick(act, el) {
  }
  return false;
 }
+/** ★ 1.41 การ์ด "พรอมต์ที่ส่วนขยายยิงไปให้โมเดล" — นับเฉพาะขาไป */
+function csPromptTokCardHTML() {
+ const s = csCfg();
+ const inl = csCmtInlineOn(), sep = s.cmtOn && s.cmtAuto && s.cmtWith === 'separate';
+ const row = (label, sub, key) => `<div class="cs-srow"><div class="cs-slb"><span>${label}</span><small>${sub}</small></div><div class="cs-sctl"><b data-tok="${key}">…</b></div></div>`;
+ return `<div class="cs-card cs-tokcard"><div class="cs-cardh">พรอมต์ที่ส่วนขยายยิงไปให้โมเดล<small>นับเฉพาะขาไป (ที่แนบไปกับคำขอ) ไม่รวมคำตอบที่ได้กลับ</small></div>
+  ${row('คำสั่งรูปแบบ', s.enabled && s.forceFormat ? 'แนบทุกครั้งที่บอทตอบ' : 'ปิดอยู่ = 0', 'p-format')}
+  ${csCmtAskOn() ? row('ให้โมเดลเลือกบรรทัดคอมเมนต์', 'แนบทุกครั้งที่บอทตอบ', 'p-ask') : ''}
+  ${inl ? row('คอมเมนต์มากับคำตอบ', 'แนบเฉพาะครั้งที่ถึงรอบคอมเมนต์ · ไม่มีคำขอเพิ่ม', 'p-cmt') : ''}
+  ${sep ? row('ขอคอมเมนต์แยก', 'คำขอใหม่อีกครั้ง ต่อบท (ส่งเนื้อบท + คำสั่ง)', 'p-sep') : ''}
+  ${row('รวมต่อครั้งที่บอทตอบ', inl ? 'ครั้งปกติ / ครั้งที่มีคอมเมนต์' : 'ทุกครั้ง', 'p-total')}
+  <div class="cs-srow"><div class="cs-slb"><span>เจนครั้งล่าสุด</span><small data-tok="p-lastwhen">${csLastInject ? new Date(csLastInject.t).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : 'ยังไม่ได้เจนตั้งแต่เปิดหน้า'}</small></div><div class="cs-sctl"><b data-tok="p-last">${csLastInject ? '…' : '–'}</b></div></div>
+  <details class="cs-tokbd"><summary>ดูข้อความที่แนบไปจริง</summary><div data-tok="p-text"></div></details></div>`;
+}
+async function csFillPromptTok(root) {
+ const q = k => [...root.querySelectorAll(`[data-tok="${k}"]`)];
+ if (!q('p-format').length && !q('p-last').length) return;
+ const s = csCfg();
+ const n = async t => (t ? await csCountTokens(t) : 0);
+ const fmt = s.enabled && s.forceFormat ? await n(csFormatPrompt()) : 0;
+ const ask = csCmtAskOn() ? await n(CS_CMT_ASK) : 0;
+ const cmt = csCmtInlineOn() ? await n(csCmtInlinePrompt('must')) : 0;
+ const set = (k, v) => q(k).forEach(el => { el.textContent = v; });
+ set('p-format', `~${fmt.toLocaleString()} โทเคน`);
+ set('p-ask', `~${ask.toLocaleString()} โทเคน`);
+ set('p-cmt', `~${cmt.toLocaleString()} โทเคน`);
+ set('p-total', cmt ? `~${(fmt + ask).toLocaleString()} / ~${(fmt + ask + cmt).toLocaleString()}` : `~${(fmt + ask).toLocaleString()} โทเคน`);
+ if (q('p-sep').length) { const id = csLastCharMesId(); set('p-sep', id < 0 ? 'ยังไม่มีบท' : `~${(await csCmtEstimate(id)).inTok.toLocaleString()} โทเคน`); }
+ if (csLastInject) {
+  let tot = 0; const bits = [];
+  for (const x of csLastInject.parts) { const k = await n(x.text); tot += k; bits.push(`${x.label} ${k.toLocaleString()}`); }
+  q('p-last').forEach(el => { el.textContent = `~${tot.toLocaleString()} โทเคน`; el.title = bits.join(' · '); });
+  q('p-lastwhen').forEach(el => { el.textContent += bits.length ? ` · ${bits.join(' + ')}` : ' · ไม่ได้แนบอะไร'; });
+ }
+ const parts = csLastInject ? csLastInject.parts : [s.enabled && s.forceFormat ? { label: 'คำสั่งรูปแบบ', text: csFormatPrompt() } : null, csCmtAskOn() ? { label: 'ให้โมเดลเลือกบรรทัดคอมเมนต์', text: CS_CMT_ASK } : null, csCmtInlineOn() ? { label: 'คอมเมนต์มากับคำตอบ (ตัวอย่าง)', text: csCmtInlinePrompt('must') } : null].filter(Boolean);
+ q('p-text').forEach(el => { el.innerHTML = parts.length ? parts.map(x => `<div class="cs-bdrow"><span><b>${csEsc(x.label)}</b></span></div><pre class="cs-raw">${csEsc(x.text)}</pre>`).join('') : '<p class="cs-bdnote">ตอนนี้ไม่ได้แนบอะไรไปกับพรอมต์</p>'; });
+}
 /** เติมตัวเลขโทเคนในหน้าตั้งค่า (นับจริงด้วยตัวนับของ SillyTavern) */
 function csFillTokens(root) {
  const s = csCfg();
+ csFillPromptTok(root);
  root.querySelectorAll('[data-tok="format"]').forEach(async el => {
   const t = csPromptText();
   if (!t) { el.textContent = '0 โทเคน'; return; }
@@ -1893,7 +1943,7 @@ function csAfterChange(full) {
  if (csNovel) { csApplyVars(csNovel.el); csApplyNovelVars(csNovel.el); if (full) csNovelRefresh(false); }
  csRenderPreview();
  clearTimeout(csRefreshTimer);
- csRefreshTimer = setTimeout(() => { csApplyPrompt(); csInlineAll(); csSyncDrawer(); csEdgeRender(); }, 120);
+ csRefreshTimer = setTimeout(() => { csApplyPrompt(); csInlineAll(); csSyncDrawer(); csEdgeRender(); csWandMenu(); }, 120);
 }
 /** วาดฟองในหน้าอ่านใหม่ (เปลี่ยนฝั่ง ชื่อ รูป) โดยคงตำแหน่งที่อ่านถึง */
 function csRerenderReader() {
@@ -2089,6 +2139,7 @@ function csDrawerHTML() {
    <label class="cs-dl">แบบการอ่าน <select id="cs-style" class="text_pole"><option value="chat"${s.style === 'chat' ? ' selected' : ''}>แชทนิยาย (ฟองแชท แตะทีละฟอง)</option><option value="novel"${s.style === 'novel' ? ' selected' : ''}>นิยาย (อ่านแบบหนังสือ)</option></select></label>
    <label class="cs-dl">แสดงที่ <select id="cs-mode" class="text_pole"><option value="reader"${s.mode === 'reader' ? ' selected' : ''}>หน้าอ่านเปิดทับแชท</option><option value="inline"${s.mode === 'inline' ? ' selected' : ''}>ในแชทหลัก</option></select></label>
    <label class="checkbox_label"><input type="checkbox" id="cs-force"${s.forceFormat ? ' checked' : ''}><span>สั่งบอทเขียนแบบนิยายแชท</span></label>
+   <label class="checkbox_label"><input type="checkbox" id="cs-edge-on"${s.edgeBtn ? ' checked' : ''}><span>ปุ่มลอยข้างจอ (ปิด = เปิดหน้าอ่านจากเมนูไม้กายสิทธิ์แทน)</span></label>
    <div class="cs-drawer-btns">
     <div class="menu_button" id="cs-open-settings"><i class="fa-solid fa-sliders"></i> ปรับแต่งทั้งหมด</div>
     <div class="menu_button" id="cs-read-last"><i class="fa-solid fa-book-open"></i> เปิดหน้าอ่าน</div>
@@ -2103,6 +2154,7 @@ function csBindDrawer(root) {
  on('cs-mode', 'change', e => { s.mode = e.target.value; csAfterChange(true); });
  on('cs-style', 'change', e => { s.style = e.target.value; csAfterChange(true); csApplyPrompt(); });
  on('cs-force', 'change', e => { s.forceFormat = e.target.checked; csAfterChange(); csApplyPrompt(); });
+ on('cs-edge-on', 'change', e => { s.edgeBtn = e.target.checked; csSave(); csEdgeRender(); csWandMenu(); });
  on('cs-open-settings', 'click', () => csOpenSettings());
  on('cs-read-last', 'click', () => csOpenLatest());
  on('cs-read-all', 'click', () => csOpenReadAll());
@@ -2114,6 +2166,7 @@ function csSyncDrawer() {
  if (q('cs-mode')) q('cs-mode').value = s.mode;
  if (q('cs-style')) q('cs-style').value = s.style;
  if (q('cs-force')) q('cs-force').checked = !!s.forceFormat;
+ if (q('cs-edge-on')) q('cs-edge-on').checked = !!s.edgeBtn;
 }
 
 // ══ โหมดนิยาย (อ่านแบบหนังสือ) ══
@@ -2172,7 +2225,8 @@ function csNovelChapters() {
 function csChWord() { return csCfg().chapterWord === 'ตอน' ? 'ตอน' : 'บท'; }
 function csNovelChapterHTML(ch, n) {
  const s = csCfg();
- const userPart = s.userInNovel === 'hide' ? '' : ch.user.map(m => `<div class="cs-nuser${s.userInNovel === 'mark' ? ' mark' : ''}">${csNovelLines(m).map(l => csNovelLineHTML(l, true)).join('')}</div>`).join('');
+ const uids = (ch.ids || []).filter(i => i !== ch.botId);
+ const userPart = s.userInNovel === 'hide' ? '' : ch.user.map((m, k) => `<div class="cs-nuser${s.userInNovel === 'mark' ? ' mark' : ''}" data-umes="${uids[k] ?? ''}">${csNovelLines(m).map(l => csNovelLineHTML(l, true)).join('')}</div>`).join('');
  const lines = ch.bot ? csNovelLines(ch.bot) : [];
  // ชื่อบท: ## ชื่อ > [ฉาก] > ไม่มี
  const title = lines.find(l => l.k === 'title') || lines.find(l => l.k === 'scene');
@@ -2395,9 +2449,10 @@ function csCloseNovel(instant) {
  setTimeout(() => { if (!csReader && !csNovel) document.body.classList.remove('cs-open'); }, 0);
  if (csCmtOpen && csCmtOpen.host === csNovel.el) csCmtClose();
  const el = csNovel.el;
+ csSelEnd();
  csExtReturn();
  csNovel = null;
- if (instant) { el.remove(); return; }
+ if (instant) { if (el !== csKeepEl) el.remove(); return; }
  el.classList.remove('show');
  setTimeout(() => el.remove(), 220);
 }
@@ -2480,16 +2535,22 @@ function csBindInput(el) {
  });
 }
 /** ★ 1.8 สลับนิยาย ↔ แชทนิยายได้ทันทีจากหน้าอ่าน · บทเก่าแยกคนพูดให้ ส่วนบทต่อไปบอทเขียนตามแบบใหม่ */
+let csKeepEl = null; // หน้าเดิมค้างไว้ให้หน้าใหม่จางขึ้นมาทับ (ไม่วาป)
 function csSwitchStyle(style) {
  const s = csCfg();
  if (style !== 'novel' && style !== 'chat') return;
  s.style = style;
  csSave();
  csApplyPrompt();
+ const oldEl = (csReader && csReader.el) || (csNovel && csNovel.el) || null;
+ csKeepEl = oldEl;
  csCloseReader(true);
  csCloseNovel(true);
+ csKeepEl = null;
+ if (oldEl) { oldEl.classList.add('cs-leaving'); oldEl.style.pointerEvents = 'none'; }
  if (s.mode === 'inline') csInlineAll();
  csOpenLatest();
+ if (oldEl) setTimeout(() => oldEl.remove(), 320);
  try { csSyncDrawer(); } catch {}
  csToast(style === 'novel' ? 'แบบนิยาย' : 'แบบแชทนิยาย', 'ok');
 }
@@ -2964,6 +3025,8 @@ function csMarkWho(el) {
 function csMarkMes(el) {
  const it = csMarkItem(el);
  if (it) return it._m !== undefined ? it._m : -1;
+ const u = el.closest('.cs-nuser[data-umes]');
+ if (u && u.dataset.umes !== '') return +u.dataset.umes;
  const ch = el.closest('.cs-chapter');
  if (ch && ch.dataset.mes !== '') return +ch.dataset.mes;
  return -1;
@@ -3043,8 +3106,8 @@ function csMarkMenu(el) {
   + `<button data-cs="mkbm" class="${bm ? 'on' : ''}"><i class="fa-${bm ? 'solid' : 'regular'} fa-bookmark"></i><span>${bm ? 'เอาออก' : 'คั่นไว้'}</span></button>`
   + `<button data-cs="mkcard"><i class="fa-regular fa-image"></i><span>การ์ด</span></button>`
   + `<button data-cs="mkcopy"><i class="fa-regular fa-copy"></i><span>คัดลอก</span></button>`
-  + `<button data-cs="mkread"><i class="fa-solid fa-volume-high"></i><span>อ่านตรงนี้</span></button>`
-  + (csMarkCur.m >= 0 ? `<button data-cs="mkedit"><i class="fa-solid fa-pen"></i><span>แก้ไข</span></button>` : '');
+  + `<button data-cs="mkread" title="อ่านออกเสียงจากตรงนี้"><i class="fa-solid fa-volume-high"></i><span>อ่าน</span></button>`
+  + (csMarkCur.m >= 0 ? `<button data-cs="mkedit"><i class="fa-solid fa-pen"></i><span>แก้ไข</span></button><button data-cs="mkdel" title="ลบ (เลือกได้หลายข้อความ)"><i class="fa-regular fa-trash-can"></i><span>ลบ</span></button>` : '');
  host.appendChild(pop);
  const r = el.getBoundingClientRect(), hr = host.getBoundingClientRect();
  const w = pop.offsetWidth || 236, h = pop.offsetHeight || 54;
@@ -3064,6 +3127,7 @@ function csMarkMenuClose() {
 }
 /** เรียกก่อนตัวจัดการคลิกของหน้าอ่าน · true = จัดการแล้ว ไม่ต้องทำต่อ */
 function csMarkClick(e, b) {
+ if (csSelClick(e, b)) return true;
  const a = b && b.dataset.cs;
  if (csExtraClick(e, b, a)) return true;
  if (a && /^mk/.test(a)) { e.stopPropagation(); csMarkAct(a); return true; }
@@ -3084,7 +3148,117 @@ function csMarkAct(a) {
   try { navigator.clipboard.writeText(txt).then(() => csToast('คัดลอกแล้ว', 'ok'), () => csToast('คัดลอกไม่ได้')); } catch { csToast('คัดลอกไม่ได้'); }
  } else if (a === 'mkcard') csQuoteCard(c.t, c.who, c.m);
  else if (a === 'mkedit') csEditOpen(c.m);
+ else if (a === 'mkdel') csSelStart(c.m);
  else if (a === 'mkread') csTtsStart(c.el);
+}
+// ══ ★ 1.41 เลือกลบหลายข้อความ: กดค้าง → ลบ… → แตะเลือกข้อความอื่นเพิ่ม → ลบทีเดียว ══
+let csSel = null, csDelBusy = false;
+function csSelHost() { return (csReader && csReader.el) || (csNovel && csNovel.el) || null; }
+function csSelStart(mesId) {
+ const host = csSelHost();
+ if (!host || !(mesId >= 0)) return;
+ if (csGenerating || csStBusy()) { csToast('รอให้ตอบเสร็จก่อน'); return; }
+ csMarkMenuClose();
+ csSel = { host, ids: new Set([mesId]) };
+ host.classList.add('cs-selmode');
+ let bar = host.querySelector('.cs-selbar');
+ if (!bar) { bar = document.createElement('div'); bar.className = 'cs-selbar'; host.appendChild(bar); }
+ csSelPaint();
+ try { navigator.vibrate && navigator.vibrate(8); } catch {}
+}
+function csSelEnd() {
+ if (!csSel) return;
+ const h = csSel.host;
+ csSel = null;
+ h.classList.remove('cs-selmode');
+ h.querySelectorAll('.cs-selbar').forEach(x => x.remove());
+ h.querySelectorAll('.cs-picked, .cs-selbot').forEach(x => x.classList.remove('cs-picked', 'cs-selbot'));
+}
+/** ข้อความของจุดที่แตะ (แชทนิยาย: ฟอง · นิยาย: ย่อหน้าของเรา หรือเนื้อบท) */
+function csSelMesOf(t) {
+ if (!t || !t.closest) return -1;
+ const item = t.closest('.cs-item[data-i]');
+ if (item && csReader && csReader.el.contains(item)) { const it = csReader.player.items[+item.dataset.i]; return it && it._m !== undefined ? it._m : -1; }
+ const u = t.closest('.cs-nuser[data-umes]');
+ if (u && u.dataset.umes !== '') return +u.dataset.umes;
+ const ch = t.closest('.cs-chapter[data-mes]');
+ if (ch && ch.dataset.mes !== '' && !t.closest('.cs-chead, .cs-nacts, .cs-mesx')) return +ch.dataset.mes;
+ return -1;
+}
+function csSelPaint() {
+ if (!csSel) return;
+ const { host, ids } = csSel;
+ if (csReader && host === csReader.el) host.querySelectorAll('.cs-list > .cs-item[data-i]').forEach(el => { const it = csReader.player.items[+el.dataset.i]; el.classList.toggle('cs-picked', !!it && ids.has(it._m)); });
+ host.querySelectorAll('.cs-nuser[data-umes]').forEach(el => el.classList.toggle('cs-picked', el.dataset.umes !== '' && ids.has(+el.dataset.umes)));
+ host.querySelectorAll('.cs-chapter[data-mes]').forEach(el => el.classList.toggle('cs-selbot', el.dataset.mes !== '' && ids.has(+el.dataset.mes)));
+ const bar = host.querySelector('.cs-selbar');
+ if (bar) bar.innerHTML = `<button data-cs="selx">ยกเลิก</button><span>${ids.size ? `เลือก ${ids.size} ข้อความ` : 'แตะข้อความที่จะลบ'}</span><button data-cs="seldel" class="del"${ids.size ? '' : ' disabled'}><i class="fa-regular fa-trash-can"></i>ลบ</button>`;
+}
+/** ระหว่างเลือก: แตะ = เลือก/ไม่เลือก · ไม่อ่านต่อ ไม่เปิดเมนู */
+function csSelClick(e, b) {
+ if (!csSel) return false;
+ if (!csSel.host.contains(e.target)) return false;
+ e.stopPropagation();
+ const a = b && b.dataset.cs;
+ if (a === 'selx') { csSelEnd(); return true; }
+ if (a === 'seldel') { const ids = [...csSel.ids]; csDeleteMany(ids); return true; }
+ if (e.target.closest('.cs-selbar')) return true;
+ const m = csSelMesOf(e.target);
+ if (m >= 0) { if (csSel.ids.has(m)) csSel.ids.delete(m); else csSel.ids.add(m); csSelPaint(); }
+ return true;
+}
+/** เลขข้อความหลังลบ (ข้อความที่ถูกลบ → ข้อความก่อนหน้าที่ยังอยู่) */
+function csShiftIdx(x, del) {
+ if (!(x >= 0)) return x;
+ let y = x;
+ while (y >= 0 && del.has(y)) y--;
+ if (y < 0) return -1;
+ let n = 0; del.forEach(d => { if (d < y) n++; });
+ return y - n;
+}
+function csPosShift(del) {
+ const pos = csPos();
+ if (pos) {
+  const c = pos.chat;
+  if (c && c.m !== undefined) { const nm = csShiftIdx(c.m, del); const gone = del.has(c.m); c.m = nm; if (gone) c.k = 1e9; if (c.am !== undefined) { const ga = del.has(c.am); c.am = csShiftIdx(c.am, del); if (ga) c.ak = 1e9; } if (nm < 0) delete pos.chat; }
+  if (pos.novel && pos.novel.mes >= 0) { const g = del.has(pos.novel.mes); pos.novel.mes = csShiftIdx(pos.novel.mes, del); if (g) pos.novel.off = 0; if (pos.novel.mes < 0) delete pos.novel; }
+  csPosSave('_', 0);
+ }
+ csMarks(false).forEach(x => { if (x.m >= 0) x.m = del.has(x.m) ? -1 : csShiftIdx(x.m, del); });
+}
+async function csDeleteMany(idList) {
+ if (csGenerating || csStBusy()) { csToast('รอให้ตอบเสร็จก่อน'); return false; }
+ const ctx = csCtx(), chat = ctx.chat || [];
+ const list = [...new Set(idList)].filter(i => chat[i]).sort((a, b) => b - a);
+ if (!list.length) { csSelEnd(); return false; }
+ const first = chat[list[list.length - 1]];
+ if (!confirm(list.length === 1 ? `ลบข้อความนี้?\n\n“${String(first.mes || '').replace(/\s+/g, ' ').slice(0, 80)}…”` : `ลบ ${list.length} ข้อความที่เลือก?`)) return false;
+ csSelEnd();
+ const wasReader = !!csReader, wasNovel = !!csNovel;
+ const del = new Set(list);
+ csTtsStop();
+ csPosShift(del);
+ csDelBusy = true;
+ let reload = false;
+ try {
+  for (const id of list) {
+   const shown = document.querySelector(`#chat .mes[mesid="${id}"]`);
+   if (shown && typeof ctx.deleteMessage === 'function') await ctx.deleteMessage(id, undefined, false, false);
+   else { chat.splice(id, 1); if (shown) shown.remove(); reload = true; }
+  }
+  await ctx.saveChat?.();
+ } catch (e) { console.warn('[chat-story] delete', e); reload = true; }
+ csDelBusy = false;
+ if (reload && typeof ctx.reloadCurrentChat === 'function') {
+  try { await ctx.reloadCurrentChat(); } catch {}
+  if (wasReader && !csReader && !csNovel) csOpenLatest();
+  if (wasNovel && !csNovel && !csReader) csOpenLatest();
+ } else {
+  if (wasReader && csReader) { csCloseReader(true); csOpenLatest(); }
+  if (wasNovel && csNovel) csNovelRefresh(false);
+ }
+ csToast(`ลบแล้ว ${list.length} ข้อความ`, 'ok');
+ return true;
 }
 /** ตัดบรรทัดบนแคนวาส: ภาษาไทยไม่มีเว้นวรรค ตัดตามคำ (Intl.Segmenter) หรือตามตัวอักษรไม่แยกสระ/วรรณยุกต์ */
 function csWrapCanvas(g, text, maxW) {
@@ -4597,8 +4771,11 @@ function csReaderAnchorIdx() {
  const items = [...csReader.el.querySelectorAll('.cs-list > .cs-item[data-i]')];
  if (!body || !items.length) return -1;
  const top = body.getBoundingClientRect().top + 72; // ใต้แถบบน
- const hit = items.find(el => el.getBoundingClientRect().bottom > top);
- return hit ? +hit.dataset.i : +items[items.length - 1].dataset.i;
+ // ค้นแบบแบ่งครึ่ง: วัดไม่กี่ฟอง แทนไล่วัดทุกฟอง
+ let lo = 0, hi = items.length - 1;
+ if (items[hi].getBoundingClientRect().bottom <= top) return +items[hi].dataset.i;
+ while (lo < hi) { const mid = (lo + hi) >> 1; if (items[mid].getBoundingClientRect().bottom > top) hi = mid; else lo = mid + 1; }
+ return +items[lo].dataset.i;
 }
 function csReaderSavePos(anchorIdx) {
  if (!csReader) return;
@@ -5378,6 +5555,7 @@ function csCmtClick(a, b) {
 function csOnGenerationStarted(type, opts, dryRun) {
  if (dryRun || type === 'quiet' || type === 'impersonate') return;
  if (csCmtInlineOn()) { csCmtAskNow = csCmtNextReason(); csApplyPrompt(); }
+ try { csLastInject = { t: Date.now(), parts: csPromptParts() }; } catch {}
  csFresh = true;
  csGenerating = true;
  if (csReader) csShowWaiting(true);
@@ -5453,7 +5631,7 @@ function csInit() {
   if (T.CHARACTER_MESSAGE_RENDERED) ev.on(T.CHARACTER_MESSAGE_RENDERED, csOnCharRendered);
   [T.CHARACTER_MESSAGE_RENDERED, T.MESSAGE_UPDATED, T.MESSAGE_EDITED, T.MESSAGE_SWIPED, T.MORE_MESSAGES_LOADED].filter(Boolean).forEach(t => ev.on(t, () => { if (csReader || csNovel) csMesxSoon(500); }));
   if (T.USER_MESSAGE_RENDERED) ev.on(T.USER_MESSAGE_RENDERED, csOnUserRendered);
-  if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => setTimeout(csAfterDelete, 0));
+  if (T.MESSAGE_DELETED) ev.on(T.MESSAGE_DELETED, () => { if (!csDelBusy) setTimeout(() => { if (!csDelBusy) csAfterDelete(); }, 0); });
   if (T.MESSAGE_SWIPED) ev.on(T.MESSAGE_SWIPED, id => csOnSwiped(id));
   [T.MESSAGE_EDITED, T.MESSAGE_UPDATED, T.MESSAGE_SWIPED].filter(Boolean).forEach(t => ev.on(t, id => { csRerender(id); if (csNovel) setTimeout(() => csNovelRefresh(false), 0); }));
   if (T.CHAT_CHANGED) ev.on(T.CHAT_CHANGED, () => { csTtsStop(); csCmtPending = null; clearTimeout(csCmtAutoT); csInlineState.clear(); csFresh = false; csGenerating = false; csCloseReader(true); csCloseNovel(true); csAlwaysPaused = false; csApplyPrompt(); setTimeout(() => { csAddAllButtons(); csInlineAll(); csPinOpen(); }, 60); });
