@@ -2,7 +2,7 @@
 // อ่านคำตอบของบอทแบบนิยายแชท: แตะหนึ่งครั้ง เด้งหนึ่งฟอง พร้อมเสียง · พิมพ์ตอบได้ในหน้าอ่าน
 // สองแบบ: แชทนิยาย (chat) · นิยาย (novel)  ·  สองโหมด: หน้าอ่านเปิดทับแชท (reader) · แชทหลัก (inline)
 
-const CS_VERSION = '1.40.5';
+const CS_VERSION = '1.40.6';
 const CS_KEY = 'chatStory';
 const CS_PROMPT_KEY = 'chat_story_format';
 
@@ -4862,18 +4862,29 @@ function csEdgeSsml(text, voice, pitch) {
 }
 /** ★ 1.40.5 ปลั๊กอิน Edge TTS ของ SillyTavern (เซิร์ฟเวอร์ต่อ Microsoft ให้) — มือถือหลายเครื่องต่อตรงจากเบราว์เซอร์ไม่ได้ */
 let csEdgePlug = null; // null = ยังไม่รู้ · true/false
+/** fetch ที่มีเวลาจำกัด — ปลั๊กอินเงียบ = ไม่รอตลอดไป (ไม่งั้นการอ่านค้าง แตะจอแล้วเหมือนกดไม่ได้) */
+function csFetchT(url, opt, ms) {
+ const ac = typeof AbortController === 'function' ? new AbortController() : null;
+ const t = setTimeout(() => { try { ac && ac.abort(); } catch {} }, ms);
+ return Promise.race([
+  fetch(url, Object.assign({}, opt, ac ? { signal: ac.signal } : {})),
+  new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms + 50)),
+ ]).finally(() => clearTimeout(t));
+}
 function csEdgePlugProbe() {
  if (csEdgePlug !== null) return Promise.resolve(csEdgePlug);
  const ctx = csCtx();
  const headers = typeof ctx.getRequestHeaders === 'function' ? ctx.getRequestHeaders() : {};
- return fetch('/api/plugins/edge-tts/probe', { method: 'POST', headers })
+ return csFetchT('/api/plugins/edge-tts/probe', { method: 'POST', headers }, 5000)
   .then(r => (csEdgePlug = !!r.ok), () => (csEdgePlug = false));
 }
 function csEdgeViaPlugin(text, voice) {
  const ctx = csCtx();
  const headers = typeof ctx.getRequestHeaders === 'function' ? ctx.getRequestHeaders() : { 'Content-Type': 'application/json' };
- return fetch('/api/plugins/edge-tts/generate', { method: 'POST', headers, body: JSON.stringify({ text, voice, rate: 0 }) })
-  .then(r => { if (!r.ok) throw Object.assign(new Error('plugin HTTP ' + r.status), { eng: 'edge', plugin: true }); return r.blob(); });
+ return csFetchT('/api/plugins/edge-tts/generate', { method: 'POST', headers, body: JSON.stringify({ text, voice, rate: 0 }) }, 12000)
+  .then(r => { if (!r.ok) throw new Error('plugin HTTP ' + r.status); return r.blob(); })
+  .then(b => { if (!b || !b.size) throw new Error('plugin: empty audio'); return b; })
+  .catch(e => { throw Object.assign(e instanceof Error ? e : new Error(String(e)), { eng: 'edge', plugin: true }); });
 }
 /** เสียง Edge: มีปลั๊กอิน = ผ่านเซิร์ฟเวอร์ · ไม่มี = ต่อตรง */
 function csEdgeGet(text, voice, pitch) {

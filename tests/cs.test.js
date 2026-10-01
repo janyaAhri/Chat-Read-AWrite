@@ -1301,7 +1301,14 @@ const REPLY = `<think>วางแผน</think>
           R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(500);
           const gen = calls.filter(c => /edge-tts\/generate/.test(c.url));
           ok(gen.length >= 2 && gen[0].b.voice === 'th-TH-PremwadeeNeural' && gen.some(c => /th-TH-(Achara|Niwat)Neural/.test(c.b.voice)) && socks.length === 0 && played.length >= 2 && G.ev('csTtsFail') === '', '1.40.5: SillyTavern Edge TTS plugin installed → voices come through the server, no direct socket', [gen.length, socks.length, played.length]);
-          G.ev("csTtsStop(); csCloseReader(true); csOpenSettings('sound')");
+          // ปลั๊กอินเงียบ (ไม่ตอบเลย) → ไม่ค้าง: หมดเวลาแล้วสลับเสียงเครื่อง
+          { const f1 = G.w.fetch; G.w.fetch = (url, o) => /edge-tts\/generate/.test(String(url)) ? new Promise(() => {}) : f1(url, o);
+            G.ev("csTtsStop(); csTtsCache.clear(); csTtsFail = ''; window.__realST = setTimeout; csCloseReader(true); csOpenMessage(" + rid + ")");
+            const st0 = G.w.setTimeout; G.w.setTimeout = (fn, ms, ...a) => st0(fn, ms >= 10000 ? 30 : ms, ...a);
+            R().querySelector('.cs-menu [data-cs="tts"]').click(); await sleep(400);
+            G.w.setTimeout = st0; G.w.fetch = f1;
+            ok(G.ev('csTtsFail') === 'edge', '1.40.6: Edge plugin never answers → times out and falls back (reading does not hang)', G.ev('csTtsFail')); }
+          G.ev("csTtsStop(); csCloseReader(true); csTtsFail = ''; csOpenSettings('sound')");
           ok(/ปลั๊กอิน Edge TTS/.test(G.d.getElementById('cs-settings').textContent), '1.40.5: settings say the plugin is being used');
           G.ev("csCloseSettings(); csEdgePlug = null"); G.w.__plug = false;
           G.ev("csOpenSettings('sound')"); await sleep(20);
